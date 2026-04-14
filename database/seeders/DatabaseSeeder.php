@@ -19,10 +19,11 @@ class DatabaseSeeder extends Seeder
     {
         $adminRole = Rol::create(['type' => RoleType::Admin]);
 
-        User::factory()->create([
+        $user = User::factory()->create([
             'name' => 'Test User',
             'email' => 'test@example.com',
-            'role_id' => $adminRole->id,
         ]);
+
+        $user->roles()->attach($adminRole->id);
     }
 }
