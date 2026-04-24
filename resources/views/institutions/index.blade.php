@@ -7,7 +7,19 @@
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 <body class="bg-slate-100 min-h-screen">
-    
+    <div class="flex justify-end p-4">
+        <form method="POST" action="{{ route('logout') }}">
+            @csrf
+            <button 
+                type="submit"
+                class="flex items-center justify-center w-10 h-10 rounded-full bg-red-100 hover:bg-red-200 text-red-600 transition w-12 h-12"
+                stroke-width="4"
+                title="Cerrar sesión"
+            >
+                ✕
+            </button>
+        </form>
+    </div>
     <div class="max-w-5xl mx-auto px-6 py-10">
         <div class="mb-6">
             <h1 class="text-3xl font-bold text-slate-800">Listado de Instituciones</h1>
