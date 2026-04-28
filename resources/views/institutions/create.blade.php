@@ -51,6 +51,45 @@
                     @enderror
                 </div>
 
+                <div class="border-t border-slate-200 pt-6">
+                    <h2 class="text-lg font-semibold text-slate-800 mb-4">Administrador inicial</h2>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Usuario</label>
+                            <input type="text" name="admin_name" value="{{ old('admin_name') }}"
+                                class="w-full border rounded-lg px-3 py-2">
+                            @error('admin_name')
+                                <p class="text-sm text-red-500">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Email</label>
+                            <input type="email" name="admin_email" value="{{ old('admin_email') }}"
+                                class="w-full border rounded-lg px-3 py-2">
+                            @error('admin_email')
+                                <p class="text-sm text-red-500">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Contraseña</label>
+                            <input type="password" name="admin_password"
+                                class="w-full border rounded-lg px-3 py-2">
+                            @error('admin_password')
+                                <p class="text-sm text-red-500">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Confirmar contraseña</label>
+                            <input type="password" name="admin_password_confirmation"
+                                class="w-full border rounded-lg px-3 py-2">
+                        </div>
+                    </div>
+                </div>
+
                 <div class="flex items-center gap-3">
                     <button
                         type="submit"

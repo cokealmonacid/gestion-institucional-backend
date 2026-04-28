@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Fillable(['name', 'email', 'password'])]
+#[Fillable(['name', 'email', 'password', 'institution_id'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -38,5 +38,10 @@ class User extends Authenticatable
     public function roles()
     {
         return $this->belongsToMany(Rol::class, 'role_user', 'user_id', 'role_id')->using(RoleUser::class)->withTimestamps();
+    }
+
+    public function institution()
+    {
+        return $this->belongsTo(\App\Models\Institution::class);
     }
 }
