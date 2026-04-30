@@ -42,6 +42,6 @@ class User extends Authenticatable
 
     public function institution()
     {
-        return $this->belongsTo(\App\Models\Institution::class);
+        return $this->belongsTo(Institution::class);
     }
 }

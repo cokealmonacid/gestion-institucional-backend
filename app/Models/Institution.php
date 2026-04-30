@@ -29,4 +29,9 @@ class Institution extends Model
     {
         return $this->hasMany(Tag::class, 'institution_id');
     }
+
+    public function users()
+    {
+        return $this->hasMany(User::class, 'institution_id');
+    }
 }
