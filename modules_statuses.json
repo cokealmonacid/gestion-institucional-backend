@@ -1,4 +1,5 @@
 {
     "Institution": true,
-    "Nodes": true
+    "Nodes": true,
+    "Documents": true
 }

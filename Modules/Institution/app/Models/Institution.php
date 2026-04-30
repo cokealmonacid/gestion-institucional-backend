@@ -2,9 +2,9 @@
 
 namespace Modules\Institution\Models;
 
-use App\Models\Document;
-use App\Models\Tag;
 use App\Models\User;
+use Modules\Documents\Models\Document;
+use Modules\Documents\Models\Tag;
 use Modules\Nodes\Models\Node;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;

@@ -4,6 +4,7 @@ namespace Modules\Nodes\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
+use Modules\Documents\Models\Document;
 use Modules\Institution\Models\Institution;
 
 class Node extends Model
@@ -41,6 +42,6 @@ class Node extends Model
 
     public function documents()
     {
-        return $this->hasMany(\App\Models\Document::class, 'node_id');
+        return $this->hasMany(Document::class, 'node_id');
     }
 }

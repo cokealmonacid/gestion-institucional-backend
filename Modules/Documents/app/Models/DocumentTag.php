@@ -1,7 +1,8 @@
 <?php
 
-namespace App\Models;
+namespace Modules\Documents\Models;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 
 class DocumentTag extends Model
