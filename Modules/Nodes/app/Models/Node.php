@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Models;
+namespace Modules\Nodes\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
@@ -41,6 +41,6 @@ class Node extends Model
 
     public function documents()
     {
-        return $this->hasMany(Document::class, 'node_id');
+        return $this->hasMany(\App\Models\Document::class, 'node_id');
     }
 }

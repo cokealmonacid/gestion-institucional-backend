@@ -3,9 +3,9 @@
 namespace Modules\Institution\Models;
 
 use App\Models\Document;
-use App\Models\Node;
 use App\Models\Tag;
 use App\Models\User;
+use Modules\Nodes\Models\Node;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 

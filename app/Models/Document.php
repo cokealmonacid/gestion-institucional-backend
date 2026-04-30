@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Modules\Institution\Models\Institution;
+use Modules\Nodes\Models\Node;
 
 class Document extends Model
 {
