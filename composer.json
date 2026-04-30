@@ -33,8 +33,7 @@
     "autoload-dev": {
         "psr-4": {
             "Tests\\": "tests/",
-            "App\\": "app/",
-            "Modules\\": "Modules/"   
+            "App\\": "app/"
         }
     },
     "scripts": {
@@ -76,6 +75,14 @@
     "extra": {
         "laravel": {
             "dont-discover": []
+        },
+        "merge-plugin": {
+            "include": [
+                "Modules/*/composer.json"
+            ],
+            "recurse": true,
+            "replace": false,
+            "merge-dev": false
         }
     },
     "config": {

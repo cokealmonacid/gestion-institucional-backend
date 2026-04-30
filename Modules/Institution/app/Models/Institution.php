@@ -1,7 +1,11 @@
 <?php
 
-namespace App\Models;
+namespace Modules\Institution\Models;
 
+use App\Models\Document;
+use App\Models\Node;
+use App\Models\Tag;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 
