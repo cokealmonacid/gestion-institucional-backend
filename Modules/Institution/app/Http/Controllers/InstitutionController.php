@@ -16,12 +16,12 @@ class InstitutionController extends Controller
     {
         $institutions = Institution::orderBy('name')->get();
 
-        return view('institutions.index', compact('institutions'));
+        return view('institution::index', compact('institutions'));
     }
 
     public function create()
     {
-        return view('institutions.create');
+        return view('institution::create');
     }
 
     public function store(Request $request)
@@ -62,7 +62,7 @@ class InstitutionController extends Controller
 
     public function edit(Institution $institution)
     {
-        return view('institutions.edit', compact('institution'));
+        return view('institution::edit', compact('institution'));
     }
 
     public function update(Request $request, Institution $institution)
