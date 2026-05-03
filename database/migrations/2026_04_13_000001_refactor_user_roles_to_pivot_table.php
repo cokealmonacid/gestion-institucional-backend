@@ -8,11 +8,6 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('users', function (Blueprint $table) {
-            $table->dropForeign(['role_id']);
-            $table->dropColumn('role_id');
-        });
-
         Schema::create('role_user', function (Blueprint $table) {
             $table->id();
             $table->foreignUuid('user_id')->constrained('users')->cascadeOnDelete();
