@@ -2,14 +2,21 @@
 
 namespace Modules\Nodes\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Modules\Documents\Models\Document;
 use Modules\Institution\Models\Institution;
+use Modules\Nodes\Database\Factories\NodesFactory;
 
 class Node extends Model
 {
-    use HasUuids;
+    use HasUuids, HasFactory;
+
+    protected static function newFactory(): NodesFactory
+    {
+        return NodesFactory::new();
+    }
 
     public $incrementing = false;
 

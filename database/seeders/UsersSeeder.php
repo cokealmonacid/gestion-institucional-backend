@@ -1,19 +1,23 @@
 <?php
 
-namespace Modules\Nodes\Database\Seeders;
+namespace Database\Seeders;
 
+use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
-use Modules\Nodes\Models\Node;
+use App\Models\User;
 
-class NodesDatabaseSeeder extends Seeder
+class UsersSeeder extends Seeder
 {
+    /**
+     * Run the database seeds.
+     */
     public function run(): void
     {
-
         $institutions = \Modules\Institution\Models\Institution::all();
-
+        
         foreach ($institutions as $institution) {
-            Node::factory(10)->create([
+            User::factory()->create([
+                'password' => '12345678',
                 'institution_id' => $institution->id,
             ]);
         }
