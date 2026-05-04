@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
             \Modules\Institution\Database\Seeders\InstitutionsDatabaseSeeder::class,
             UsersSeeder::class,
             \Modules\Nodes\Database\Seeders\NodesDatabaseSeeder::class,
+            \Modules\Documents\Database\Seeders\DocumentsDatabaseSeeder::class,
         ]);
     }
 }

@@ -2,13 +2,20 @@
 
 namespace Modules\Documents\Models;
 
+use Modules\Documents\Database\Factories\TagFactory;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Modules\Institution\Models\Institution;
 
 class Tag extends Model
 {
-    use HasUuids;
+    use HasUuids, HasFactory;
+
+    protected static function newFactory(): TagFactory
+    {
+        return TagFactory::new();
+    }
 
     public $incrementing = false;
 
