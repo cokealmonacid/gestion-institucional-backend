@@ -17,14 +17,18 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        $adminRole = Rol::create(['type' => RoleType::Admin]);
+        // $adminRole = Rol::create(['type' => RoleType::Admin]);
 
-        $user = User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-            'password' => '12345678',
+        // $user = User::factory()->create([
+        //     'name' => 'Test User',
+        //     'email' => 'test@example.com',
+        //     'password' => '12345678',
+        // ]);
+
+        // $user->roles()->attach($adminRole->id);
+
+        $this->call([
+            \Modules\Institution\Database\Seeders\InstitutionDatabaseSeeder::class,
         ]);
-
-        $user->roles()->attach($adminRole->id);
     }
 }
