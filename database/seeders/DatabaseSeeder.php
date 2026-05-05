@@ -17,13 +17,11 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        $adminRole = Rol::create(['type' => RoleType::Admin]);
-
-        $user = User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
+        $this->call([
+            \Modules\Institution\Database\Seeders\InstitutionsDatabaseSeeder::class,
+            UsersSeeder::class,
+            \Modules\Nodes\Database\Seeders\NodesDatabaseSeeder::class,
+            \Modules\Documents\Database\Seeders\DocumentsDatabaseSeeder::class,
         ]);
-
-        $user->roles()->attach($adminRole->id);
     }
 }

@@ -1,0 +1,48 @@
+<?php
+
+namespace Modules\Institution\Models;
+
+use App\Models\User;
+use Modules\Documents\Models\Document;
+use Modules\Documents\Models\Tag;
+use Modules\Nodes\Models\Node;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Modules\Institution\Database\Factories\InstitutionFactory;
+
+class Institution extends Model
+{
+    use HasUuids, HasFactory;
+
+    protected static function newFactory(): InstitutionFactory
+    {
+        return InstitutionFactory::new();
+    }
+
+    public $incrementing = false;
+
+    protected $table = 'institutions';
+
+    protected $fillable = ['name', 'status'];
+
+    public function nodes()
+    {
+        return $this->hasMany(Node::class, 'institution_id');
+    }
+
+    public function documents()
+    {
+        return $this->hasMany(Document::class, 'institution_id');
+    }
+
+    public function tags()
+    {
+        return $this->hasMany(Tag::class, 'institution_id');
+    }
+
+    public function users()
+    {
+        return $this->hasMany(User::class, 'institution_id');
+    }
+}
