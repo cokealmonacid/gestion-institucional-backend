@@ -6,6 +6,5 @@ use App\Http\Controllers\API\AuthController;
 
 Route::prefix('v1')->controller(AuthController::class)->group(function(){
     Route::post('login', 'login');
-
-    // Route::post('logout', 'logout')->middleware('auth:sanctum');
+    Route::post('logout', 'logout')->middleware('auth:sanctum');
 });
