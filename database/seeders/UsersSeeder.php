@@ -14,6 +14,12 @@ class UsersSeeder extends Seeder
     public function run(): void
     {
         $institutions = \Modules\Institution\Models\Institution::all();
+
+        User::factory()->create([
+            'email' => 'testapi@example.com',
+            'password' => '12345678',
+            'institution_id' => $institutions->first()->id,
+        ]);
         
         foreach ($institutions as $institution) {
             User::factory()->create([
