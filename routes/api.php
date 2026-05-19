@@ -3,6 +3,7 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\API\AuthController;
+use App\Http\Controllers\API\UsersController;
 
 Route::prefix('v1')->group(function () {
 
@@ -13,4 +14,7 @@ Route::prefix('v1')->group(function () {
         Route::post('reset-password-confirm', 'resetPassword');
     });
 
+    Route::prefix('user')->middleware('auth:sanctum')->controller(UsersController::class)->group(function () {
+        Route::get('profile', 'profile');
+    });
 });
