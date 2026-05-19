@@ -12,4 +12,21 @@ class UsersController extends BaseController
     {
         return new UserResource($request->user());
     }
+
+    public function updateProfile(Request $request)
+    {
+        $user = $request->user();
+
+        $validator = validator($request->all(), [
+            'name' => 'required|string|max:255'
+        ]);
+
+        if ($validator->fails()) {
+            return $this->sendError('Validation failed.', ['error' => $validator->errors()], 422);
+        }
+
+        $user->update($request->only('name'));
+
+        return new UserResource($user);
+    }
 }
