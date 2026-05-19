@@ -18,7 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
             if ($request->is('api/*')) {
                 return null;
             }
-            return route('login');
+            return route('home');
         });
     })
     ->withExceptions(function (Exceptions $exceptions): void {
