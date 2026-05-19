@@ -5,7 +5,11 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\BaseController;
 use App\Http\Resources\UserResource;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use App\Mail\ResetPasswordMail;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
+use App\Models\User;
 use Validator;
 
 class AuthController extends BaseController
@@ -43,5 +47,32 @@ class AuthController extends BaseController
         auth()->user()->tokens()->delete();
 
         return $this->sendResponse([], 'User logout successfully.');
+    }
+
+    public function sendResetLink(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|string|email|exists:users,email',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->sendError('Validation failed.', ['error'=> $validator->errors()], 422);
+        }
+
+        $user = User::whereEmail($request->email)->first();
+
+        $token = Str::random(60);
+
+        DB::table('password_reset_tokens')->updateOrInsert(
+            ['email' => $request->email],
+            [
+            'email' => $user->email,
+            'token' => $token,
+            'created_at' => now()
+        ]);
+
+        \Mail::to($user->email)->send(new ResetPasswordMail($token, $user->email));
+        
+        return $this->sendResponse([], 'We have emailed your password reset link.');
     }
 }
