@@ -4,12 +4,14 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\BaseController;
 use App\Http\Resources\UserResource;
+use App\Mail\ResetPasswordMail;
+use App\Models\User;
+use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use App\Mail\ResetPasswordMail;
-use Illuminate\Http\Request;
 use Illuminate\Support\Str;
-use App\Models\User;
 use Validator;
 
 class AuthController extends BaseController
@@ -74,5 +76,35 @@ class AuthController extends BaseController
         \Mail::to($user->email)->send(new ResetPasswordMail($token, $user->email));
         
         return $this->sendResponse([], 'We have emailed your password reset link.');
+    }
+
+    public function resetPassword(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'token' => 'required',
+            'password' => 'required|min:8|confirmed'
+        ]);
+
+        if ($validator->fails()) {
+            return $this->sendError('Validation failed.', ['error'=> $validator->errors()], 422);
+        }
+
+        $reset = DB::table('password_reset_tokens')->where('token', $request->token)->first();
+
+        if (!$reset) {
+            return $this->sendError('Invalid token.','', 400);
+        }
+
+        if (!$reset || Carbon::parse($reset->created_at)->addMinutes(60)->isPast()) {
+            return $this->sendError('Expired token.','', 400);
+        }
+
+        $user = User::whereEmail($reset->email)->first();
+        $user->update(['email_verified_at' => now(), 'password' => $request->password]);
+        $user->save();
+
+        DB::table('password_reset_tokens')->where('email', $user->email)->delete();
+
+        return $this->sendResponse([], 'Password has been reset successfully.');
     }
 }

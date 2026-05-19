@@ -9,5 +9,5 @@ Route::prefix('v1')->controller(AuthController::class)->group(function(){
     Route::post('logout', 'logout')->middleware('auth:sanctum');
 
     Route::post('forget-password', 'sendResetLink');
-    // Route::post('reset-password-confirm', 'resetPassword');
+    Route::post('reset-password-confirm', 'resetPassword');
 });
