@@ -1,8 +1,8 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use Modules\Nodos\Http\Controllers\NodosController;
+use Modules\Nodes\Http\Controllers\NodesController;
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::resource('nodes', NodosController::class)->names('nodes');
+    Route::resource('nodes', NodesController::class)->names('nodes');
 });
