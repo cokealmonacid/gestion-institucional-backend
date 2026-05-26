@@ -22,19 +22,18 @@ class TagsController extends BaseController
             return $this->sendError('Validation failed.', ['error'=> $validator->errors()], 422);
         }
 
-        $user = auth()->user();
-        if ($user->institution_id != $request->institution_id) {
-            return $this->sendError('Unauthorized.', [], 403);
-        }
-        
         try {
-            Tag::create([
+            $tag = Tag::create([
                 'name' => $request->name,
                 'description' => $request->description,
                 'institution_id' => $request->institution_id,
             ]);
 
-            return $this->sendResponse(null, 'Tag created successfully.');
+            return $this->sendResponse([
+                "id" => $tag->id,
+                "name" => $tag->name,
+                "description" => $tag->description,
+            ], 'Tag created successfully.');
         } catch (\Exception $e) {
             return $this->sendError('Something went wrong.', [], 500);
         }
@@ -43,7 +42,7 @@ class TagsController extends BaseController
     public function destroy(Request $request, $id)
     {
         $validator = Validator::make(array_merge($request->all(), ['id' => $id]), [
-            'id' => 'required|exists:comments,id',
+            'id' => 'required|exists:tags,id',
         ]);
 
         if ($validator->fails()) {

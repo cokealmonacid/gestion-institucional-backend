@@ -21,7 +21,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->controller(TreeDirectoryControl
     Route::delete('/institution/tree-directory/{node_id}', 'destroy');
 });
 
-Route::prefix('v1')->middleware('auth:sanctum')->controller(TagsController::class)->group(function(){
+Route::prefix('v1')->middleware(['auth:sanctum', 'user.institution'])->controller(TagsController::class)->group(function(){
     Route::post('/institution/tag', 'store');
-    Route::delete('/institution/tag/{node_id}', 'destroy');
+    Route::delete('/institution/tag/{tag_id}', 'destroy');
 });
