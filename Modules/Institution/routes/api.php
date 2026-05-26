@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Modules\Institution\Http\Controllers\API\InstitutionsController;
 use Modules\Institution\Http\Controllers\API\TreeDirectoryController;
+use Modules\Institution\Http\Controllers\API\TagsController;
 
 // Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
 //     Route::apiResource('institutions', InstitutionController::class)->names('institution');
@@ -18,4 +19,9 @@ Route::prefix('v1')->middleware('auth:sanctum')->controller(TreeDirectoryControl
     Route::get('/institution/tree-directory/{node_id}', 'show');
     Route::post('/institution/tree-directory/{node_id}', 'store');
     Route::delete('/institution/tree-directory/{node_id}', 'destroy');
+});
+
+Route::prefix('v1')->middleware('auth:sanctum')->controller(TagsController::class)->group(function(){
+    Route::post('/institution/tag', 'store');
+    Route::delete('/institution/tag/{node_id}', 'destroy');
 });

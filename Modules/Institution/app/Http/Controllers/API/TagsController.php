@@ -6,8 +6,9 @@ use App\Http\Controllers\BaseController;
 use App\Http\Controllers\Controller;
 use Modules\Institution\Models\Tag;
 use Illuminate\Http\Request;
+use Validator;
 
-class TagsController extends Controller
+class TagsController extends BaseController
 {
     public function store(Request $request)
     {
@@ -19,6 +20,11 @@ class TagsController extends Controller
 
         if ($validator->fails()) {
             return $this->sendError('Validation failed.', ['error'=> $validator->errors()], 422);
+        }
+
+        $user = auth()->user();
+        if ($user->institution_id != $request->institution_id) {
+            return $this->sendError('Unauthorized.', [], 403);
         }
         
         try {
