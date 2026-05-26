@@ -1,0 +1,15 @@
+info:
+  name: delete node
+  type: http
+  seq: 5
+
+http:
+  method: DELETE
+  url: "{{baseUrl}}/institution/tree-directory/019e40da-a55c-711e-8808-6a47a5f4b32a"
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
