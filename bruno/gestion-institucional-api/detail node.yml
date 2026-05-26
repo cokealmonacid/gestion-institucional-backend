@@ -1,0 +1,17 @@
+info:
+  name: detail node
+  type: http
+  seq: 3
+
+http:
+  method: GET
+  url: "{{baseUrl}}/institution/tree-directory/019e40ad-2c97-7379-af34-52b737fc0e9b"
+  auth:
+    type: bearer
+    token: "{{token}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
