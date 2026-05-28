@@ -10,21 +10,26 @@ use Modules\Nodes\Models\Node;
 
 class TreeDirectoryController extends BaseController
 {
-    private function baseNodeQuery(Request $request): Builder
+    private function activeNodeQuery(Request $request): Builder
     {
         $institutionId = $request->user()->institution_id;
 
-        return Node::withExists(['children as has_children' => function ($query) use ($institutionId) {
-            $query->where('institution_id', $institutionId);
-            $query->where('active', true);
-        }])
-            ->where('institution_id', $institutionId)
+        return $this->institutionNodeQuery($request)
+            ->withExists(['children as has_children' => function ($query) use ($institutionId) {
+                $query->where('institution_id', $institutionId);
+                $query->where('active', true);
+            }])
             ->where('active', true);
+    }
+
+    private function institutionNodeQuery(Request $request): Builder
+    {
+        return Node::where('institution_id', $request->user()->institution_id);
     }
 
     public function index(Request $request)
     {
-        $nodes = $this->baseNodeQuery($request)
+        $nodes = $this->activeNodeQuery($request)
             ->whereNull('parent_id')
             ->orderBy('order')
             ->get();
@@ -34,7 +39,7 @@ class TreeDirectoryController extends BaseController
 
     public function show(Request $request, $node_id)
     {
-        $node = $this->baseNodeQuery($request)
+        $node = $this->activeNodeQuery($request)
             ->find($node_id);
 
         if (!$node) {
@@ -46,14 +51,14 @@ class TreeDirectoryController extends BaseController
 
     public function children(Request $request, $node_id)
     {
-        $parent = $this->baseNodeQuery($request)
+        $parent = $this->activeNodeQuery($request)
             ->find($node_id);
 
         if (!$parent) {
             return $this->sendError('Node not found.', [], 404);
         }
 
-        $nodes = $this->baseNodeQuery($request)
+        $nodes = $this->activeNodeQuery($request)
             ->where('parent_id', $parent->id)
             ->orderBy('order')
             ->get();
@@ -63,7 +68,7 @@ class TreeDirectoryController extends BaseController
 
     public function store(Request $request, $node_id)
     {
-        $parent = $this->baseNodeQuery($request)
+        $parent = $this->activeNodeQuery($request)
             ->find($node_id);
 
         if (!$parent) {
@@ -98,7 +103,7 @@ class TreeDirectoryController extends BaseController
 
     public function destroy(Request $request, $node_id)
     {
-        $node = $this->baseNodeQuery($request)
+        $node = $this->activeNodeQuery($request)
             ->find($node_id);
 
         if (!$node) {
@@ -111,5 +116,20 @@ class TreeDirectoryController extends BaseController
         $node->makeHidden('has_children');
 
         return $this->sendResponse($node, 'Tree directory node deactivated successfully.');
+    }
+
+    public function activate(Request $request, $node_id)
+    {
+        $node = $this->institutionNodeQuery($request)
+            ->find($node_id);
+
+        if (!$node) {
+            return $this->sendError('Node not found.', [], 404);
+        }
+
+        $node->active = true;
+        $node->save();
+
+        return $this->sendResponse($node, 'Tree directory node activated successfully.');
     }
 }
