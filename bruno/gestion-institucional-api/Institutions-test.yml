@@ -1,14 +1,12 @@
 info:
-  name: root
+  name: Institutions-test
   type: http
-  seq: 2
+  seq: 1
 
 http:
   method: GET
-  url: "{{API}}/institution/tree-directory"
-  auth:
-    type: bearer
-    token: "{{token}}"
+  url: "{{API}}/institutions"
+  auth: inherit
 
 settings:
   encodeUrl: true

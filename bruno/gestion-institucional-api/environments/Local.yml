@@ -1,0 +1,6 @@
+name: Local
+variables:
+  - secret: true
+    name: API
+  - secret: true
+    name: TOKEN
