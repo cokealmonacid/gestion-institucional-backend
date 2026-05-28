@@ -1,19 +1,20 @@
 info:
-  name: login
+  name: update-profile
   type: http
-  seq: 4
+  seq: 12
 
 http:
-  method: POST
-  url: "{{API}}/auth/login"
+  method: PUT
+  url: "{{API}}/user/profile"
   body:
     type: json
     data: |-
       {
-        "email": "testapi@example.com",
-        "password": "12345678"
+        "name": "testname"
       }
-  auth: inherit
+  auth:
+    type: bearer
+    token: "{{TOKEN}}"
 
 settings:
   encodeUrl: true

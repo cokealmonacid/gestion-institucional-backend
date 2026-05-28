@@ -1,11 +1,11 @@
 info:
   name: new children
   type: http
-  seq: 4
+  seq: 8
 
 http:
   method: POST
-  url: "{{baseUrl}}/institution/tree-directory/019e40ad-2c97-7379-af34-52b737fc0e9b"
+  url: "{{API}}/institution/tree-directory/019e40ad-2c97-7379-af34-52b737fc0e9b"
   body:
     type: json
     data: |-

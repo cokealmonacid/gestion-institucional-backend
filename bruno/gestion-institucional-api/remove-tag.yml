@@ -1,0 +1,23 @@
+info:
+  name: remove-tag
+  type: http
+  seq: 14
+
+http:
+  method: DELETE
+  url: "{{API}}/institution/tag/019e6530-7e7f-72cd-8116-21025a7964e0"
+  body:
+    type: json
+    data: |-
+      {
+        "institution_id": "019e3c04-cda7-717e-9ac5-33c4fef8c326"
+      }
+  auth:
+    type: bearer
+    token: "{{TOKEN}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
