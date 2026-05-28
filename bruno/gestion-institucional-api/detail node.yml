@@ -5,7 +5,7 @@ info:
 
 http:
   method: GET
-  url: "{{API}}/institution/tree-directory/019e40ad-2c97-7379-af34-52b737fc0e9b"
+  url: "{{API}}/institution/tree-directory/019e40b0-7a6d-734d-a2a5-5488af5115f8"
   auth:
     type: bearer
     token: "{{token}}"
