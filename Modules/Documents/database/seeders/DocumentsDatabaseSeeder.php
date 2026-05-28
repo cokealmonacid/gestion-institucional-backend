@@ -11,8 +11,6 @@ class DocumentsDatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        $this->call([
-            TagsSeeder::class
-        ]);
+
     }
 }

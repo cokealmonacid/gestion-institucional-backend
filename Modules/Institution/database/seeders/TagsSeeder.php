@@ -1,8 +1,8 @@
 <?php
 
-namespace Modules\Documents\Database\Seeders;
+namespace Modules\Institution\Database\Seeders;
 
-use Modules\Documents\Models\Tag;
+use Modules\Institution\Models\Tag;
 use Illuminate\Database\Seeder;
 
 class TagsSeeder extends Seeder

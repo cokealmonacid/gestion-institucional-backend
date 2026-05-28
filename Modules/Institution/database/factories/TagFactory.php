@@ -1,6 +1,6 @@
 <?php
 
-namespace Modules\Documents\Database\Factories;
+namespace Modules\Institution\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -9,7 +9,7 @@ class TagFactory extends Factory
     /**
      * The name of the factory's corresponding model.
      */
-    protected $model = \Modules\Documents\Models\Tag::class;
+    protected $model = \Modules\Institution\Models\Tag::class;
 
     /**
      * Define the model's default state.
