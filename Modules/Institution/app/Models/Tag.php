@@ -4,7 +4,7 @@ namespace Modules\Institution\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Modules\Documents\Database\Factories\TagFactory;
+use Modules\Institution\Database\Factories\TagFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Modules\Institution\Models\Institution;
 
