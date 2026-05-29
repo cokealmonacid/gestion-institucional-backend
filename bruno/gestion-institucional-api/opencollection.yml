@@ -20,6 +20,8 @@ request:
       value: http://127.0.0.1:8000/api/v1
     - name: token
       value: 2|zNCTXKr5MJyWDOSycT0t3eovcrdkfUJCtve84mMD749e430c
+    - name: API
+      value: http://127.0.0.1:8000/api/v1
 bundled: false
 extensions:
   bruno:

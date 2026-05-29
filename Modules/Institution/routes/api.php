@@ -19,6 +19,7 @@ Route::prefix('v1')->middleware('auth:sanctum')->controller(TreeDirectoryControl
     Route::get('/institution/tree-directory/{node_id}', 'show');
     Route::post('/institution/tree-directory/{node_id}', 'store');
     Route::delete('/institution/tree-directory/{node_id}', 'destroy');
+    Route::patch('/institution/tree-directory/{node_id}/activate', 'activate');
 });
 
 Route::prefix('v1')->middleware(['auth:sanctum', 'user.institution'])->controller(TagsController::class)->group(function(){

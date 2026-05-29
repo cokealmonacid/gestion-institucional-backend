@@ -1,11 +1,11 @@
 info:
-  name: delete node
+  name: activate node
   type: http
-  seq: 9
+  seq: 15
 
 http:
-  method: DELETE
-  url: "{{API}}/institution/tree-directory/019e40b0-7a6d-734d-a2a5-5488af5115f8"
+  method: PATCH
+  url: "{{API}}/institution/tree-directory/019e40b0-7a6d-734d-a2a5-5488af5115f8/activate"
   auth:
     type: bearer
     token: "{{token}}"
