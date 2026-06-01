@@ -4,6 +4,7 @@ namespace Modules\Documents\Models;
 
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
+use Modules\Institution\Models\Tag;
 
 class DocumentTag extends Model
 {
