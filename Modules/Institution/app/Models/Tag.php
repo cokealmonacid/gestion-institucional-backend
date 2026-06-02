@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Modules\Institution\Database\Factories\TagFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Modules\Institution\Models\Institution;
+use Modules\Documents\Models\Document;
 
 class Tag extends Model
 {
@@ -38,4 +39,3 @@ class Tag extends Model
             ->withTimestamps();
     }
 }
-

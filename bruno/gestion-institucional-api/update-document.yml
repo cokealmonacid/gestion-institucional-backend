@@ -1,0 +1,25 @@
+info:
+  name: update-document
+  type: http
+  seq: 19
+
+http:
+  method: PATCH
+  url: "{{API}}/documents/019e83d3-8dbd-7204-8754-f45d3b484814"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Reglamento interno actualizado",
+        "description": "Descripción actualizada",
+        "responsible_unit": "Dir"
+      }
+  auth:
+    type: bearer
+    token: "{{token}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

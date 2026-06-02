@@ -1,0 +1,17 @@
+info:
+  name: document detail
+  type: http
+  seq: 18
+
+http:
+  method: GET
+  url: "{{API}}/documents/019e83d3-8dbd-7204-8754-f45d3b484814"
+  auth:
+    type: bearer
+    token: "{{token}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

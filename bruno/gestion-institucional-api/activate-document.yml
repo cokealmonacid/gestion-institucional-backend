@@ -1,0 +1,17 @@
+info:
+  name: activate-document
+  type: http
+  seq: 21
+
+http:
+  method: PATCH
+  url: "{{API}}/documents/019e83d3-8dbd-7204-8754-f45d3b484814/activate"
+  auth:
+    type: bearer
+    token: "{{token}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

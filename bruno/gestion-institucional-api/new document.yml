@@ -1,0 +1,26 @@
+info:
+  name: new document
+  type: http
+  seq: 16
+
+http:
+  method: POST
+  url: "{{API}}/institution/tree-directory/019e40b0-7a6d-734d-a2a5-5488af5115f8/documents"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Reglamento 2026",
+        "description": "Documento base institucional",
+        "category": "Normativa",
+        "responsible_unit": "Dirección"
+      }
+  auth:
+    type: bearer
+    token: "{{token}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

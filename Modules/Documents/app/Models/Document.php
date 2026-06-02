@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Modules\Institution\Models\Institution;
+use Modules\Institution\Models\Tag;
 use Modules\Nodes\Models\Node;
 
 class Document extends Model
@@ -25,6 +26,10 @@ class Document extends Model
         'author_id',
         'institution_id',
         'node_id',
+    ];
+
+    protected $casts = [
+        'status' => 'boolean',
     ];
 
     public function author()
