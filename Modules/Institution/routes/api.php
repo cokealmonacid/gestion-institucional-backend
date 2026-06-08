@@ -5,6 +5,7 @@ use Modules\Institution\Http\Controllers\API\InstitutionsController;
 use Modules\Institution\Http\Controllers\API\TreeDirectoryController;
 use Modules\Institution\Http\Controllers\API\TagsController;
 
+
 // Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
 //     Route::apiResource('institutions', InstitutionController::class)->names('institution');
 // });

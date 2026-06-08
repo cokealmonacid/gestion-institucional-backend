@@ -13,3 +13,9 @@ Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
         Route::patch('/documents/{document_id}/activate', 'activate');
     });
 });
+
+Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
+    Route::controller(DocumentsController::class)->group(function () {
+        Route::get('/documents/{document_id}/download', 'download');
+    });
+});

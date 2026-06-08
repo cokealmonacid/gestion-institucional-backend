@@ -3,7 +3,7 @@
 namespace Modules\Institution\Providers;
 
 use Illuminate\Foundation\Support\Providers\RouteServiceProvider as ServiceProvider;
-use Modules\Institution\Http\Middleware\UserBelongsInstitution;
+use App\Http\Middleware\UserBelongsInstitution;
 use Illuminate\Support\Facades\Route;
 
 class RouteServiceProvider extends ServiceProvider
