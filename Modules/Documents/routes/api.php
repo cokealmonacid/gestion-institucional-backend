@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Modules\Documents\Http\Controllers\API\DocumentsController;
+use Modules\Documents\Http\Controllers\API\DocumentTagsController;
 
 Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
     Route::controller(DocumentsController::class)->group(function () {
@@ -12,4 +13,16 @@ Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
         Route::delete('/documents/{document_id}', 'destroy');
         Route::patch('/documents/{document_id}/activate', 'activate');
     });
+});
+
+Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
+    Route::controller(DocumentsController::class)->group(function () {
+        Route::get('/documents/{document_id}/download', 'download');
+    });
+});
+
+Route::prefix('v1')->middleware(['auth:sanctum', 'user.institution'])->controller(DocumentTagsController::class)->group(function(){
+    Route::post('institution/document/{document_id}/tags', 'store');
+    Route::patch('institution/document/{document_id}/tags', 'update');
+    Route::delete('institution/document/{document_id}/tags', 'destroy');
 });

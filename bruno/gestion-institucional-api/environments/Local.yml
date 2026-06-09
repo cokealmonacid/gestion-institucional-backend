@@ -4,3 +4,9 @@ variables:
     name: API
   - secret: true
     name: TOKEN
+  - name: INSTITUTION_ID
+    value: '"00000000-0000-0000-0000-000000000001"'
+  - name: DOCUMENT_ID
+    value: 00000000-0000-0000-0000-000000000002
+  - name: TAG_ID
+    value: '"00000000-0000-0000-0000-000000000003"'
