@@ -13,6 +13,12 @@ class InstitutionsDatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        Institution::factory([
+            'id' => '00000000-0000-0000-0000-000000000001',
+            'name' => 'Test institution',
+            'status' => true
+        ])->create();
+
         Institution::factory(10)->create();
         $this->call(TagsSeeder::class);
     }

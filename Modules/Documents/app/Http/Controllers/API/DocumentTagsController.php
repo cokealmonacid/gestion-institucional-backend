@@ -2,18 +2,20 @@
 
 namespace Modules\Documents\Http\Controllers\API;
 
-use App\Http\Controllers\Controller;
+use App\Http\Controllers\BaseController;
 use Modules\Documents\Models\Document;
 use Modules\Documents\Models\DocumentTag;
 use Modules\Institution\Models\Tag;
+use Illuminate\Validation\Rule;
 use Illuminate\Http\Request;
+use Validator;
 
-class DocumentTagsController extends Controller
+class DocumentTagsController extends BaseController
 {
     public function store(Request $request, $document_id) 
     {
         $validator = Validator::make(array_merge($request->all(), ['document_id' => $document_id]), [
-            'document_id' => 'required|exists:document,id',
+            'document_id' => 'required|exists:documents,id',
             'tag_id' => 'required|exists:tags,id',
         ]);
 
@@ -47,11 +49,10 @@ class DocumentTagsController extends Controller
         $validator = Validator::make(
             array_merge($request->all(), ['document_id' => $document_id]),
             [
-                'document_id' => 'required|exists:document,id',
+                'document_id' => 'required|exists:documents,id',
                 'tags_id' => 'required|array|min:1',
                 'tags_id.*' => [
                     'required',
-                    'integer',
                     'distinct',
                     Rule::exists('tags', 'id')
                         ->where('institution_id', $institution_id),
@@ -90,7 +91,7 @@ class DocumentTagsController extends Controller
     public function destroy(Request $request, $document_id) 
     {
         $validator = Validator::make(array_merge($request->all(), ['document_id' => $document_id]), [
-            'document_id' => 'required|exists:document,id',
+            'document_id' => 'required|exists:documents,id',
             'tag_id' => 'required|exists:tags,id',
         ]);
 
