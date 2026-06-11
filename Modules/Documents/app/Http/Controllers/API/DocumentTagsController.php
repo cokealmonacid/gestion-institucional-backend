@@ -27,7 +27,13 @@ class DocumentTagsController extends BaseController
     {
         $validator = Validator::make(array_merge($request->all(), ['document_id' => $document_id]), [
             'document_id' => ['required', $this->institutionDocumentRule($request)],
-            'tag_id' => ['required', $this->institutionTagRule($request)],
+            'tag_id' => [
+                'required',
+                $this->institutionTagRule($request),
+                Rule::unique('document_tags', 'tag_id')->where('document_id', $document_id),
+            ],
+        ], [
+            'tag_id.unique' => 'Tag already assigned to Document.',
         ]);
 
         if ($validator->fails()) {
@@ -67,19 +73,17 @@ class DocumentTagsController extends BaseController
         }
 
         try {
-            foreach ($request->tags_id as $tag_id) {
-                DocumentTag::firstOrCreate(
-                    [
-                        'document_id' => $document_id,
-                        'tag_id' => $tag_id,
-                    ],
-                    [
-                        'assigned_by_id' => auth()->id(),
-                    ]
-                );
-            }
+            DocumentTag::where('document_id', $document_id)->delete();
 
-            return $this->sendResponse(null, 'Tag added successfully.');
+            $tags = array_map(fn($tag_id) => [
+                'document_id' => $document_id,
+                'tag_id' => $tag_id,
+                'assigned_by_id' => auth()->id(),
+            ], $request->tags_id);
+
+            DocumentTag::insert($tags);
+
+            return $this->sendResponse(null, 'Tags updated successfully.');
         } catch (\Exception $e) {
             return $this->sendError('Something went wrong.', [], 500);
         }
