@@ -1,0 +1,17 @@
+info:
+  name: current document version
+  type: http
+  seq: 26
+
+http:
+  method: PATCH
+  url: "{{API}}/documents/{{document_id}}/versions/{{version_id}}/current"
+  auth:
+    type: bearer
+    token: "{{token}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
