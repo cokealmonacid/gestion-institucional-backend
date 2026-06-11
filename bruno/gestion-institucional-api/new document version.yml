@@ -12,10 +12,10 @@ http:
       - name: file
         type: file
         value:
-          - C:\Users\ASESORES\Downloads\comprobante (2).pdf
+          - C:\Users\ASESORES\Downloads\logocuqgestion.png
       - name: comment
         type: text
-        value: versión inicial
+        value: otro prueba
   auth:
     type: bearer
     token: "{{token}}"

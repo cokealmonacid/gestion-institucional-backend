@@ -5,7 +5,7 @@ info:
 
 http:
   method: DELETE
-  url: "{{API}}/documents/019e83d7-a123-7089-8f91-027610a8a1c8/versions/ae76e3ea-369c-4f09-bca5-5ec4fffe7a37"
+  url: "{{API}}/documents/019e83d7-a123-7089-8f91-027610a8a1c8/versions/f5290097-df4f-4293-b51b-d91ec08de981"
   auth:
     type: bearer
     token: "{{token}}"
