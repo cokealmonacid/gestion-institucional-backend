@@ -13,21 +13,17 @@ Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
         Route::patch('/documents/{document_id}', 'update');
         Route::delete('/documents/{document_id}', 'destroy');
         Route::patch('/documents/{document_id}/activate', 'activate');
+        Route::get('/documents/{document_id}/download', 'download');
     });
 
     Route::controller(DocumentVersionsController::class)->group(function () {
         Route::get('/documents/{document_id}/versions', 'index');
         Route::post('/documents/{document_id}/versions', 'store');
         Route::get('/documents/{document_id}/versions/{version_id}', 'show');
+        Route::get('/documents/{document_id}/versions/{version_id}/download', 'download');
         Route::delete('/documents/{document_id}/versions/{version_id}', 'destroy');
         Route::patch('/documents/{document_id}/versions/{version_id}/activate', 'activate');
         Route::patch('/documents/{document_id}/versions/{version_id}/current', 'current');
-    });
-});
-
-Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
-    Route::controller(DocumentsController::class)->group(function () {
-        Route::get('/documents/{document_id}/download', 'download');
     });
 });
 

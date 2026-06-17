@@ -5,8 +5,11 @@ namespace Modules\Documents\Http\Controllers\API;
 use App\Http\Controllers\BaseController;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Modules\Documents\Models\Document;
+use Modules\Documents\Models\DocumentDownload;
+use Modules\Documents\Models\DocumentVersion;
 use Modules\Nodes\Models\Node;
 
 class DocumentsController extends BaseController
@@ -20,6 +23,25 @@ class DocumentsController extends BaseController
     {
         return Node::where('institution_id', $request->user()->institution_id)
             ->where('active', true);
+    }
+
+    private function downloadVersion(Request $request, Document $document, DocumentVersion $version)
+    {
+        $disk = Storage::disk(config('filesystems.default'));
+
+        if (!$version->url || !$disk->exists($version->url)) {
+            return $this->sendError('Document file not found.', [], 404);
+        }
+
+        DocumentDownload::create([
+            'document_id' => $document->id,
+            'document_version_id' => $version->id,
+            'user_id' => $request->user()->id,
+        ]);
+
+        return $disk->download($version->url, $version->filename, array_filter([
+            'Content-Type' => $version->mime_type,
+        ]));
     }
 
     public function indexByNode(Request $request, $node_id)
@@ -147,5 +169,28 @@ class DocumentsController extends BaseController
         $document->save();
 
         return $this->sendResponse($document, 'Document activated successfully.');
+    }
+
+    public function download(Request $request, $document_id)
+    {
+        $document = $this->institutionDocumentQuery($request)
+            ->where('status', true)
+            ->find($document_id);
+
+        if (!$document) {
+            return $this->sendError('Document not found.', [], 404);
+        }
+
+        $version = $document->versions()
+            ->where('institution_id', $document->institution_id)
+            ->where('active', true)
+            ->where('is_current', true)
+            ->first();
+
+        if (!$version) {
+            return $this->sendError('Current document version not found.', [], 404);
+        }
+
+        return $this->downloadVersion($request, $document, $version);
     }
 }

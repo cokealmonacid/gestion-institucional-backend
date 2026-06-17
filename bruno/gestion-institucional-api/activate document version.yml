@@ -5,7 +5,7 @@ info:
 
 http:
   method: PATCH
-  url: "{{API}}/documents/019e83d7-a123-7089-8f91-027610a8a1c8/versions/f5290097-df4f-4293-b51b-d91ec08de981/activate"
+  url: "{{API}}/documents/019e83d7-a123-7089-8f91-027610a8a1c8/versions/9136a553-79e5-4759-9cb4-3c5561c1e409/activate"
   auth:
     type: bearer
     token: "{{token}}"

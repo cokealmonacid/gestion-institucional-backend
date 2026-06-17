@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Modules\Documents\Models\Document;
+use Modules\Documents\Models\DocumentDownload;
 use Modules\Documents\Models\DocumentVersion;
 
 class DocumentVersionsController extends BaseController
@@ -36,6 +37,25 @@ class DocumentVersionsController extends BaseController
             ->where('institution_id', $document->institution_id)
             ->lockForUpdate()
             ->firstOrFail();
+    }
+
+    private function downloadVersion(Request $request, Document $document, DocumentVersion $version)
+    {
+        $disk = Storage::disk(config('filesystems.default'));
+
+        if (!$version->url || !$disk->exists($version->url)) {
+            return $this->sendError('Document file not found.', [], 404);
+        }
+
+        DocumentDownload::create([
+            'document_id' => $document->id,
+            'document_version_id' => $version->id,
+            'user_id' => $request->user()->id,
+        ]);
+
+        return $disk->download($version->url, $version->filename, array_filter([
+            'Content-Type' => $version->mime_type,
+        ]));
     }
 
     public function index(Request $request, $document_id)
@@ -251,5 +271,26 @@ class DocumentVersionsController extends BaseController
         }
 
         return $this->sendResponse($version, 'Document version marked as current successfully.');
+    }
+
+    public function download(Request $request, $document_id, $version_id)
+    {
+        $document = $this->institutionDocumentQuery($request)
+            ->where('status', true)
+            ->find($document_id);
+
+        if (!$document) {
+            return $this->sendError('Document not found.', [], 404);
+        }
+
+        $version = $this->documentVersionQuery($document)
+            ->where('active', true)
+            ->find($version_id);
+
+        if (!$version) {
+            return $this->sendError('Active document version not found.', [], 404);
+        }
+
+        return $this->downloadVersion($request, $document, $version);
     }
 }
