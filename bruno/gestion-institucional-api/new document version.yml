@@ -1,0 +1,27 @@
+info:
+  name: new document version
+  type: http
+  seq: 22
+
+http:
+  method: POST
+  url: "{{API}}/documents/019e83d7-a123-7089-8f91-027610a8a1c8/versions"
+  body:
+    type: multipart-form
+    data:
+      - name: file
+        type: file
+        value:
+          - C:\Users\ASESORES\Downloads\logocuqgestion.png
+      - name: comment
+        type: text
+        value: otro prueba
+  auth:
+    type: bearer
+    token: "{{token}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

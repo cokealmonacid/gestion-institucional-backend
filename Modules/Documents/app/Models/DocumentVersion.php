@@ -23,10 +23,19 @@ class DocumentVersion extends Model
         'mime_type',
         'file_size',
         'comment',
+        'active',
+        'is_current',
         'author_id',
         'document_id',
         'institution_id',
         'node_id',
+    ];
+
+    protected $casts = [
+        'version_number' => 'integer',
+        'file_size' => 'integer',
+        'active' => 'boolean',
+        'is_current' => 'boolean',
     ];
 
     public function document()

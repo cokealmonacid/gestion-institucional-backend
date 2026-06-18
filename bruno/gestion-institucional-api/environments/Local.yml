@@ -4,9 +4,14 @@ variables:
     name: API
   - secret: true
     name: TOKEN
+<<<<<<< HEAD
+  - name: document_id
+    value: 019e83d7-a123-7089-8f91-027610a8a1c8
+=======
   - name: INSTITUTION_ID
     value: '"00000000-0000-0000-0000-000000000001"'
   - name: DOCUMENT_ID
     value: 00000000-0000-0000-0000-000000000002
   - name: TAG_ID
     value: '"00000000-0000-0000-0000-000000000003"'
+>>>>>>> develop

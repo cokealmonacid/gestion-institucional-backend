@@ -1,0 +1,17 @@
+info:
+  name: delete document version
+  type: http
+  seq: 24
+
+http:
+  method: DELETE
+  url: "{{API}}/documents/019e83d7-a123-7089-8f91-027610a8a1c8/versions/9136a553-79e5-4759-9cb4-3c5561c1e409"
+  auth:
+    type: bearer
+    token: "{{token}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
