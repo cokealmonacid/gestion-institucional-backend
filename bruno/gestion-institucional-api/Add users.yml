@@ -1,0 +1,28 @@
+info:
+  name: Add users
+  type: http
+  seq: 33
+
+http:
+  method: POST
+  url: "{{API}}/institution/users"
+  body:
+    type: json
+    data: |-
+      {
+        "institution_id": {{INSTITUTION_ID}}
+      }
+  auth:
+    type: bearer
+    token: "{{TOKEN}}"
+
+runtime:
+  variables:
+    - name: INSTITUTION_ID
+      value: '"00000000-0000-0000-0000-000000000001"'
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
