@@ -1,20 +1,19 @@
 info:
-  name: Update user
+  name: Update user rol
   type: http
-  seq: 34
+  seq: 35
 
 http:
   method: PATCH
-  url: "{{API}}/institution/users"
+  url: "{{API}}/institution/users/role"
   body:
     type: json
     data: |-
       {
         "institution_id": {{INSTITUTION_ID}},
-        "name": "test-user",
-        "email": "uwisoky@example.com",
-        "password": 87654321,
-        "password_confirmation": 87654321
+        "email": "es@example.com",
+        "role": "admin",
+        "old_role": "admin"
       }
   auth:
     type: bearer

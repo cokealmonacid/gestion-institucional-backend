@@ -85,4 +85,45 @@ class UsersController extends BaseController
             return $this->sendError('Something went wrong.', [], 500);
         }
     }
+
+    public function updateRole(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|string|email|exists:users,email',
+            'role' => ['required', Rule::enum(RoleType::class), 'different:old_role'],
+            'old_role' => ['required', Rule::enum(RoleType::class)],
+            'institution_id' => [
+                'required',
+                'exists:institutions,id',
+                function ($attribute, $value, $fail) use ($request) {
+                    $user = User::whereEmail($request->email)->first();
+                    if ($user && $user->institution_id != $value) {
+                        $fail('User does not belong to this institution.');
+                    }
+                },
+            ],
+        ]);
+
+        if ($validator->fails()) {
+            return $this->sendError('Validation failed.', ['error'=> $validator->errors()], 422);
+        }
+
+        try {
+            $user = User::whereEmail($request->email)->first();
+            $rol = Rol::whereType($request->role)->first();
+
+            RoleUser::where('user_id', $user->id)
+                ->where('role_id', Rol::whereType($request->old_role)->first()->id)
+                ->delete();
+
+            RoleUser::firstOrCreate([
+                'user_id' => $user->id,
+                'role_id' => $rol->id,
+            ]);
+
+            return $this->sendResponse([], 'Role updated successfully.');
+        } catch (\Exception $e) {
+            return $this->sendError('Something went wrong.', [], 500);
+        }
+    }
 }
