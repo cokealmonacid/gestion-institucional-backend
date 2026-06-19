@@ -28,6 +28,6 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'user.institution'])->controlle
     Route::delete('/institution/tag/{tag_id}', 'destroy');
 });
 
-Route::prefix('v1')->middleware(['auth:sanctum', 'user.institution'])->controller(UsersController::class)->group(function(){
+Route::prefix('v1')->middleware(['auth:sanctum', 'user.institution', 'isAdmin'])->controller(UsersController::class)->group(function(){
     Route::post('/institution/users', 'store');
 });

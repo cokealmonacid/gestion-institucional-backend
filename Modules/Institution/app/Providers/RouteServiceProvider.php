@@ -4,6 +4,7 @@ namespace Modules\Institution\Providers;
 
 use Illuminate\Foundation\Support\Providers\RouteServiceProvider as ServiceProvider;
 use App\Http\Middleware\UserBelongsInstitution;
+use App\Http\Middleware\IsAdmin;
 use Illuminate\Support\Facades\Route;
 
 class RouteServiceProvider extends ServiceProvider
@@ -18,6 +19,7 @@ class RouteServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->app['router']->aliasMiddleware('user.institution', UserBelongsInstitution::class);
+        $this->app['router']->aliasMiddleware('isAdmin', IsAdmin::class);
 
         parent::boot();
     }

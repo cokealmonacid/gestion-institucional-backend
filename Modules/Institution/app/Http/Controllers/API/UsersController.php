@@ -3,8 +3,11 @@
 namespace Modules\Institution\Http\Controllers\API;
 
 use App\Http\Controllers\BaseController;
+use Illuminate\Validation\Rule;
+use App\Enums\RoleType;
 use Illuminate\Http\Request;
 use App\Models\User;
+use Illuminate\Support\Facades\Log;
 use Validator;
 
 class UsersController extends BaseController
@@ -17,6 +20,7 @@ class UsersController extends BaseController
             'password' => 'required|min:8',
             'password_confirmation' => 'required|same:password',
             'institution_id' => 'required|exists:institutions,id',
+            'rol' => ['required', Rule::enum(RoleType::class)],
         ]);
 
         if ($validator->fails()) {
