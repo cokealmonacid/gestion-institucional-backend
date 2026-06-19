@@ -53,7 +53,17 @@ class UsersController extends BaseController
             'email' => 'required|string|email|exists:users,email',
             'name' => 'sometimes|required|string|max:255',
             'password' => 'sometimes|required|min:8',
-            'password_confirmation' => 'sometimes|required|same:password'
+            'password_confirmation' => 'sometimes|required|same:password',
+            'institution_id' => [
+                'required',
+                'exists:institutions,id',
+                function ($attribute, $value, $fail) use ($request) {
+                    $user = User::whereEmail($request->email)->first();
+                    if ($user && $user->institution_id != $value) {
+                        $fail('User does not belong to this institution.');
+                    }
+                },
+            ],
         ]);
 
         if ($validator->fails()) {
