@@ -4,10 +4,11 @@ namespace Modules\Institution\Http\Controllers\API;
 
 use App\Http\Controllers\BaseController;
 use Illuminate\Validation\Rule;
-use App\Enums\RoleType;
 use Illuminate\Http\Request;
+use App\Models\RoleUser;
+use App\Enums\RoleType;
 use App\Models\User;
-use Illuminate\Support\Facades\Log;
+use App\Models\Rol;
 use Validator;
 
 class UsersController extends BaseController
@@ -29,19 +30,48 @@ class UsersController extends BaseController
 
         try {
             $input = $request->all();
+            $rol = Rol::whereType($request->rol)->first();
             $input['password'] = bcrypt($input['password']);
 
             $user = User::create($input);
             $user->save();
 
-            return $this->sendResponse([], 'Account registered successfully.');
-        } catch (\Exception $e) {
-            Log::channel('auth')->error('User register error:', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'request' => $request->all(),
+            RoleUser::create([
+                'user_id' => $user->id,
+                'role_id' => $rol->id
             ]);
 
+            return $this->sendResponse([], 'Account registered successfully.');
+        } catch (\Exception $e) {
+            return $this->sendError('Something went wrong.', [], 500);
+        }
+    }
+
+    public function update(Request $request) 
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|string|email|exists:users,email',
+            'name' => 'sometimes|required|string|max:255',
+            'password' => 'sometimes|required|min:8',
+            'password_confirmation' => 'sometimes|required|same:password'
+        ]);
+
+        if ($validator->fails()) {
+            return $this->sendError('Validation failed.', ['error'=> $validator->errors()], 422);
+        }
+
+        try {
+            $user = User::whereEmail($request->email)->first();
+            $input = $request->all();
+
+            if (isset($input['password'])) {
+                $input['password'] = bcrypt($input['password']);
+            }
+
+            $user->update($input);
+
+            return $this->sendResponse([], 'Account updated successfully.');
+        } catch (\Exception $e) {
             return $this->sendError('Something went wrong.', [], 500);
         }
     }
