@@ -63,4 +63,9 @@ class Document extends Model
     {
         return $this->hasMany(DocumentDownload::class, 'document_id');
     }
+
+    public function commentHistories()
+    {
+        return $this->hasMany(DocumentVersionCommentHistory::class, 'document_id');
+    }
 }

@@ -62,4 +62,14 @@ class DocumentVersion extends Model
     {
         return $this->hasMany(DocumentDownload::class, 'document_version_id');
     }
+
+    public function commentHistories()
+    {
+        return $this->hasMany(DocumentVersionCommentHistory::class, 'document_version_id');
+    }
+
+    public function latestCommentHistory()
+    {
+        return $this->hasOne(DocumentVersionCommentHistory::class, 'document_version_id')->latestOfMany('created_at');
+    }
 }

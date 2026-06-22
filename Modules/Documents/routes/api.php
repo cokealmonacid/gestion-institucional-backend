@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Modules\Documents\Http\Controllers\API\DocumentsController;
+use Modules\Documents\Http\Controllers\API\DocumentVersionCommentsController;
 use Modules\Documents\Http\Controllers\API\DocumentVersionsController;
 use Modules\Documents\Http\Controllers\API\DocumentTagsController;
 
@@ -14,6 +15,12 @@ Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
         Route::delete('/documents/{document_id}', 'destroy');
         Route::patch('/documents/{document_id}/activate', 'activate');
         Route::get('/documents/{document_id}/download', 'download');
+    });
+
+    Route::controller(DocumentVersionCommentsController::class)->group(function () {
+        Route::get('/documents/{document_id}/versions/comments', 'index');
+        Route::get('/documents/{document_id}/versions/{version_id}/comments', 'history');
+        Route::patch('/documents/{document_id}/versions/{version_id}/comment', 'update');
     });
 
     Route::controller(DocumentVersionsController::class)->group(function () {
