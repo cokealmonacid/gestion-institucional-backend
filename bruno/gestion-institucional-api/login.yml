@@ -10,8 +10,8 @@ http:
     type: json
     data: |-
       {
-        "email": "ivoapi@test.cl",
-        "password": "Password123!"
+        "email": "testapi@example.com",
+        "password": "12345678"
       }
   auth: inherit
 
