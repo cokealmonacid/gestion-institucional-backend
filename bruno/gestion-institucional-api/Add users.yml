@@ -1,0 +1,33 @@
+info:
+  name: Add users
+  type: http
+  seq: 33
+
+http:
+  method: POST
+  url: "{{API}}/institution/users"
+  body:
+    type: json
+    data: |-
+      {
+        "institution_id": {{INSTITUTION_ID}},
+        "name": "test-user",
+        "email": "es@example.com",
+        "password": 12345678,
+        "password_confirmation": 12345678,
+        "rol": "editor"
+      }
+  auth:
+    type: bearer
+    token: 1|EBMJ9JEOyyTZXsZMz45Vvi7Hxq0cbP84k6grXBYd9ce30fc7
+
+runtime:
+  variables:
+    - name: INSTITUTION_ID
+      value: '"00000000-0000-0000-0000-000000000001"'
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

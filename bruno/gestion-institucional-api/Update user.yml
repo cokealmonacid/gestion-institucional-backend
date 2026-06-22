@@ -1,0 +1,32 @@
+info:
+  name: Update user
+  type: http
+  seq: 34
+
+http:
+  method: PATCH
+  url: "{{API}}/institution/users"
+  body:
+    type: json
+    data: |-
+      {
+        "institution_id": {{INSTITUTION_ID}},
+        "name": "test-user",
+        "email": "uwisoky@example.com",
+        "password": 87654321,
+        "password_confirmation": 87654321
+      }
+  auth:
+    type: bearer
+    token: 2|iYa26j41PjF3RowVyOzZ9z87lJh68M6Pj1KCyaygabc3b204
+
+runtime:
+  variables:
+    - name: INSTITUTION_ID
+      value: '"00000000-0000-0000-0000-000000000001"'
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
