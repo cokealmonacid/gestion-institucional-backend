@@ -16,13 +16,9 @@ config:
 
 request:
   variables:
-    - name: baseUrl
-      value: http://127.0.0.1:8000/api/v1
     - name: API
       value: http://127.0.0.1:8000/api/v1
-    - name: TOKEN
-      value: 1|MqOo3lbAk5CYT7Nu644j9AqUEmi4N36Ls0sjlPIqcd2a6358
-bundled: false
+  bundled: false
 extensions:
   bruno:
     ignore:

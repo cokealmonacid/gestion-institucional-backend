@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use BackedEnum;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -15,10 +16,19 @@ class UserResource extends JsonResource
     public function toArray(Request $request): array
     {
         return [
-            'name'                => $this->name,
-            'email'               => $this->email,
-            'token'               => $this->token,
-            'institution_id'        => $this->institution->id
+            'id' => $this->id,
+            'name' => $this->name,
+            'email' => $this->email,
+            'institution' => [
+                'id' => $this->institution->id,
+                'name' => $this->institution->name,
+            ],
+            'roles' => $this->roles
+                ->pluck('type')
+                ->map(fn (mixed $role): string => $role instanceof BackedEnum ? $role->value : (string) $role)
+                ->sort()
+                ->values()
+                ->all(),
         ];
     }
 }

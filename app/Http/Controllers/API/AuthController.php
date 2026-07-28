@@ -4,13 +4,14 @@ namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\BaseController;
 use App\Http\Resources\UserResource;
+use App\Http\Responses\ApiResponse;
 use App\Mail\ResetPasswordMail;
 use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Validator;
 
@@ -19,36 +20,53 @@ class AuthController extends BaseController
     public function login(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'email' => 'bail|required|string|email|exists:users,email',
-            'password' => 'required|min:8'
-        ], [
-            'email.exists' => 'The email does not exist in our records.',
+            'email' => 'required|string|email',
+            'password' => 'required|string',
         ]);
-        
+
         if ($validator->fails()) {
-            return $this->sendError('Validation failed.', ['error' => $validator->errors()], 422);
+            return ApiResponse::error(
+                'VALIDATION_ERROR',
+                'The given data was invalid.',
+                422,
+                $validator->errors()->toArray(),
+            );
         }
 
-        if (!Auth::attempt(['email' => $request['email'], 'password' => $request['password']])) {
-            return $this->sendError('Unauthorized', ['error' => 'The password is incorrect.'], 401);
+        $user = User::query()->where('email', $request->string('email')->toString())->first();
+
+        if (! $user || ! Hash::check($request->string('password')->toString(), $user->password) || ! $user->email_verified_at) {
+            return ApiResponse::error(
+                'AUTH_INVALID_CREDENTIALS',
+                'The provided credentials are invalid.',
+                401,
+            );
         }
 
-        $user = Auth::user();
-        if (!$user->email_verified_at) {
-            return $this->sendError('Unauthorized', ['error' => 'Your account is not verified.'], 401);
+        $user->load(['institution:id,name', 'roles:id,type']);
+
+        if (! $user->institution) {
+            return ApiResponse::error(
+                'AUTH_INSTITUTION_REQUIRED',
+                'A valid institution is required to access the application.',
+                403,
+            );
         }
 
-        $response = new UserResource($user);
-        $response['token'] = $user->createToken(($user->name ?? 'user') . '-AuthToken')->plainTextToken;
+        $userData = (new UserResource($user))->resolve($request);
+        $plainTextToken = $user->createToken(($user->name ?? 'user').'-AuthToken')->plainTextToken;
 
-        return $this->sendResponse($response, 'User login successfully.');
+        return ApiResponse::success([
+            'user' => $userData,
+            'token' => $plainTextToken,
+        ], 'Login successful.');
     }
 
-    public function logout()
+    public function logout(Request $request)
     {
-        auth()->user()->tokens()->delete();
+        $request->user()->currentAccessToken()->delete();
 
-        return $this->sendResponse([], 'User logout successfully.');
+        return ApiResponse::success(null, 'Logout successful.');
     }
 
     public function sendResetLink(Request $request)
@@ -58,7 +76,7 @@ class AuthController extends BaseController
         ]);
 
         if ($validator->fails()) {
-            return $this->sendError('Validation failed.', ['error'=> $validator->errors()], 422);
+            return $this->sendError('Validation failed.', ['error' => $validator->errors()], 422);
         }
 
         $user = User::whereEmail($request->email)->first();
@@ -68,13 +86,13 @@ class AuthController extends BaseController
         DB::table('password_reset_tokens')->updateOrInsert(
             ['email' => $request->email],
             [
-            'email' => $user->email,
-            'token' => $token,
-            'created_at' => now()
-        ]);
+                'email' => $user->email,
+                'token' => $token,
+                'created_at' => now(),
+            ]);
 
         \Mail::to($user->email)->send(new ResetPasswordMail($token, $user->email));
-        
+
         return $this->sendResponse([], 'We have emailed your password reset link.');
     }
 
@@ -82,21 +100,21 @@ class AuthController extends BaseController
     {
         $validator = Validator::make($request->all(), [
             'token' => 'required',
-            'password' => 'required|min:8|confirmed'
+            'password' => 'required|min:8|confirmed',
         ]);
 
         if ($validator->fails()) {
-            return $this->sendError('Validation failed.', ['error'=> $validator->errors()], 422);
+            return $this->sendError('Validation failed.', ['error' => $validator->errors()], 422);
         }
 
         $reset = DB::table('password_reset_tokens')->where('token', $request->token)->first();
 
-        if (!$reset) {
-            return $this->sendError('Invalid token.','', 400);
+        if (! $reset) {
+            return $this->sendError('Invalid token.', '', 400);
         }
 
-        if (!$reset || Carbon::parse($reset->created_at)->addMinutes(60)->isPast()) {
-            return $this->sendError('Expired token.','', 400);
+        if (! $reset || Carbon::parse($reset->created_at)->addMinutes(60)->isPast()) {
+            return $this->sendError('Expired token.', '', 400);
         }
 
         $user = User::whereEmail($reset->email)->first();

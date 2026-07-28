@@ -1,5 +1,6 @@
 # Secrets
 .env*
+environments/Local.yml
 
 # Dependencies
 node_modules

@@ -3,10 +3,14 @@
     "private": true,
     "type": "module",
     "scripts": {
+        "api:contract:check": "npm run api:contract:validate && npm run api:contract:test",
+        "api:contract:test": "php artisan test tests/Feature/Contracts/AuthenticationOpenApiTest.php tests/Feature/Api/AuthenticationContractTest.php tests/Feature/Api/AuthenticationRegressionTest.php",
+        "api:contract:validate": "redocly lint openapi/v1/authentication.json --extends=spec",
         "build": "vite build",
         "dev": "vite"
     },
     "devDependencies": {
+        "@redocly/cli": "2.40.0",
         "@tailwindcss/forms": "^0.5.2",
         "@tailwindcss/vite": "^4.2.2",
         "alpinejs": "^3.4.2",

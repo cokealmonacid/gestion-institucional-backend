@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Responses\ApiResponse;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -18,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
             if ($request->is('api/*')) {
                 return null;
             }
+
             return route('home');
         });
     })
@@ -31,6 +33,22 @@ return Application::configure(basePath: dirname(__DIR__))
         });
 
         $exceptions->render(function (AuthenticationException $e, Request $request) {
+            $usesAuthenticationContract = (
+                $request->isMethod('GET')
+                && $request->is('api/v1/user/profile')
+            ) || (
+                $request->isMethod('POST')
+                && $request->is('api/v1/auth/logout')
+            );
+
+            if ($usesAuthenticationContract) {
+                return ApiResponse::error(
+                    'AUTH_UNAUTHENTICATED',
+                    'Authentication is required.',
+                    401,
+                );
+            }
+
             if ($request->is('api/*')) {
                 return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
             }
