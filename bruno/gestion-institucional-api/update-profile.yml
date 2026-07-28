@@ -1,0 +1,23 @@
+info:
+  name: update-profile
+  type: http
+  seq: 12
+
+http:
+  method: PUT
+  url: "{{API}}/user/profile"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "testname"
+      }
+  auth:
+    type: bearer
+    token: "{{TOKEN}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

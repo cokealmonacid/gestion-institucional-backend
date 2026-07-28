@@ -1,0 +1,31 @@
+info:
+  name: Update user rol
+  type: http
+  seq: 35
+
+http:
+  method: PATCH
+  url: "{{API}}/institution/users/role"
+  body:
+    type: json
+    data: |-
+      {
+        "institution_id": {{INSTITUTION_ID}},
+        "email": "es@example.com",
+        "role": "admin",
+        "old_role": "admin"
+      }
+  auth:
+    type: bearer
+    token: 2|iYa26j41PjF3RowVyOzZ9z87lJh68M6Pj1KCyaygabc3b204
+
+runtime:
+  variables:
+    - name: INSTITUTION_ID
+      value: '"00000000-0000-0000-0000-000000000001"'
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

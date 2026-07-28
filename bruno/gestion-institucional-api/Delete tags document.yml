@@ -1,0 +1,24 @@
+info:
+  name: Delete tags document
+  type: http
+  seq: 24
+
+http:
+  method: DELETE
+  url: "{{API}}/institution/document/{{DOCUMENT_ID}}/tags"
+  body:
+    type: json
+    data: |-
+      {
+        "institution_id": {{INSTITUTION_ID}},
+        "tag_id": {{TAG_ID}}
+      }
+  auth:
+    type: bearer
+    token: "{{TOKEN}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

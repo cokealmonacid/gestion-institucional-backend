@@ -1,0 +1,21 @@
+info:
+  name: update document version comment
+  type: http
+  seq: 27
+
+http:
+  method: PATCH
+  url: "{{API}}/documents/{{document_id}}/versions/{{version_id}}/comment"
+  body:
+    type: json
+    data:
+      comment: Comentario actualizado desde Bruno
+  auth:
+    type: bearer
+    token: "{{token}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

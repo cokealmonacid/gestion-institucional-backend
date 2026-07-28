@@ -1,0 +1,21 @@
+info:
+  name: new children
+  type: http
+  seq: 8
+
+http:
+  method: POST
+  url: "{{API}}/institution/tree-directory/019e40ad-2c97-7379-af34-52b737fc0e9b"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Actas"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

@@ -3,15 +3,25 @@
     "private": true,
     "type": "module",
     "scripts": {
+        "api:contract:check": "npm run api:contract:validate && npm run api:contract:test",
+        "api:contract:test": "php artisan test tests/Feature/Contracts/AuthenticationOpenApiTest.php tests/Feature/Api/AuthenticationContractTest.php tests/Feature/Api/AuthenticationRegressionTest.php",
+        "api:contract:validate": "redocly lint openapi/v1/authentication.json --extends=spec",
         "build": "vite build",
         "dev": "vite"
     },
     "devDependencies": {
-        "@tailwindcss/vite": "^4.0.0",
+        "@redocly/cli": "2.40.0",
+        "@tailwindcss/forms": "^0.5.2",
+        "@tailwindcss/vite": "^4.2.2",
+        "alpinejs": "^3.4.2",
+        "autoprefixer": "^10.4.2",
         "axios": "^1.11.0",
         "concurrently": "^9.0.1",
+        "init": "^0.1.2",
         "laravel-vite-plugin": "^3.0.0",
-        "tailwindcss": "^4.0.0",
+        "npx": "^10.2.2",
+        "postcss": "^8.4.31",
+        "tailwindcss": "^3.1.0",
         "vite": "^8.0.0"
     }
 }
