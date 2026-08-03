@@ -6,6 +6,7 @@ use App\Http\Controllers\BaseController;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Modules\Nodes\Http\Resources\NodeResource;
 use Modules\Nodes\Models\Node;
 
 class TreeDirectoryController extends BaseController
@@ -32,9 +33,11 @@ class TreeDirectoryController extends BaseController
         $nodes = $this->activeNodeQuery($request)
             ->whereNull('parent_id')
             ->orderBy('order')
+            ->orderBy('name')
+            ->orderBy('id')
             ->get();
 
-        return $this->sendResponse($nodes, 'Tree directory retrieved successfully.');
+        return $this->sendResponse(NodeResource::collection($nodes), 'Tree directory retrieved successfully.');
     }
 
     public function show(Request $request, $node_id)
@@ -46,7 +49,7 @@ class TreeDirectoryController extends BaseController
             return $this->sendError('Node not found.', [], 404);
         }
 
-        return $this->sendResponse($node, 'Tree directory node retrieved successfully.');
+        return $this->sendResponse(new NodeResource($node), 'Tree directory node retrieved successfully.');
     }
 
     public function children(Request $request, $node_id)
@@ -61,9 +64,11 @@ class TreeDirectoryController extends BaseController
         $nodes = $this->activeNodeQuery($request)
             ->where('parent_id', $parent->id)
             ->orderBy('order')
+            ->orderBy('name')
+            ->orderBy('id')
             ->get();
 
-        return $this->sendResponse($nodes, 'Tree directory children retrieved successfully.');
+        return $this->sendResponse(NodeResource::collection($nodes), 'Tree directory children retrieved successfully.');
     }
 
     public function store(Request $request, $node_id)
