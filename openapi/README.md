@@ -2,17 +2,22 @@
 
 ## Canonical authority and current scope
 
-The backend repository is the authority for Acervo API contracts. The canonical authentication contract is [`v1/authentication.json`](v1/authentication.json), an OpenAPI 3.1 document with contract version `1.0.0`.
+The backend repository is the authority for Acervo API contracts. The canonical OpenAPI 3.1 contracts are:
 
-Its current scope is deliberately limited to:
+- [`v1/authentication.json`](v1/authentication.json), contract version `1.0.0`;
+- [`v1/document-explorer.json`](v1/document-explorer.json), contract version `1.0.0`.
+
+The authentication contract scope is deliberately limited to:
 
 - `POST /api/v1/auth/login`
 - `GET /api/v1/user/profile`
 - `POST /api/v1/auth/logout`
 
-Password-recovery endpoints and every other API endpoint are outside this contract version.
+Password-recovery endpoints and every other API endpoint are outside the authentication contract version.
 
-The contract records the public request and response envelopes, status codes, schemas, Bearer security, institution and role data, and authentication lifecycle currently implemented by the backend. Login issues a Sanctum Personal Access Token in `data.token`; no refresh token is defined. Logout revokes only the access token used for that request.
+The document-explorer contract is deliberately read-only and limited to listing top-level nodes in the virtual institution root, retrieving a real node, listing its direct child nodes, and listing documents directly associated with it. The virtual root is not a node and does not contain documents.
+
+The authentication contract records the public request and response envelopes, status codes, schemas, Bearer security, institution and role data, and authentication lifecycle currently implemented by the backend. Login issues a Sanctum Personal Access Token in `data.token`; no refresh token is defined. Logout revokes only the access token used for that request.
 
 ## Relationship with code and tests
 
@@ -32,10 +37,10 @@ The `v1` directory identifies the API contract family. A breaking change require
 
 ## Modification procedure
 
-1. Update `openapi/v1/authentication.json` together with the corresponding implementation and tests.
+1. Update the affected canonical document under `openapi/v1/` together with the corresponding implementation and tests.
 2. Keep the contract limited to confirmed behavior; do not add planned endpoints or inferred fields.
 3. Run formal OpenAPI validation.
-4. Run the authentication contract and regression tests.
+4. Run the affected functional, contract, and regression tests.
 5. Review the diff for compatibility, secrets, and environment-specific runtime addresses.
 
 Validation is mandatory before the change is reviewed:

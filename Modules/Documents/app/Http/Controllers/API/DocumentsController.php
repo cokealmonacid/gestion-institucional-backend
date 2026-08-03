@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Modules\Documents\Http\Resources\DocumentResource;
 use Modules\Documents\Models\Document;
 use Modules\Documents\Models\DocumentDownload;
 use Modules\Documents\Models\DocumentVersion;
@@ -56,9 +57,10 @@ class DocumentsController extends BaseController
             ->where('node_id', $node->id)
             ->where('status', true)
             ->orderBy('created_at', 'desc')
+            ->orderBy('id')
             ->get();
 
-        return $this->sendResponse($documents, 'Documents retrieved successfully.');
+        return $this->sendResponse(DocumentResource::collection($documents), 'Documents retrieved successfully.');
     }
 
     public function store(Request $request, $node_id)
