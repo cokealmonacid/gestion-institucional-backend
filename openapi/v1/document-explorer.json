@@ -1,0 +1,302 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Acervo Institutional Document Explorer API",
+    "version": "1.0.0",
+    "description": "Read-only contract for navigating the virtual institution root, real nodes, and documents directly associated with a selected node."
+  },
+  "tags": [
+    {
+      "name": "Document explorer",
+      "description": "Read-only, institution-scoped navigation."
+    }
+  ],
+  "paths": {
+    "/api/v1/institution/tree-directory": {
+      "get": {
+        "operationId": "listInstitutionRootNodes",
+        "summary": "List top-level nodes in the virtual institution root",
+        "description": "Returns every active real node in the authenticated user's institution whose parent_id is null. The virtual root is not itself a node and does not contain documents.",
+        "tags": ["Document explorer"],
+        "security": [{ "bearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Top-level nodes retrieved.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NodeCollectionSuccess" },
+                "example": {
+                  "success": true,
+                  "data": [
+                    {
+                      "id": "11111111-1111-1111-1111-111111111111",
+                      "name": "Documentos",
+                      "path": "documentos",
+                      "depth": 0,
+                      "order": "1",
+                      "active": 1,
+                      "institution_id": "22222222-2222-2222-2222-222222222222",
+                      "parent_id": null,
+                      "created_at": "2026-08-03T12:00:00.000000Z",
+                      "updated_at": "2026-08-03T12:00:00.000000Z",
+                      "has_children": true
+                    }
+                  ],
+                  "message": "Tree directory retrieved successfully."
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthenticated" }
+        }
+      }
+    },
+    "/api/v1/institution/tree-directory/{node_id}": {
+      "get": {
+        "operationId": "getInstitutionNode",
+        "summary": "Get a real node",
+        "description": "Returns an active node belonging to the authenticated user's institution. A top-level node with parent_id null is a regular selectable node, not the virtual root.",
+        "tags": ["Document explorer"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/NodeId" }],
+        "responses": {
+          "200": {
+            "description": "Node retrieved.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NodeSuccess" },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "id": "11111111-1111-1111-1111-111111111111",
+                    "name": "Documentos",
+                    "path": "documentos",
+                    "depth": 0,
+                    "order": "1",
+                    "active": 1,
+                    "institution_id": "22222222-2222-2222-2222-222222222222",
+                    "parent_id": null,
+                    "created_at": "2026-08-03T12:00:00.000000Z",
+                    "updated_at": "2026-08-03T12:00:00.000000Z",
+                    "has_children": true
+                  },
+                  "message": "Tree directory node retrieved successfully."
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "404": { "$ref": "#/components/responses/NodeNotFound" }
+        }
+      }
+    },
+    "/api/v1/institution/tree-directory/{node_id}/children": {
+      "get": {
+        "operationId": "listInstitutionNodeChildren",
+        "summary": "List direct child nodes",
+        "description": "Returns only active direct children of the selected active node in the authenticated user's institution. It does not return descendants or documents.",
+        "tags": ["Document explorer"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/NodeId" }],
+        "responses": {
+          "200": {
+            "description": "Direct child nodes retrieved.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NodeCollectionSuccess" },
+                "example": {
+                  "success": true,
+                  "data": [
+                    {
+                      "id": "33333333-3333-3333-3333-333333333333",
+                      "name": "Reglamentos",
+                      "path": "documentos/reglamentos",
+                      "depth": 1,
+                      "order": "1",
+                      "active": 1,
+                      "institution_id": "22222222-2222-2222-2222-222222222222",
+                      "parent_id": "11111111-1111-1111-1111-111111111111",
+                      "created_at": "2026-08-03T12:00:00.000000Z",
+                      "updated_at": "2026-08-03T12:00:00.000000Z",
+                      "has_children": false
+                    }
+                  ],
+                  "message": "Tree directory children retrieved successfully."
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "404": { "$ref": "#/components/responses/NodeNotFound" }
+        }
+      }
+    },
+    "/api/v1/institution/tree-directory/{node_id}/documents": {
+      "get": {
+        "operationId": "listInstitutionNodeDocuments",
+        "summary": "List documents directly associated with a node",
+        "description": "Returns only active documents whose node_id is the selected active node. Documents from descendants and documents without a node are not returned.",
+        "tags": ["Document explorer"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/NodeId" }],
+        "responses": {
+          "200": {
+            "description": "Direct documents retrieved.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DocumentCollectionSuccess" },
+                "example": {
+                  "success": true,
+                  "data": [
+                    {
+                      "id": "44444444-4444-4444-4444-444444444444",
+                      "name": "Reglamento institucional",
+                      "description": "Reglamento vigente.",
+                      "category": "Normativa",
+                      "responsible_unit": "Secretaría General",
+                      "status": true,
+                      "author_id": null,
+                      "institution_id": "22222222-2222-2222-2222-222222222222",
+                      "node_id": "11111111-1111-1111-1111-111111111111",
+                      "created_at": "2026-08-03T12:00:00.000000Z",
+                      "updated_at": "2026-08-03T12:00:00.000000Z"
+                    }
+                  ],
+                  "message": "Documents retrieved successfully."
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "404": { "$ref": "#/components/responses/NodeNotFound" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "Sanctum"
+      }
+    },
+    "parameters": {
+      "NodeId": {
+        "name": "node_id",
+        "in": "path",
+        "required": true,
+        "description": "UUID of a real node. It never identifies the virtual institution root.",
+        "schema": { "type": "string", "format": "uuid" },
+        "example": "11111111-1111-1111-1111-111111111111"
+      }
+    },
+    "schemas": {
+      "Node": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id", "name", "path", "depth", "order", "active", "institution_id",
+          "parent_id", "created_at", "updated_at", "has_children"
+        ],
+        "properties": {
+          "id": { "type": "string", "format": "uuid", "description": "Node identifier." },
+          "name": { "type": "string", "description": "Display name." },
+          "path": { "type": "string", "description": "Persisted informational path; navigation uses node identifiers and parent_id." },
+          "depth": { "type": "integer", "minimum": 0, "description": "Persisted hierarchy depth." },
+          "order": { "type": "string", "description": "Persisted textual sort key. Nodes are ordered by order, name, then id." },
+          "active": { "type": "integer", "enum": [1], "description": "Compatibility field emitted as integer 1 for nodes returned by these active-only operations." },
+          "institution_id": { "type": "string", "format": "uuid", "description": "Compatibility field identifying the owning institution." },
+          "parent_id": {
+            "type": ["string", "null"],
+            "format": "uuid",
+            "description": "Direct parent node identifier. Null identifies a top-level real node inside the virtual institution root."
+          },
+          "created_at": { "type": ["string", "null"], "format": "date-time", "description": "Creation timestamp." },
+          "updated_at": { "type": ["string", "null"], "format": "date-time", "description": "Last update timestamp." },
+          "has_children": { "type": "boolean", "description": "Whether at least one active direct child node exists in the same institution. Documents are not considered." }
+        }
+      },
+      "Document": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id", "name", "description", "category", "responsible_unit", "status",
+          "author_id", "institution_id", "node_id", "created_at", "updated_at"
+        ],
+        "properties": {
+          "id": { "type": "string", "format": "uuid", "description": "Document identifier." },
+          "name": { "type": "string", "description": "Display name." },
+          "description": { "type": ["string", "null"], "description": "Document description." },
+          "category": { "type": ["string", "null"], "description": "Document category." },
+          "responsible_unit": { "type": ["string", "null"], "description": "Responsible institutional unit." },
+          "status": { "type": "boolean", "enum": [true], "description": "Compatibility field; this listing only returns active documents." },
+          "author_id": { "type": ["string", "null"], "format": "uuid", "description": "Compatibility field containing the author identifier when available." },
+          "institution_id": { "type": "string", "format": "uuid", "description": "Compatibility field identifying the owning institution." },
+          "node_id": { "type": "string", "format": "uuid", "description": "Selected real node directly containing the document." },
+          "created_at": { "type": ["string", "null"], "format": "date-time", "description": "Creation timestamp. Documents are ordered by this value descending, then id ascending." },
+          "updated_at": { "type": ["string", "null"], "format": "date-time", "description": "Last update timestamp." }
+        }
+      },
+      "NodeSuccess": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "data", "message"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [true] },
+          "data": { "$ref": "#/components/schemas/Node" },
+          "message": { "type": "string", "enum": ["Tree directory node retrieved successfully."] }
+        }
+      },
+      "NodeCollectionSuccess": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "data", "message"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [true] },
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Node" } },
+          "message": { "type": "string", "description": "Operation-specific success message." }
+        }
+      },
+      "DocumentCollectionSuccess": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "data", "message"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [true] },
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Document" } },
+          "message": { "type": "string", "enum": ["Documents retrieved successfully."] }
+        }
+      },
+      "LegacyError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "message"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [false] },
+          "message": { "type": "string" }
+        }
+      }
+    },
+    "responses": {
+      "Unauthenticated": {
+        "description": "A valid Sanctum bearer token is required.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/LegacyError" },
+            "example": { "success": false, "message": "Unauthenticated." }
+          }
+        }
+      },
+      "NodeNotFound": {
+        "description": "The node does not exist, is inactive, or belongs to another institution.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/LegacyError" },
+            "example": { "success": false, "message": "Node not found." }
+          }
+        }
+      }
+    }
+  }
+}
