@@ -15,12 +15,12 @@ class DocumentExplorerOpenApiTest extends TestCase
         return json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
     }
 
-    public function test_contract_contains_only_the_four_approved_read_operations(): void
+    public function test_contract_contains_the_four_reads_and_the_canonical_create_operation(): void
     {
         $contract = $this->contract();
 
         $this->assertSame('3.1.0', $contract['openapi']);
-        $this->assertSame('1.0.0', $contract['info']['version']);
+        $this->assertSame('2.0.0', $contract['info']['version']);
         $this->assertArrayNotHasKey('servers', $contract);
         $this->assertSame([
             '/api/v1/institution/tree-directory',
@@ -29,9 +29,10 @@ class DocumentExplorerOpenApiTest extends TestCase
             '/api/v1/institution/tree-directory/{node_id}/documents',
         ], array_keys($contract['paths']));
 
-        foreach ($contract['paths'] as $path) {
-            $this->assertSame(['get'], array_keys($path));
-        }
+        $this->assertSame(['get', 'post'], array_keys($contract['paths']['/api/v1/institution/tree-directory']));
+        $this->assertSame(['get'], array_keys($contract['paths']['/api/v1/institution/tree-directory/{node_id}']));
+        $this->assertSame(['get'], array_keys($contract['paths']['/api/v1/institution/tree-directory/{node_id}/children']));
+        $this->assertSame(['get'], array_keys($contract['paths']['/api/v1/institution/tree-directory/{node_id}/documents']));
     }
 
     public function test_contract_documents_the_effective_status_codes_and_security(): void
@@ -42,6 +43,10 @@ class DocumentExplorerOpenApiTest extends TestCase
             [200, 401],
             array_keys($contract['paths']['/api/v1/institution/tree-directory']['get']['responses']),
         );
+
+        $create = $contract['paths']['/api/v1/institution/tree-directory']['post'];
+        $this->assertSame([201, 401, 403, 404, 409, 422], array_keys($create['responses']));
+        $this->assertSame([['bearerAuth' => []]], $create['security']);
 
         foreach ([
             '/api/v1/institution/tree-directory/{node_id}',
@@ -82,7 +87,8 @@ class DocumentExplorerOpenApiTest extends TestCase
         $this->assertSame('integer', $node['properties']['active']['type']);
         $this->assertSame([1], $node['properties']['active']['enum']);
         $this->assertSame('integer', $node['properties']['depth']['type']);
-        $this->assertSame('string', $node['properties']['order']['type']);
+        $this->assertSame('integer', $node['properties']['order']['type']);
+        $this->assertSame(1, $node['properties']['order']['minimum']);
         $this->assertSame('boolean', $node['properties']['has_children']['type']);
         $this->assertSame(['string', 'null'], $node['properties']['parent_id']['type']);
         $this->assertSame(['string', 'null'], $node['properties']['created_at']['type']);
@@ -127,5 +133,31 @@ class DocumentExplorerOpenApiTest extends TestCase
             $this->assertTrue($example['success']);
             $this->assertIsString($example['message']);
         }
+    }
+
+    public function test_create_request_requires_only_name_and_nullable_parent_id(): void
+    {
+        $contract = $this->contract();
+        $request = $contract['components']['schemas']['CreateNodeRequest'];
+
+        $this->assertFalse($request['additionalProperties']);
+        $this->assertSame(['name', 'parent_id'], $request['required']);
+        $this->assertSame(['name', 'parent_id'], array_keys($request['properties']));
+        $this->assertSame(1, $request['properties']['name']['minLength']);
+        $this->assertSame(255, $request['properties']['name']['maxLength']);
+        $this->assertSame(['string', 'null'], $request['properties']['parent_id']['type']);
+
+        $operation = $contract['paths']['/api/v1/institution/tree-directory']['post'];
+        $this->assertTrue($operation['requestBody']['required']);
+        $this->assertArrayHasKey('root', $operation['requestBody']['content']['application/json']['examples']);
+        $this->assertArrayHasKey('child', $operation['requestBody']['content']['application/json']['examples']);
+        $this->assertArrayHasKey('Location', $operation['responses']['201']['headers']);
+    }
+
+    public function test_legacy_create_path_is_not_published_as_a_post_operation(): void
+    {
+        $contract = $this->contract();
+
+        $this->assertArrayNotHasKey('post', $contract['paths']['/api/v1/institution/tree-directory/{node_id}']);
     }
 }

@@ -3,6 +3,7 @@
 namespace Modules\Nodes\Database\Seeders;
 
 use Illuminate\Database\Seeder;
+use Modules\Institution\Models\Institution;
 use Modules\Nodes\Models\Node;
 
 class NodesDatabaseSeeder extends Seeder
@@ -10,12 +11,14 @@ class NodesDatabaseSeeder extends Seeder
     public function run(): void
     {
 
-        $institutions = \Modules\Institution\Models\Institution::all();
+        $institutions = Institution::all();
 
         foreach ($institutions as $institution) {
-            Node::factory(10)->create([
-                'institution_id' => $institution->id,
-            ]);
+            Node::factory(10)
+                ->sequence(fn ($sequence) => ['order' => $sequence->index + 1])
+                ->create([
+                    'institution_id' => $institution->id,
+                ]);
         }
     }
 }
