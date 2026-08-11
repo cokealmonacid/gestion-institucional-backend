@@ -3,13 +3,14 @@
 namespace Modules\Nodes\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Nodes\Models\Node;
 
 class NodesFactory extends Factory
 {
     /**
      * The name of the factory's corresponding model.
      */
-    protected $model = \Modules\Nodes\Models\Node::class;
+    protected $model = Node::class;
 
     /**
      * Define the model's default state.
@@ -17,12 +18,12 @@ class NodesFactory extends Factory
     public function definition(): array
     {
         return [
+            'id' => fake()->uuid(),
             'name' => fake()->word(),
-            'path' => fake()->word(),
-            'depth' => fake()->numberBetween(1, 100),
-            'order' => fake()->word(),
-            'active' => fake()->boolean()
+            'path' => fn (array $attributes) => $attributes['id'],
+            'depth' => 0,
+            'order' => fake()->numberBetween(1, 1000),
+            'active' => fake()->boolean(),
         ];
     }
 }
-

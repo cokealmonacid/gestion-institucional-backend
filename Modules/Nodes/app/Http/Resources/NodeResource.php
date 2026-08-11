@@ -15,7 +15,7 @@ class NodeResource extends JsonResource
             'name' => $this->name,
             'path' => $this->path,
             'depth' => $this->depth,
-            'order' => $this->order,
+            'order' => (int) $this->order,
             'active' => $this->active,
             'institution_id' => $this->institution_id,
             'parent_id' => $this->parent_id,

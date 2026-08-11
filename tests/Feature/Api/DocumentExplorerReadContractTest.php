@@ -36,10 +36,10 @@ class DocumentExplorerReadContractTest extends TestCase
         [$institution, $user] = $this->institutionUser();
         $otherInstitution = Institution::factory()->create();
 
-        $second = $this->node($institution, 'Beta', '2');
-        $firstById = $this->node($institution, 'Alpha', '1', id: '10000000-0000-0000-0000-000000000002');
+        $second = $this->node($institution, 'Beta', '3');
+        $firstById = $this->node($institution, 'Alpha B', '2', id: '10000000-0000-0000-0000-000000000002');
         $first = $this->node($institution, 'Alpha', '1', id: '10000000-0000-0000-0000-000000000001');
-        $this->node($institution, 'Inactive root', '0', active: false);
+        $this->node($institution, 'Inactive root', '4', active: false);
         $this->node($otherInstitution, 'Other tenant', '0');
         $this->node($institution, 'Child', '0', parent: $first, depth: 1);
 
@@ -89,8 +89,8 @@ class DocumentExplorerReadContractTest extends TestCase
         $this->assertSame(1, $data['active']);
         $this->assertIsInt($data['depth']);
         $this->assertSame(0, $data['depth']);
-        $this->assertIsString($data['order']);
-        $this->assertSame('01', $data['order']);
+        $this->assertIsInt($data['order']);
+        $this->assertSame(1, $data['order']);
         $this->assertIsBool($data['has_children']);
         $this->assertTrue($data['has_children']);
         $this->assertNull($data['parent_id']);
@@ -105,7 +105,7 @@ class DocumentExplorerReadContractTest extends TestCase
         $parent = $this->node($institution, 'Parent', '1');
         $second = $this->node($institution, 'Beta', '2', parent: $parent, depth: 1);
         $first = $this->node($institution, 'Alpha', '1', parent: $parent, depth: 1);
-        $this->node($institution, 'Inactive', '0', parent: $parent, depth: 1, active: false);
+        $this->node($institution, 'Inactive', '3', parent: $parent, depth: 1, active: false);
         $grandchild = $this->node($institution, 'Grandchild', '0', parent: $first, depth: 2);
         $this->node($otherInstitution, 'Other tenant', '0');
 
@@ -259,10 +259,12 @@ class DocumentExplorerReadContractTest extends TestCase
         $node = new Node;
         if ($id !== null) {
             $node->id = $id;
+        } else {
+            $node->id = $node->newUniqueId();
         }
         $node->fill([
             'name' => $name,
-            'path' => $parent ? "{$parent->path}/".strtolower(str_replace(' ', '-', $name)) : strtolower(str_replace(' ', '-', $name)),
+            'path' => $parent ? "{$parent->path}/{$node->id}" : $node->id,
             'depth' => $depth,
             'order' => $order,
             'active' => $active,
