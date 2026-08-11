@@ -64,11 +64,32 @@ class InstitutionUsersContractTest extends TestCase
             ->assertJsonPath('message', 'Users retrieved successfully.')
             ->assertJsonPath('data.total', 2);
 
-        $ids = collect($response->json('data.data'))->pluck('id')->all();
+        $items = collect($response->json('data.data'));
+        $ids = $items->pluck('id')->all();
         $this->assertContains($admin->id, $ids);
         $this->assertContains($peer->id, $ids);
-        $this->assertArrayNotHasKey('password', $response->json('data.data.0'));
-        $this->assertArrayNotHasKey('remember_token', $response->json('data.data.0'));
+        $this->assertSame(['id', 'name', 'email', 'role', 'created_at', 'active'], array_keys($items->first()));
+
+        $adminEntry = $items->firstWhere('id', $admin->id);
+        $this->assertSame('admin', $adminEntry['role']);
+        $this->assertTrue($adminEntry['active']);
+
+        $peerEntry = $items->firstWhere('id', $peer->id);
+        $this->assertNull($peerEntry['role']);
+    }
+
+    public function test_index_reports_inactive_users(): void
+    {
+        [$institution, $admin] = $this->institutionUser(admin: true);
+        $inactive = User::factory()->inactive()->for($institution)->create();
+
+        Sanctum::actingAs($admin);
+
+        $response = $this->getJson("/api/v1/institution/users?institution_id={$institution->id}")
+            ->assertOk();
+
+        $entry = collect($response->json('data.data'))->firstWhere('id', $inactive->id);
+        $this->assertFalse($entry['active']);
     }
 
     public function test_store_registers_a_user_with_the_given_role(): void

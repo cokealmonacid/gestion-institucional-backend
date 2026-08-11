@@ -2,11 +2,11 @@
 
 use Illuminate\Support\Facades\Route;
 use Modules\Documents\Http\Controllers\API\DocumentsController;
+use Modules\Documents\Http\Controllers\API\DocumentTagsController;
 use Modules\Documents\Http\Controllers\API\DocumentVersionCommentsController;
 use Modules\Documents\Http\Controllers\API\DocumentVersionsController;
-use Modules\Documents\Http\Controllers\API\DocumentTagsController;
 
-Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
+Route::middleware(['auth:sanctum', 'active'])->prefix('v1')->group(function () {
     Route::controller(DocumentsController::class)->group(function () {
         Route::get('/institution/tree-directory/{node_id}/documents', 'indexByNode');
         Route::post('/institution/tree-directory/{node_id}/documents', 'store');
@@ -34,7 +34,7 @@ Route::middleware(['auth:sanctum'])->prefix('v1')->group(function () {
     });
 });
 
-Route::prefix('v1')->middleware(['auth:sanctum', 'user.institution'])->controller(DocumentTagsController::class)->group(function(){
+Route::prefix('v1')->middleware(['auth:sanctum', 'active', 'user.institution'])->controller(DocumentTagsController::class)->group(function () {
     Route::post('institution/document/{document_id}/tags', 'store');
     Route::patch('institution/document/{document_id}/tags', 'update');
     Route::delete('institution/document/{document_id}/tags', 'destroy');

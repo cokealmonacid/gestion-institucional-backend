@@ -2,9 +2,9 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-use Illuminate\Database\Seeder;
 use App\Models\User;
+use Illuminate\Database\Seeder;
+use Modules\Institution\Models\Institution;
 
 class UsersSeeder extends Seeder
 {
@@ -13,20 +13,29 @@ class UsersSeeder extends Seeder
      */
     public function run(): void
     {
-        $institution = \Modules\Institution\Models\Institution::where('name', 'Test institution')->first();
+        $institution = Institution::where('name', 'Test institution')->first();
 
         User::factory()->create([
             'email' => 'testapi@example.com',
             'password' => '12345678',
             'institution_id' => $institution->id,
+            'active' => true,
         ]);
-        
-        $institutions = \Modules\Institution\Models\Institution::all();
+
+        User::factory()->create([
+            'email' => 'inactive-testapi@example.com',
+            'password' => '12345678',
+            'institution_id' => $institution->id,
+            'active' => false,
+        ]);
+
+        $institutions = Institution::all();
 
         foreach ($institutions as $institution) {
             User::factory()->create([
                 'password' => '12345678',
                 'institution_id' => $institution->id,
+                'active' => true,
             ]);
         }
     }

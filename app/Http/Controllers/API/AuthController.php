@@ -12,8 +12,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 
 class AuthController extends BaseController
 {
@@ -40,6 +40,14 @@ class AuthController extends BaseController
                 'AUTH_INVALID_CREDENTIALS',
                 'The provided credentials are invalid.',
                 401,
+            );
+        }
+
+        if (! $user->active) {
+            return ApiResponse::error(
+                'AUTH_ACCOUNT_INACTIVE',
+                'This account is inactive.',
+                403,
             );
         }
 

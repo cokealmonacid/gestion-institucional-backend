@@ -38,10 +38,9 @@
                         "id": "55555555-5555-5555-5555-555555555555",
                         "name": "Ana Pérez",
                         "email": "ana.perez@example.com",
-                        "email_verified_at": "2026-08-03T12:00:00.000000Z",
-                        "institution_id": "22222222-2222-2222-2222-222222222222",
-                        "created_at": "2026-08-03T12:00:00.000000Z",
-                        "updated_at": "2026-08-03T12:00:00.000000Z"
+                        "role": "editor",
+                        "created_at": "8 days ago",
+                        "active": true
                       }
                     ],
                     "first_page_url": "http://localhost/api/v1/institution/users?page=1",
@@ -216,16 +215,21 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
-          "id", "name", "email", "email_verified_at", "institution_id", "created_at", "updated_at"
+          "id", "name", "email", "role", "created_at", "active"
         ],
         "properties": {
           "id": { "type": "string", "format": "uuid", "description": "User identifier." },
           "name": { "type": "string", "description": "Display name." },
           "email": { "type": "string", "format": "email", "description": "Unique login email." },
-          "email_verified_at": { "type": ["string", "null"], "format": "date-time", "description": "Email verification timestamp." },
-          "institution_id": { "type": "string", "format": "uuid", "description": "Owning institution identifier." },
-          "created_at": { "type": ["string", "null"], "format": "date-time", "description": "Creation timestamp." },
-          "updated_at": { "type": ["string", "null"], "format": "date-time", "description": "Last update timestamp." }
+          "role": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/RoleType" },
+              { "type": "null" }
+            ],
+            "description": "The user's role type, or null if no role is assigned."
+          },
+          "created_at": { "type": "string", "description": "Human-readable relative time since account creation (e.g. \"8 days ago\")." },
+          "active": { "type": "boolean", "description": "Whether the user may sign in to the platform." }
         }
       },
       "PaginationLink": {
