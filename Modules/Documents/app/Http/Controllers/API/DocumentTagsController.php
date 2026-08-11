@@ -7,7 +7,7 @@ use Modules\Documents\Models\DocumentTag;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Exists;
 use Illuminate\Http\Request;
-use Validator;
+use Illuminate\Support\Facades\Validator;
 
 class DocumentTagsController extends BaseController
 {

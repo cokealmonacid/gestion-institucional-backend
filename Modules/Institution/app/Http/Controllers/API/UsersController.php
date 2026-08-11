@@ -2,6 +2,7 @@
 
 namespace Modules\Institution\Http\Controllers\API;
 
+use Illuminate\Support\Facades\Validator;
 use App\Http\Controllers\BaseController;
 use Illuminate\Validation\Rule;
 use Illuminate\Http\Request;
@@ -9,10 +10,18 @@ use App\Models\RoleUser;
 use App\Enums\RoleType;
 use App\Models\User;
 use App\Models\Rol;
-use Validator;
 
 class UsersController extends BaseController
 {
+    public function index(Request $request)
+    {
+        $users = User::where('institution_id', $request->user()->institution_id)
+            ->paginate($request->input('per_page', 15));
+
+        return $this->sendResponse($users, 'Users retrieved successfully.');
+    }
+
+
     public function store(Request $request) 
     {
         $validator = Validator::make($request->all(), [
