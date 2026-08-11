@@ -1,0 +1,400 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Acervo Institutional Users API",
+    "version": "1.0.0",
+    "description": "Admin-only contract for listing users of the authenticated admin's institution, registering a user in that institution, updating a user's profile, and updating a user's role."
+  },
+  "tags": [
+    {
+      "name": "Institution users",
+      "description": "Institution-scoped user management restricted to admins of the target institution."
+    }
+  ],
+  "paths": {
+    "/api/v1/institution/users": {
+      "get": {
+        "operationId": "listInstitutionUsers",
+        "summary": "List users of an institution",
+        "description": "Returns a paginated list of users whose institution_id matches institution_id. The caller must be an admin and institution_id must equal the authenticated admin's own institution_id.",
+        "tags": ["Institution users"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/InstitutionId" },
+          { "$ref": "#/components/parameters/PerPage" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Users retrieved.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UserPageSuccess" },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "current_page": 1,
+                    "data": [
+                      {
+                        "id": "55555555-5555-5555-5555-555555555555",
+                        "name": "Ana Pérez",
+                        "email": "ana.perez@example.com",
+                        "email_verified_at": "2026-08-03T12:00:00.000000Z",
+                        "institution_id": "22222222-2222-2222-2222-222222222222",
+                        "created_at": "2026-08-03T12:00:00.000000Z",
+                        "updated_at": "2026-08-03T12:00:00.000000Z"
+                      }
+                    ],
+                    "first_page_url": "http://localhost/api/v1/institution/users?page=1",
+                    "from": 1,
+                    "last_page": 1,
+                    "last_page_url": "http://localhost/api/v1/institution/users?page=1",
+                    "links": [
+                      { "url": null, "label": "&laquo; Previous", "active": false },
+                      { "url": "http://localhost/api/v1/institution/users?page=1", "label": "1", "active": true },
+                      { "url": null, "label": "Next &raquo;", "active": false }
+                    ],
+                    "next_page_url": null,
+                    "path": "http://localhost/api/v1/institution/users",
+                    "per_page": 15,
+                    "prev_page_url": null,
+                    "to": 1,
+                    "total": 1
+                  },
+                  "message": "Users retrieved successfully."
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" }
+        }
+      },
+      "post": {
+        "operationId": "registerInstitutionUser",
+        "summary": "Register a user in an institution",
+        "description": "Creates a user with the given role in institution_id. The caller must be an admin and institution_id must equal the authenticated admin's own institution_id.",
+        "tags": ["Institution users"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateUserRequest" },
+              "example": {
+                "institution_id": "22222222-2222-2222-2222-222222222222",
+                "name": "Ana Pérez",
+                "email": "ana.perez@example.com",
+                "password": "password123",
+                "password_confirmation": "password123",
+                "rol": "editor"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User registered.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/EmptyDataSuccess" },
+                "example": { "success": true, "data": [], "message": "Account registered successfully." }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" }
+        }
+      },
+      "patch": {
+        "operationId": "updateInstitutionUser",
+        "summary": "Update a user's profile",
+        "description": "Updates the user identified by email. institution_id must equal both the authenticated admin's own institution_id and the target user's institution_id.",
+        "tags": ["Institution users"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateUserRequest" },
+              "example": {
+                "institution_id": "22222222-2222-2222-2222-222222222222",
+                "email": "ana.perez@example.com",
+                "name": "Ana Pérez Soto",
+                "password": "newpassword123",
+                "password_confirmation": "newpassword123"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User updated.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/EmptyDataSuccess" },
+                "example": { "success": true, "data": [], "message": "Account updated successfully." }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" }
+        }
+      }
+    },
+    "/api/v1/institution/users/role": {
+      "patch": {
+        "operationId": "updateInstitutionUserRole",
+        "summary": "Update a user's role",
+        "description": "Removes old_role and grants role to the user identified by email. institution_id must equal both the authenticated admin's own institution_id and the target user's institution_id. role and old_role must differ.",
+        "tags": ["Institution users"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpdateUserRoleRequest" },
+              "example": {
+                "institution_id": "22222222-2222-2222-2222-222222222222",
+                "email": "ana.perez@example.com",
+                "role": "admin",
+                "old_role": "editor"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Role updated.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/EmptyDataSuccess" },
+                "example": { "success": true, "data": [], "message": "Role updated successfully." }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "Sanctum"
+      }
+    },
+    "parameters": {
+      "InstitutionId": {
+        "name": "institution_id",
+        "in": "query",
+        "required": true,
+        "description": "Must equal the authenticated admin's own institution_id, or the request is rejected as Forbidden.",
+        "schema": { "type": "string", "format": "uuid" },
+        "example": "22222222-2222-2222-2222-222222222222"
+      },
+      "PerPage": {
+        "name": "per_page",
+        "in": "query",
+        "required": false,
+        "description": "Page size. Defaults to 15.",
+        "schema": { "type": "integer", "minimum": 1 },
+        "example": 15
+      }
+    },
+    "schemas": {
+      "RoleType": {
+        "type": "string",
+        "enum": ["admin", "editor", "reader"]
+      },
+      "User": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id", "name", "email", "email_verified_at", "institution_id", "created_at", "updated_at"
+        ],
+        "properties": {
+          "id": { "type": "string", "format": "uuid", "description": "User identifier." },
+          "name": { "type": "string", "description": "Display name." },
+          "email": { "type": "string", "format": "email", "description": "Unique login email." },
+          "email_verified_at": { "type": ["string", "null"], "format": "date-time", "description": "Email verification timestamp." },
+          "institution_id": { "type": "string", "format": "uuid", "description": "Owning institution identifier." },
+          "created_at": { "type": ["string", "null"], "format": "date-time", "description": "Creation timestamp." },
+          "updated_at": { "type": ["string", "null"], "format": "date-time", "description": "Last update timestamp." }
+        }
+      },
+      "PaginationLink": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["url", "label", "active"],
+        "properties": {
+          "url": { "type": ["string", "null"] },
+          "label": { "type": "string" },
+          "active": { "type": "boolean" }
+        }
+      },
+      "UserPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "current_page", "data", "first_page_url", "from", "last_page", "last_page_url",
+          "links", "next_page_url", "path", "per_page", "prev_page_url", "to", "total"
+        ],
+        "properties": {
+          "current_page": { "type": "integer" },
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/User" } },
+          "first_page_url": { "type": ["string", "null"] },
+          "from": { "type": ["integer", "null"] },
+          "last_page": { "type": "integer" },
+          "last_page_url": { "type": ["string", "null"] },
+          "links": { "type": "array", "items": { "$ref": "#/components/schemas/PaginationLink" } },
+          "next_page_url": { "type": ["string", "null"] },
+          "path": { "type": "string" },
+          "per_page": { "type": "integer" },
+          "prev_page_url": { "type": ["string", "null"] },
+          "to": { "type": ["integer", "null"] },
+          "total": { "type": "integer" }
+        }
+      },
+      "UserPageSuccess": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "data", "message"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [true] },
+          "data": { "$ref": "#/components/schemas/UserPage" },
+          "message": { "type": "string", "enum": ["Users retrieved successfully."] }
+        }
+      },
+      "EmptyDataSuccess": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "data", "message"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [true] },
+          "data": { "type": "array", "maxItems": 0 },
+          "message": {
+            "type": "string",
+            "enum": [
+              "Account registered successfully.",
+              "Account updated successfully.",
+              "Role updated successfully."
+            ]
+          }
+        }
+      },
+      "CreateUserRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["institution_id", "name", "email", "password", "password_confirmation", "rol"],
+        "properties": {
+          "institution_id": { "type": "string", "format": "uuid", "description": "Must equal the authenticated admin's own institution_id." },
+          "name": { "type": "string", "maxLength": 255 },
+          "email": { "type": "string", "format": "email", "description": "Must not already exist in users.email." },
+          "password": { "type": "string", "minLength": 8 },
+          "password_confirmation": { "type": "string", "description": "Must equal password." },
+          "rol": { "$ref": "#/components/schemas/RoleType" }
+        }
+      },
+      "UpdateUserRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["institution_id", "email"],
+        "properties": {
+          "institution_id": { "type": "string", "format": "uuid", "description": "Must equal the authenticated admin's own institution_id and the target user's institution_id." },
+          "email": { "type": "string", "format": "email", "description": "Identifies the user to update. Must already exist in users.email." },
+          "name": { "type": "string", "maxLength": 255 },
+          "password": { "type": "string", "minLength": 8 },
+          "password_confirmation": { "type": "string", "description": "Required and must equal password when password is present." }
+        }
+      },
+      "UpdateUserRoleRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["institution_id", "email", "role", "old_role"],
+        "properties": {
+          "institution_id": { "type": "string", "format": "uuid", "description": "Must equal the authenticated admin's own institution_id and the target user's institution_id." },
+          "email": { "type": "string", "format": "email", "description": "Identifies the user to update. Must already exist in users.email." },
+          "role": { "allOf": [{ "$ref": "#/components/schemas/RoleType" }], "description": "Must differ from old_role." },
+          "old_role": { "$ref": "#/components/schemas/RoleType" }
+        }
+      },
+      "LegacyError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "message"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [false] },
+          "message": { "type": "string" }
+        }
+      },
+      "ForbiddenError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["message"],
+        "properties": {
+          "message": { "type": "string", "enum": ["Forbidden."] }
+        }
+      },
+      "ValidationFailedError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "message", "data"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [false] },
+          "message": { "type": "string", "enum": ["Validation failed."] },
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["error"],
+            "properties": {
+              "error": {
+                "type": "object",
+                "description": "Laravel validator error bag: field name to list of messages.",
+                "additionalProperties": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "Unauthenticated": {
+        "description": "A valid Sanctum bearer token is required.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/LegacyError" },
+            "example": { "success": false, "message": "Unauthenticated." }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "The authenticated user is not an admin, or institution_id does not equal the authenticated admin's own institution_id (or, for update operations, the target user's institution_id).",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ForbiddenError" },
+            "example": { "message": "Forbidden." }
+          }
+        }
+      },
+      "ValidationFailed": {
+        "description": "Request validation failed.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ValidationFailedError" },
+            "example": {
+              "success": false,
+              "message": "Validation failed.",
+              "data": { "error": { "email": ["The email field is required."] } }
+            }
+          }
+        }
+      }
+    }
+  }
+}

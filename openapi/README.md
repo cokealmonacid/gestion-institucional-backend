@@ -5,7 +5,8 @@
 The backend repository is the authority for Acervo API contracts. The canonical OpenAPI 3.1 contracts are:
 
 - [`v1/authentication.json`](v1/authentication.json), contract version `1.0.0`;
-- [`v1/document-explorer.json`](v1/document-explorer.json), contract version `1.0.0`.
+- [`v1/document-explorer.json`](v1/document-explorer.json), contract version `1.0.0`;
+- [`v1/institution-users.json`](v1/institution-users.json), contract version `1.0.0`.
 
 The authentication contract scope is deliberately limited to:
 
@@ -16,6 +17,8 @@ The authentication contract scope is deliberately limited to:
 Password-recovery endpoints and every other API endpoint are outside the authentication contract version.
 
 The document-explorer contract is deliberately read-only and limited to listing top-level nodes in the virtual institution root, retrieving a real node, listing its direct child nodes, and listing documents directly associated with it. The virtual root is not a node and does not contain documents.
+
+The institution-users contract is admin-only and limited to listing the users of an institution, registering a user in an institution, updating a user's profile, and updating a user's role. Every operation requires `institution_id` to equal the authenticated admin's own institution, and update operations additionally require it to equal the target user's institution.
 
 The authentication contract records the public request and response envelopes, status codes, schemas, Bearer security, institution and role data, and authentication lifecycle currently implemented by the backend. Login issues a Sanctum Personal Access Token in `data.token`; no refresh token is defined. Logout revokes only the access token used for that request.
 

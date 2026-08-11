@@ -4,10 +4,11 @@
     "type": "module",
     "scripts": {
         "api:contract:check": "npm run api:contract:validate && npm run api:contract:test",
-        "api:contract:test": "php artisan test tests/Feature/Contracts/AuthenticationOpenApiTest.php tests/Feature/Contracts/DocumentExplorerOpenApiTest.php tests/Feature/Api/AuthenticationContractTest.php tests/Feature/Api/AuthenticationRegressionTest.php tests/Feature/Api/DocumentExplorerReadContractTest.php",
-        "api:contract:validate": "npm run api:contract:validate:authentication && npm run api:contract:validate:document-explorer",
+        "api:contract:test": "php artisan test tests/Feature/Contracts/AuthenticationOpenApiTest.php tests/Feature/Contracts/DocumentExplorerOpenApiTest.php tests/Feature/Contracts/InstitutionUsersOpenApiTest.php tests/Feature/Api/AuthenticationContractTest.php tests/Feature/Api/AuthenticationRegressionTest.php tests/Feature/Api/DocumentExplorerReadContractTest.php tests/Feature/Api/InstitutionUsersContractTest.php",
+        "api:contract:validate": "npm run api:contract:validate:authentication && npm run api:contract:validate:document-explorer && npm run api:contract:validate:institution-users",
         "api:contract:validate:authentication": "redocly lint openapi/v1/authentication.json --extends=spec",
         "api:contract:validate:document-explorer": "redocly lint openapi/v1/document-explorer.json --extends=spec",
+        "api:contract:validate:institution-users": "redocly lint openapi/v1/institution-users.json --extends=spec",
         "build": "vite build",
         "dev": "vite"
     },

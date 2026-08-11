@@ -1,0 +1,28 @@
+info:
+  name: Show users from institution
+  type: http
+  seq: 39
+
+http:
+  method: GET
+  url: "{{API}}/institution/users"
+  body:
+    type: json
+    data: |-
+      {
+        "institution_id": {{INSTITUTION_ID}}
+      }
+  auth:
+    type: bearer
+    token: 17|u9fkblhM3C44UWCouWBiVcC8tcSsM6yasXDIKPr779c13d5e
+
+runtime:
+  variables:
+    - name: INSTITUTION_ID
+      value: 019edce9-b6ab-709e-8b89-423dc58c5c74
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
