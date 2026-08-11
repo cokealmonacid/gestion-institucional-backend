@@ -65,15 +65,15 @@ class InstitutionUsersOpenApiTest extends TestCase
             'id',
             'name',
             'email',
-            'email_verified_at',
-            'institution_id',
+            'role',
             'created_at',
-            'updated_at',
+            'active',
         ], $user['required']);
         $this->assertSame($user['required'], array_keys($user['properties']));
         $this->assertArrayNotHasKey('password', $user['properties']);
         $this->assertArrayNotHasKey('remember_token', $user['properties']);
-        $this->assertSame(['string', 'null'], $user['properties']['email_verified_at']['type']);
+        $this->assertSame('boolean', $user['properties']['active']['type']);
+        $this->assertSame('string', $user['properties']['created_at']['type']);
     }
 
     public function test_forbidden_response_has_no_success_key(): void

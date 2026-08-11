@@ -10,10 +10,10 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Modules\Institution\Models\Institution;
 use Laravel\Sanctum\HasApiTokens;
+use Modules\Institution\Models\Institution;
 
-#[Fillable(['name', 'email', 'password', 'institution_id'])]
+#[Fillable(['name', 'email', 'password', 'institution_id', 'active'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -34,6 +34,7 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'active' => 'boolean',
         ];
     }
 

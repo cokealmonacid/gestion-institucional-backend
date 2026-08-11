@@ -43,11 +43,14 @@
             }
           },
           "403": {
-            "description": "The authenticated identity has no valid institution",
+            "description": "The authenticated identity has no valid institution, or the account is inactive",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/InstitutionRequiredError"
+                  "oneOf": [
+                    { "$ref": "#/components/schemas/InstitutionRequiredError" },
+                    { "$ref": "#/components/schemas/AccountInactiveError" }
+                  ]
                 }
               }
             }
@@ -340,6 +343,18 @@
             "error": {
               "code": "AUTH_INSTITUTION_REQUIRED",
               "message": "A valid institution is required to access the application."
+            }
+          }
+        ]
+      },
+      "AccountInactiveError": {
+        "$ref": "#/components/schemas/ErrorResponse",
+        "examples": [
+          {
+            "success": false,
+            "error": {
+              "code": "AUTH_ACCOUNT_INACTIVE",
+              "message": "This account is inactive."
             }
           }
         ]

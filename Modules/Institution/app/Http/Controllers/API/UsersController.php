@@ -2,27 +2,32 @@
 
 namespace Modules\Institution\Http\Controllers\API;
 
-use Illuminate\Support\Facades\Validator;
-use App\Http\Controllers\BaseController;
-use Illuminate\Validation\Rule;
-use Illuminate\Http\Request;
-use App\Models\RoleUser;
 use App\Enums\RoleType;
-use App\Models\User;
+use App\Http\Controllers\BaseController;
 use App\Models\Rol;
+use App\Models\RoleUser;
+use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
+use Modules\Institution\Http\Resources\UserResource;
 
 class UsersController extends BaseController
 {
     public function index(Request $request)
     {
         $users = User::where('institution_id', $request->user()->institution_id)
+            ->with('roles')
             ->paginate($request->input('per_page', 15));
+
+        $users->getCollection()->transform(
+            fn (User $user) => (new UserResource($user))->resolve($request)
+        );
 
         return $this->sendResponse($users, 'Users retrieved successfully.');
     }
 
-
-    public function store(Request $request) 
+    public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
@@ -34,7 +39,7 @@ class UsersController extends BaseController
         ]);
 
         if ($validator->fails()) {
-            return $this->sendError('Validation failed.', ['error'=> $validator->errors()], 422);
+            return $this->sendError('Validation failed.', ['error' => $validator->errors()], 422);
         }
 
         try {
@@ -47,7 +52,7 @@ class UsersController extends BaseController
 
             RoleUser::create([
                 'user_id' => $user->id,
-                'role_id' => $rol->id
+                'role_id' => $rol->id,
             ]);
 
             return $this->sendResponse([], 'Account registered successfully.');
@@ -56,7 +61,7 @@ class UsersController extends BaseController
         }
     }
 
-    public function update(Request $request) 
+    public function update(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'email' => 'required|string|email|exists:users,email',
@@ -76,7 +81,7 @@ class UsersController extends BaseController
         ]);
 
         if ($validator->fails()) {
-            return $this->sendError('Validation failed.', ['error'=> $validator->errors()], 422);
+            return $this->sendError('Validation failed.', ['error' => $validator->errors()], 422);
         }
 
         try {
@@ -114,7 +119,7 @@ class UsersController extends BaseController
         ]);
 
         if ($validator->fails()) {
-            return $this->sendError('Validation failed.', ['error'=> $validator->errors()], 422);
+            return $this->sendError('Validation failed.', ['error' => $validator->errors()], 422);
         }
 
         try {
