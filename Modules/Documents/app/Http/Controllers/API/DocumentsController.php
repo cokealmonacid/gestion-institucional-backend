@@ -3,10 +3,14 @@
 namespace Modules\Documents\Http\Controllers\API;
 
 use App\Http\Controllers\BaseController;
+use App\Http\Responses\ApiResponse;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Modules\Documents\Actions\CreateDocumentAction;
+use Modules\Documents\Exceptions\DocumentCreationException;
+use Modules\Documents\Http\Requests\CreateDocumentRequest;
 use Modules\Documents\Http\Resources\DocumentResource;
 use Modules\Documents\Models\Document;
 use Modules\Documents\Models\DocumentDownload;
@@ -30,7 +34,7 @@ class DocumentsController extends BaseController
     {
         $disk = Storage::disk(config('filesystems.default'));
 
-        if (!$version->url || !$disk->exists($version->url)) {
+        if (! $version->url || ! $disk->exists($version->url)) {
             return $this->sendError('Document file not found.', [], 404);
         }
 
@@ -49,7 +53,7 @@ class DocumentsController extends BaseController
     {
         $node = $this->activeNodeQuery($request)->find($node_id);
 
-        if (!$node) {
+        if (! $node) {
             return $this->sendError('Node not found.', [], 404);
         }
 
@@ -63,48 +67,33 @@ class DocumentsController extends BaseController
         return $this->sendResponse(DocumentResource::collection($documents), 'Documents retrieved successfully.');
     }
 
-    public function store(Request $request, $node_id)
+    public function store(CreateDocumentRequest $request, $node_id, CreateDocumentAction $action)
     {
-        $node = $this->activeNodeQuery($request)->find($node_id);
-
-        if (!$node) {
-            return $this->sendError('Node not found.', [], 404);
+        try {
+            $document = $action->execute($request->user(), $node_id, $request->validated());
+        } catch (DocumentCreationException $exception) {
+            return ApiResponse::error(
+                $exception->errorCode,
+                $exception->getMessage(),
+                $exception->status,
+                $exception->fields,
+            );
         }
 
-        $validator = Validator::make($request->all(), [
-            'name' => ['required', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
-            'category' => ['nullable', 'string', 'max:255'],
-            'responsible_unit' => ['nullable', 'string', 'max:255'],
-            'institution_id' => ['prohibited'],
-            'author_id' => ['prohibited'],
-            'node_id' => ['prohibited'],
-            'status' => ['prohibited'],
+        return response()->json([
+            'success' => true,
+            'data' => (new DocumentResource($document))->resolve($request),
+            'message' => 'Document created successfully.',
+        ], 201, [
+            'Location' => url("/api/v1/documents/{$document->id}"),
         ]);
-
-        if ($validator->fails()) {
-            return $this->sendError('Validation Error.', $validator->errors(), 422);
-        }
-
-        $document = Document::create([
-            'name' => $request->name,
-            'description' => $request->description,
-            'category' => $request->category,
-            'responsible_unit' => $request->responsible_unit,
-            'status' => true,
-            'author_id' => $request->user()->id,
-            'institution_id' => $request->user()->institution_id,
-            'node_id' => $node->id,
-        ]);
-
-        return $this->sendResponse($document, 'Document created successfully.');
     }
 
     public function show(Request $request, $document_id)
     {
         $document = $this->institutionDocumentQuery($request)->find($document_id);
 
-        if (!$document) {
+        if (! $document) {
             return $this->sendError('Document not found.', [], 404);
         }
 
@@ -115,7 +104,7 @@ class DocumentsController extends BaseController
     {
         $document = $this->institutionDocumentQuery($request)->find($document_id);
 
-        if (!$document) {
+        if (! $document) {
             return $this->sendError('Document not found.', [], 404);
         }
 
@@ -149,7 +138,7 @@ class DocumentsController extends BaseController
     {
         $document = $this->institutionDocumentQuery($request)->find($document_id);
 
-        if (!$document) {
+        if (! $document) {
             return $this->sendError('Document not found.', [], 404);
         }
 
@@ -163,7 +152,7 @@ class DocumentsController extends BaseController
     {
         $document = $this->institutionDocumentQuery($request)->find($document_id);
 
-        if (!$document) {
+        if (! $document) {
             return $this->sendError('Document not found.', [], 404);
         }
 
@@ -179,7 +168,7 @@ class DocumentsController extends BaseController
             ->where('status', true)
             ->find($document_id);
 
-        if (!$document) {
+        if (! $document) {
             return $this->sendError('Document not found.', [], 404);
         }
 
@@ -189,7 +178,7 @@ class DocumentsController extends BaseController
             ->where('is_current', true)
             ->first();
 
-        if (!$version) {
+        if (! $version) {
             return $this->sendError('Current document version not found.', [], 404);
         }
 

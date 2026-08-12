@@ -20,7 +20,7 @@ class DocumentExplorerOpenApiTest extends TestCase
         $contract = $this->contract();
 
         $this->assertSame('3.1.0', $contract['openapi']);
-        $this->assertSame('2.0.0', $contract['info']['version']);
+        $this->assertSame('2.1.0', $contract['info']['version']);
         $this->assertArrayNotHasKey('servers', $contract);
         $this->assertSame([
             '/api/v1/institution/tree-directory',
@@ -32,7 +32,7 @@ class DocumentExplorerOpenApiTest extends TestCase
         $this->assertSame(['get', 'post'], array_keys($contract['paths']['/api/v1/institution/tree-directory']));
         $this->assertSame(['get'], array_keys($contract['paths']['/api/v1/institution/tree-directory/{node_id}']));
         $this->assertSame(['get'], array_keys($contract['paths']['/api/v1/institution/tree-directory/{node_id}/children']));
-        $this->assertSame(['get'], array_keys($contract['paths']['/api/v1/institution/tree-directory/{node_id}/documents']));
+        $this->assertSame(['get', 'post'], array_keys($contract['paths']['/api/v1/institution/tree-directory/{node_id}/documents']));
     }
 
     public function test_contract_documents_the_effective_status_codes_and_security(): void
@@ -47,6 +47,11 @@ class DocumentExplorerOpenApiTest extends TestCase
         $create = $contract['paths']['/api/v1/institution/tree-directory']['post'];
         $this->assertSame([201, 401, 403, 404, 409, 422], array_keys($create['responses']));
         $this->assertSame([['bearerAuth' => []]], $create['security']);
+
+        $createDocument = $contract['paths']['/api/v1/institution/tree-directory/{node_id}/documents']['post'];
+        $this->assertSame('createInstitutionDocument', $createDocument['operationId']);
+        $this->assertSame([201, 401, 403, 404, 422], array_keys($createDocument['responses']));
+        $this->assertSame([['bearerAuth' => []]], $createDocument['security']);
 
         foreach ([
             '/api/v1/institution/tree-directory/{node_id}',
@@ -152,6 +157,40 @@ class DocumentExplorerOpenApiTest extends TestCase
         $this->assertArrayHasKey('root', $operation['requestBody']['content']['application/json']['examples']);
         $this->assertArrayHasKey('child', $operation['requestBody']['content']['application/json']['examples']);
         $this->assertArrayHasKey('Location', $operation['responses']['201']['headers']);
+    }
+
+    public function test_document_create_request_contains_only_confirmed_user_fields(): void
+    {
+        $contract = $this->contract();
+        $request = $contract['components']['schemas']['CreateDocumentRequest'];
+
+        $this->assertFalse($request['additionalProperties']);
+        $this->assertSame(['name'], $request['required']);
+        $this->assertSame(['name', 'description', 'category', 'responsible_unit'], array_keys($request['properties']));
+        $this->assertSame(255, $request['properties']['name']['maxLength']);
+        $this->assertSame(255, $request['properties']['category']['maxLength']);
+        $this->assertSame(255, $request['properties']['responsible_unit']['maxLength']);
+        $this->assertStringContainsString('trims leading and trailing whitespace', $request['properties']['name']['description']);
+        $this->assertStringContainsString('converts empty strings to null', $request['properties']['name']['description']);
+        $this->assertStringContainsString('not NFC-normalized', $request['properties']['name']['description']);
+        $this->assertStringContainsString('case-normalized', $request['properties']['name']['description']);
+        $this->assertStringContainsString('uniqueness rule', $request['properties']['name']['description']);
+
+        foreach (['description', 'category', 'responsible_unit'] as $field) {
+            $this->assertStringContainsString('trims leading and trailing whitespace', $request['properties'][$field]['description']);
+            $this->assertStringContainsString('converts empty strings to null', $request['properties'][$field]['description']);
+            $this->assertStringContainsString('whitespace-only input is stored as null', $request['properties'][$field]['description']);
+            $this->assertStringContainsString('No additional document-domain normalization', $request['properties'][$field]['description']);
+        }
+
+        $operation = $contract['paths']['/api/v1/institution/tree-directory/{node_id}/documents']['post'];
+        $this->assertTrue($operation['requestBody']['required']);
+        $this->assertArrayHasKey('Location', $operation['responses']['201']['headers']);
+        $this->assertSame(
+            'Location of the created document resource.',
+            $operation['responses']['201']['headers']['Location']['description'],
+        );
+        $this->assertArrayNotHasKey('409', $operation['responses']);
     }
 
     public function test_legacy_create_path_is_not_published_as_a_post_operation(): void
