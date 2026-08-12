@@ -2,13 +2,13 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Acervo Institutional Document Explorer API",
-    "version": "2.0.0",
-    "description": "Contract for navigating the virtual institution root, reading real nodes and their direct documents, and creating container nodes. Node order is numeric and node paths are materialized UUID paths."
+    "version": "2.1.0",
+    "description": "Contract for navigating the virtual institution root, reading real nodes and their direct documents, creating container nodes, and creating logical documents in real nodes. Node order is numeric and node paths are materialized UUID paths."
   },
   "tags": [
     {
       "name": "Document explorer",
-      "description": "Institution-scoped document explorer navigation and node creation."
+      "description": "Institution-scoped document explorer navigation, node creation, and logical document creation."
     }
   ],
   "paths": {
@@ -227,6 +227,65 @@
           "401": { "$ref": "#/components/responses/Unauthenticated" },
           "404": { "$ref": "#/components/responses/NodeNotFound" }
         }
+      },
+      "post": {
+        "operationId": "createInstitutionDocument",
+        "summary": "Create a logical document in a node",
+        "description": "Creates an active logical document in an accessible active node owned by the authenticated user's institution. Admin and editor roles are allowed. The identifier, institution, author, node association, lifecycle status, and timestamps are server-derived. This operation does not upload a file or create an initial document version.",
+        "tags": ["Document explorer"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/NodeId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateDocumentRequest" },
+              "example": {
+                "name": "Institutional regulations",
+                "description": "Current institutional regulations.",
+                "category": "Regulations",
+                "responsible_unit": "General Secretariat"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Logical document created and persisted.",
+            "headers": {
+              "Location": {
+                "description": "Location of the created document resource.",
+                "schema": { "type": "string" }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DocumentCreatedSuccess" },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "id": "44444444-4444-4444-4444-444444444444",
+                    "name": "Institutional regulations",
+                    "description": "Current institutional regulations.",
+                    "category": "Regulations",
+                    "responsible_unit": "General Secretariat",
+                    "status": true,
+                    "author_id": "55555555-5555-5555-5555-555555555555",
+                    "institution_id": "22222222-2222-2222-2222-222222222222",
+                    "node_id": "11111111-1111-1111-1111-111111111111",
+                    "created_at": "2026-08-12T12:00:00.000000Z",
+                    "updated_at": "2026-08-12T12:00:00.000000Z"
+                  },
+                  "message": "Document created successfully."
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/CanonicalUnauthenticated" },
+          "403": { "$ref": "#/components/responses/DocumentCreateForbidden" },
+          "404": { "$ref": "#/components/responses/DocumentLocationNotFound" },
+          "422": { "$ref": "#/components/responses/DocumentValidationFailed" }
+        }
       }
     }
   },
@@ -265,6 +324,17 @@
             "format": "uuid",
             "description": "Required location selector. Null creates in the virtual institution root; a UUID creates under that active node."
           }
+        }
+      },
+      "CreateDocumentRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 255, "description": "Required logical document name after the HTTP pipeline trims leading and trailing whitespace and converts empty strings to null. Empty and whitespace-only input therefore fails required validation. No document-domain normalization is applied: the value is not NFC-normalized, case-normalized, or subject to a uniqueness rule." },
+          "description": { "type": ["string", "null"], "description": "Optional document description after the HTTP pipeline trims leading and trailing whitespace and converts empty strings to null. Omitted, explicit null, empty, and whitespace-only input is stored as null. No additional document-domain normalization is applied." },
+          "category": { "type": ["string", "null"], "maxLength": 255, "description": "Optional document category after the HTTP pipeline trims leading and trailing whitespace and converts empty strings to null. Omitted, explicit null, empty, and whitespace-only input is stored as null. No additional document-domain normalization is applied." },
+          "responsible_unit": { "type": ["string", "null"], "maxLength": 255, "description": "Optional responsible institutional unit after the HTTP pipeline trims leading and trailing whitespace and converts empty strings to null. Omitted, explicit null, empty, and whitespace-only input is stored as null. No additional document-domain normalization is applied." }
         }
       },
       "Node": {
@@ -351,6 +421,16 @@
           "success": { "type": "boolean", "enum": [true] },
           "data": { "type": "array", "items": { "$ref": "#/components/schemas/Document" } },
           "message": { "type": "string", "enum": ["Documents retrieved successfully."] }
+        }
+      },
+      "DocumentCreatedSuccess": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "data", "message"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [true] },
+          "data": { "$ref": "#/components/schemas/Document" },
+          "message": { "type": "string", "enum": ["Document created successfully."] }
         }
       },
       "LegacyError": {
@@ -442,6 +522,40 @@
                 "code": "NODE_NAME_INVALID",
                 "message": "The node creation request is invalid.",
                 "fields": { "name": ["The node name contains prohibited characters."] }
+              }
+            }
+          }
+        }
+      },
+      "DocumentCreateForbidden": {
+        "description": "The authenticated user is not an admin or editor.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/CanonicalError" },
+            "example": { "success": false, "error": { "code": "DOCUMENT_CREATE_FORBIDDEN", "message": "You are not allowed to create documents." } }
+          }
+        }
+      },
+      "DocumentLocationNotFound": {
+        "description": "The selected node is missing, inactive, hidden below an inactive ancestor, inaccessible, or owned by another institution.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/CanonicalError" },
+            "example": { "success": false, "error": { "code": "DOCUMENT_LOCATION_NOT_FOUND", "message": "The selected document location is not available." } }
+          }
+        }
+      },
+      "DocumentValidationFailed": {
+        "description": "The document creation request contains an invalid, derived, or additional property.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/CanonicalError" },
+            "example": {
+              "success": false,
+              "error": {
+                "code": "VALIDATION_FAILED",
+                "message": "The document creation request is invalid.",
+                "fields": { "name": ["The name field is required."] }
               }
             }
           }
