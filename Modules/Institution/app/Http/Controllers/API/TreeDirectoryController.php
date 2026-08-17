@@ -3,11 +3,16 @@
 namespace Modules\Institution\Http\Controllers\API;
 
 use App\Http\Controllers\BaseController;
+use App\Http\Responses\ApiResponse;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Modules\Institution\Actions\CreateNodeAction;
+use Modules\Institution\Exceptions\NodeCreationException;
+use Modules\Institution\Http\Requests\CreateNodeRequest;
 use Modules\Nodes\Http\Resources\NodeResource;
 use Modules\Nodes\Models\Node;
+use Modules\Nodes\Support\NodeName;
 
 class TreeDirectoryController extends BaseController
 {
@@ -45,7 +50,7 @@ class TreeDirectoryController extends BaseController
         $node = $this->activeNodeQuery($request)
             ->find($node_id);
 
-        if (!$node) {
+        if (! $node) {
             return $this->sendError('Node not found.', [], 404);
         }
 
@@ -57,7 +62,7 @@ class TreeDirectoryController extends BaseController
         $parent = $this->activeNodeQuery($request)
             ->find($node_id);
 
-        if (!$parent) {
+        if (! $parent) {
             return $this->sendError('Node not found.', [], 404);
         }
 
@@ -71,17 +76,51 @@ class TreeDirectoryController extends BaseController
         return $this->sendResponse(NodeResource::collection($nodes), 'Tree directory children retrieved successfully.');
     }
 
-    public function store(Request $request, $node_id)
+    public function storeCanonical(CreateNodeRequest $request, CreateNodeAction $action)
     {
-        $parent = $this->activeNodeQuery($request)
-            ->find($node_id);
+        try {
+            $node = $action->execute(
+                $request->user(),
+                $request->validated('parent_id'),
+                $request->validated('name'),
+            );
+        } catch (NodeCreationException $exception) {
+            return ApiResponse::error(
+                $exception->errorCode,
+                $exception->getMessage(),
+                $exception->status,
+                $exception->fields,
+            );
+        }
 
-        if (!$parent) {
-            return $this->sendError('Parent node not found.', [], 404);
+        return response()->json([
+            'success' => true,
+            'data' => (new NodeResource($node))->resolve($request),
+            'message' => 'Tree directory node created successfully.',
+        ], 201, [
+            'Location' => url("/api/v1/institution/tree-directory/{$node->id}"),
+        ]);
+    }
+
+    public function store(Request $request, $node_id, CreateNodeAction $action)
+    {
+        try {
+            $action->authorize($request->user());
+        } catch (NodeCreationException $exception) {
+            return $this->sendError('Forbidden.', [], 403);
         }
 
         $validator = Validator::make($request->all(), [
-            'name' => ['required', 'string', 'max:255'],
+            'name' => [
+                'required',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    try {
+                        NodeName::normalize($value);
+                    } catch (\InvalidArgumentException $exception) {
+                        $fail($exception->getMessage());
+                    }
+                },
+            ],
             'path' => ['nullable', 'string', 'max:255'],
             'order' => ['nullable', 'string', 'max:255'],
         ]);
@@ -90,18 +129,21 @@ class TreeDirectoryController extends BaseController
             return $this->sendError('Validation Error.', $validator->errors(), 422);
         }
 
-        $siblingCount = $parent->children()->count();
+        try {
+            $node = $action->execute($request->user(), $node_id, $request->name);
+        } catch (NodeCreationException $exception) {
+            if ($exception->status === 403) {
+                return $this->sendError('Forbidden.', [], 403);
+            }
 
-        $node = Node::create([
-            'name' => $request->name,
-            // Pending tree policy: path/order are minimally derived until a canonical rule is defined.
-            'path' => $request->path ?? trim($parent->path . '/' . $request->name, '/'),
-            'depth' => $parent->depth + 1,
-            'order' => $request->order ?? (string) ($siblingCount + 1),
-            'active' => true,
-            'institution_id' => $parent->institution_id,
-            'parent_id' => $parent->id,
-        ]);
+            if ($exception->status === 404) {
+                return $this->sendError('Parent node not found.', [], 404);
+            }
+
+            return $this->sendError($exception->getMessage(), $exception->fields ?? [], $exception->status);
+        }
+
+        $node->offsetUnset('has_children');
 
         return $this->sendResponse($node, 'Tree directory node created successfully.');
     }
@@ -111,7 +153,7 @@ class TreeDirectoryController extends BaseController
         $node = $this->activeNodeQuery($request)
             ->find($node_id);
 
-        if (!$node) {
+        if (! $node) {
             return $this->sendError('Node not found.', [], 404);
         }
 
@@ -128,7 +170,7 @@ class TreeDirectoryController extends BaseController
         $node = $this->institutionNodeQuery($request)
             ->find($node_id);
 
-        if (!$node) {
+        if (! $node) {
             return $this->sendError('Node not found.', [], 404);
         }
 

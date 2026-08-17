@@ -2,13 +2,13 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Acervo Institutional Document Explorer API",
-    "version": "1.0.0",
-    "description": "Read-only contract for navigating the virtual institution root, real nodes, and documents directly associated with a selected node."
+    "version": "2.1.0",
+    "description": "Contract for navigating the virtual institution root, reading real nodes and their direct documents, creating container nodes, and creating logical documents in real nodes. Node order is numeric and node paths are materialized UUID paths."
   },
   "tags": [
     {
       "name": "Document explorer",
-      "description": "Read-only, institution-scoped navigation."
+      "description": "Institution-scoped document explorer navigation, node creation, and logical document creation."
     }
   ],
   "paths": {
@@ -31,9 +31,9 @@
                     {
                       "id": "11111111-1111-1111-1111-111111111111",
                       "name": "Documentos",
-                      "path": "documentos",
+                      "path": "11111111-1111-1111-1111-111111111111",
                       "depth": 0,
-                      "order": "1",
+                      "order": 1,
                       "active": 1,
                       "institution_id": "22222222-2222-2222-2222-222222222222",
                       "parent_id": null,
@@ -48,6 +48,63 @@
             }
           },
           "401": { "$ref": "#/components/responses/Unauthenticated" }
+        }
+      },
+      "post": {
+        "operationId": "createInstitutionNode",
+        "summary": "Create a container node",
+        "description": "Creates an active node in the virtual root when parent_id is null, or under an active node in the authenticated user's institution. Admin and editor roles are allowed. All hierarchy, ordering, institution and lifecycle fields are server-derived. Every current Node is a container; NODE_PARENT_NOT_CONTAINER is reserved for a future node subtype and is not currently reachable.",
+        "tags": ["Document explorer"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateNodeRequest" },
+              "examples": {
+                "root": { "value": { "name": "Contratos", "parent_id": null } },
+                "child": { "value": { "name": "Contratos", "parent_id": "11111111-1111-1111-1111-111111111111" } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Node created.",
+            "headers": {
+              "Location": {
+                "description": "Canonical URL of the created node.",
+                "schema": { "type": "string" }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NodeCreatedSuccess" },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "id": "33333333-3333-3333-3333-333333333333",
+                    "name": "Contratos",
+                    "path": "11111111-1111-1111-1111-111111111111/33333333-3333-3333-3333-333333333333",
+                    "depth": 1,
+                    "order": 2,
+                    "active": 1,
+                    "institution_id": "22222222-2222-2222-2222-222222222222",
+                    "parent_id": "11111111-1111-1111-1111-111111111111",
+                    "created_at": "2026-08-11T12:00:00.000000Z",
+                    "updated_at": "2026-08-11T12:00:00.000000Z",
+                    "has_children": false
+                  },
+                  "message": "Tree directory node created successfully."
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/CanonicalUnauthenticated" },
+          "403": { "$ref": "#/components/responses/NodeCreateForbidden" },
+          "404": { "$ref": "#/components/responses/ParentNodeNotFound" },
+          "409": { "$ref": "#/components/responses/DuplicateNodeName" },
+          "422": { "$ref": "#/components/responses/NodeValidationFailed" }
         }
       }
     },
@@ -70,9 +127,9 @@
                   "data": {
                     "id": "11111111-1111-1111-1111-111111111111",
                     "name": "Documentos",
-                    "path": "documentos",
+                    "path": "11111111-1111-1111-1111-111111111111",
                     "depth": 0,
-                    "order": "1",
+                    "order": 1,
                     "active": 1,
                     "institution_id": "22222222-2222-2222-2222-222222222222",
                     "parent_id": null,
@@ -110,9 +167,9 @@
                     {
                       "id": "33333333-3333-3333-3333-333333333333",
                       "name": "Reglamentos",
-                      "path": "documentos/reglamentos",
+                      "path": "11111111-1111-1111-1111-111111111111/33333333-3333-3333-3333-333333333333",
                       "depth": 1,
-                      "order": "1",
+                      "order": 1,
                       "active": 1,
                       "institution_id": "22222222-2222-2222-2222-222222222222",
                       "parent_id": "11111111-1111-1111-1111-111111111111",
@@ -170,6 +227,65 @@
           "401": { "$ref": "#/components/responses/Unauthenticated" },
           "404": { "$ref": "#/components/responses/NodeNotFound" }
         }
+      },
+      "post": {
+        "operationId": "createInstitutionDocument",
+        "summary": "Create a logical document in a node",
+        "description": "Creates an active logical document in an accessible active node owned by the authenticated user's institution. Admin and editor roles are allowed. The identifier, institution, author, node association, lifecycle status, and timestamps are server-derived. This operation does not upload a file or create an initial document version.",
+        "tags": ["Document explorer"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/NodeId" }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateDocumentRequest" },
+              "example": {
+                "name": "Institutional regulations",
+                "description": "Current institutional regulations.",
+                "category": "Regulations",
+                "responsible_unit": "General Secretariat"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Logical document created and persisted.",
+            "headers": {
+              "Location": {
+                "description": "Location of the created document resource.",
+                "schema": { "type": "string" }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DocumentCreatedSuccess" },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "id": "44444444-4444-4444-4444-444444444444",
+                    "name": "Institutional regulations",
+                    "description": "Current institutional regulations.",
+                    "category": "Regulations",
+                    "responsible_unit": "General Secretariat",
+                    "status": true,
+                    "author_id": "55555555-5555-5555-5555-555555555555",
+                    "institution_id": "22222222-2222-2222-2222-222222222222",
+                    "node_id": "11111111-1111-1111-1111-111111111111",
+                    "created_at": "2026-08-12T12:00:00.000000Z",
+                    "updated_at": "2026-08-12T12:00:00.000000Z"
+                  },
+                  "message": "Document created successfully."
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/CanonicalUnauthenticated" },
+          "403": { "$ref": "#/components/responses/DocumentCreateForbidden" },
+          "404": { "$ref": "#/components/responses/DocumentLocationNotFound" },
+          "422": { "$ref": "#/components/responses/DocumentValidationFailed" }
+        }
       }
     }
   },
@@ -192,6 +308,35 @@
       }
     },
     "schemas": {
+      "CreateNodeRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "parent_id"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Display name after trim and NFC normalization. Unicode and internal spaces are allowed; slash, backslash and control characters are prohibited. Sibling uniqueness is NFC-normalized and case-insensitive."
+          },
+          "parent_id": {
+            "type": ["string", "null"],
+            "format": "uuid",
+            "description": "Required location selector. Null creates in the virtual institution root; a UUID creates under that active node."
+          }
+        }
+      },
+      "CreateDocumentRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 255, "description": "Required logical document name after the HTTP pipeline trims leading and trailing whitespace and converts empty strings to null. Empty and whitespace-only input therefore fails required validation. No document-domain normalization is applied: the value is not NFC-normalized, case-normalized, or subject to a uniqueness rule." },
+          "description": { "type": ["string", "null"], "description": "Optional document description after the HTTP pipeline trims leading and trailing whitespace and converts empty strings to null. Omitted, explicit null, empty, and whitespace-only input is stored as null. No additional document-domain normalization is applied." },
+          "category": { "type": ["string", "null"], "maxLength": 255, "description": "Optional document category after the HTTP pipeline trims leading and trailing whitespace and converts empty strings to null. Omitted, explicit null, empty, and whitespace-only input is stored as null. No additional document-domain normalization is applied." },
+          "responsible_unit": { "type": ["string", "null"], "maxLength": 255, "description": "Optional responsible institutional unit after the HTTP pipeline trims leading and trailing whitespace and converts empty strings to null. Omitted, explicit null, empty, and whitespace-only input is stored as null. No additional document-domain normalization is applied." }
+        }
+      },
       "Node": {
         "type": "object",
         "additionalProperties": false,
@@ -202,9 +347,9 @@
         "properties": {
           "id": { "type": "string", "format": "uuid", "description": "Node identifier." },
           "name": { "type": "string", "description": "Display name." },
-          "path": { "type": "string", "description": "Persisted informational path; navigation uses node identifiers and parent_id." },
+          "path": { "type": "string", "description": "Materialized slash-separated UUID path including the node's own identifier. Navigation and hierarchy authority remain parent_id." },
           "depth": { "type": "integer", "minimum": 0, "description": "Persisted hierarchy depth." },
-          "order": { "type": "string", "description": "Persisted textual sort key. Nodes are ordered by order, name, then id." },
+          "order": { "type": "integer", "minimum": 1, "description": "Server-assigned numeric position among siblings in the same institution and parent scope. Nodes are ordered by order, name, then id." },
           "active": { "type": "integer", "enum": [1], "description": "Compatibility field emitted as integer 1 for nodes returned by these active-only operations." },
           "institution_id": { "type": "string", "format": "uuid", "description": "Compatibility field identifying the owning institution." },
           "parent_id": {
@@ -248,6 +393,16 @@
           "message": { "type": "string", "enum": ["Tree directory node retrieved successfully."] }
         }
       },
+      "NodeCreatedSuccess": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "data", "message"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [true] },
+          "data": { "$ref": "#/components/schemas/Node" },
+          "message": { "type": "string", "enum": ["Tree directory node created successfully."] }
+        }
+      },
       "NodeCollectionSuccess": {
         "type": "object",
         "additionalProperties": false,
@@ -268,6 +423,16 @@
           "message": { "type": "string", "enum": ["Documents retrieved successfully."] }
         }
       },
+      "DocumentCreatedSuccess": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "data", "message"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [true] },
+          "data": { "$ref": "#/components/schemas/Document" },
+          "message": { "type": "string", "enum": ["Document created successfully."] }
+        }
+      },
       "LegacyError": {
         "type": "object",
         "additionalProperties": false,
@@ -276,9 +441,126 @@
           "success": { "type": "boolean", "enum": [false] },
           "message": { "type": "string" }
         }
+      },
+      "CanonicalError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "error"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [false] },
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["code", "message"],
+            "properties": {
+              "code": { "type": "string" },
+              "message": { "type": "string" },
+              "fields": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "responses": {
+      "CanonicalUnauthenticated": {
+        "description": "A valid Sanctum bearer token is required.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/CanonicalError" },
+            "example": { "success": false, "error": { "code": "AUTH_UNAUTHENTICATED", "message": "Authentication is required." } }
+          }
+        }
+      },
+      "NodeCreateForbidden": {
+        "description": "The authenticated user is not an admin or editor.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/CanonicalError" },
+            "example": { "success": false, "error": { "code": "NODE_CREATE_FORBIDDEN", "message": "You are not allowed to create nodes." } }
+          }
+        }
+      },
+      "ParentNodeNotFound": {
+        "description": "The parent is missing, inactive, inaccessible, or belongs to another institution.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/CanonicalError" },
+            "example": { "success": false, "error": { "code": "NODE_PARENT_NOT_FOUND", "message": "The selected parent is not available." } }
+          }
+        }
+      },
+      "DuplicateNodeName": {
+        "description": "An active or inactive sibling reserves the same NFC-normalized, case-insensitive name.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/CanonicalError" },
+            "example": {
+              "success": false,
+              "error": {
+                "code": "NODE_NAME_DUPLICATE",
+                "message": "A node with this name already exists in the selected location.",
+                "fields": { "name": ["A node with this name already exists in the selected location."] }
+              }
+            }
+          }
+        }
+      },
+      "NodeValidationFailed": {
+        "description": "The node creation request or name is invalid. Stable codes include VALIDATION_FAILED, NODE_NAME_INVALID, NODE_PARENT_NOT_CONTAINER and NODE_MAX_DEPTH_EXCEEDED.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/CanonicalError" },
+            "example": {
+              "success": false,
+              "error": {
+                "code": "NODE_NAME_INVALID",
+                "message": "The node creation request is invalid.",
+                "fields": { "name": ["The node name contains prohibited characters."] }
+              }
+            }
+          }
+        }
+      },
+      "DocumentCreateForbidden": {
+        "description": "The authenticated user is not an admin or editor.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/CanonicalError" },
+            "example": { "success": false, "error": { "code": "DOCUMENT_CREATE_FORBIDDEN", "message": "You are not allowed to create documents." } }
+          }
+        }
+      },
+      "DocumentLocationNotFound": {
+        "description": "The selected node is missing, inactive, hidden below an inactive ancestor, inaccessible, or owned by another institution.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/CanonicalError" },
+            "example": { "success": false, "error": { "code": "DOCUMENT_LOCATION_NOT_FOUND", "message": "The selected document location is not available." } }
+          }
+        }
+      },
+      "DocumentValidationFailed": {
+        "description": "The document creation request contains an invalid, derived, or additional property.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/CanonicalError" },
+            "example": {
+              "success": false,
+              "error": {
+                "code": "VALIDATION_FAILED",
+                "message": "The document creation request is invalid.",
+                "fields": { "name": ["The name field is required."] }
+              }
+            }
+          }
+        }
+      },
       "Unauthenticated": {
         "description": "A valid Sanctum bearer token is required.",
         "content": {
