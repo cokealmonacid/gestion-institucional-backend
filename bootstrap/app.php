@@ -44,6 +44,12 @@ return Application::configure(basePath: dirname(__DIR__))
             ) || (
                 $request->isMethod('POST')
                 && $request->is('api/v1/auth/logout')
+            ) || (
+                $request->isMethod('POST')
+                && $request->is('api/v1/institution/tree-directory')
+            ) || (
+                $request->isMethod('POST')
+                && $request->is('api/v1/institution/tree-directory/*/documents')
             );
 
             if ($usesAuthenticationContract) {

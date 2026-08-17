@@ -16,7 +16,7 @@ The authentication contract scope is deliberately limited to:
 
 Password-recovery endpoints and every other API endpoint are outside the authentication contract version.
 
-The document-explorer contract is deliberately read-only and limited to listing top-level nodes in the virtual institution root, retrieving a real node, listing its direct child nodes, and listing documents directly associated with it. The virtual root is not a node and does not contain documents.
+The document-explorer contract includes four read operations, canonical node creation through `POST /api/v1/institution/tree-directory`, and logical document creation through `POST /api/v1/institution/tree-directory/{node_id}/documents`. The virtual root is not a node and does not contain documents; node creation targets it with an explicit nullable `parent_id` in the request body. Document creation requires a real accessible node and does not upload a file or create an initial version. The older node POST containing a parent identifier in the route remains runtime-only compatibility behavior and is not part of the canonical contract.
 
 The institution-users contract is admin-only and limited to listing the users of an institution, registering a user in an institution, updating a user's profile, and updating a user's role. Every operation requires `institution_id` to equal the authenticated admin's own institution, and update operations additionally require it to equal the target user's institution.
 
