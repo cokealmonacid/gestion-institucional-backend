@@ -1,0 +1,401 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Acervo Institution Tags API",
+    "version": "1.0.0",
+    "description": "Contract for listing, creating, and deleting tags scoped to the authenticated user's institution."
+  },
+  "tags": [
+    {
+      "name": "Institution tags",
+      "description": "Institution-scoped tag management used to categorize documents."
+    }
+  ],
+  "paths": {
+    "/api/v1/institution/tag": {
+      "get": {
+        "operationId": "listInstitutionTags",
+        "summary": "List tags of the authenticated user's institution",
+        "description": "Returns a paginated list of tags whose institution_id matches the authenticated user's own institution_id. Optionally filtered by status.",
+        "tags": ["Institution tags"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Status" },
+          { "$ref": "#/components/parameters/PerPage" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tags retrieved.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/TagPageSuccess" },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "current_page": 1,
+                    "data": [
+                      {
+                        "id": "11111111-1111-1111-1111-111111111111",
+                        "name": "Contracts",
+                        "description": "Legal contract documents",
+                        "created_at": "8 days ago",
+                        "status": true
+                      }
+                    ],
+                    "first_page_url": "http://localhost/api/v1/institution/tag?page=1",
+                    "from": 1,
+                    "last_page": 1,
+                    "last_page_url": "http://localhost/api/v1/institution/tag?page=1",
+                    "links": [
+                      { "url": null, "label": "&laquo; Previous", "active": false },
+                      { "url": "http://localhost/api/v1/institution/tag?page=1", "label": "1", "active": true },
+                      { "url": null, "label": "Next &raquo;", "active": false }
+                    ],
+                    "next_page_url": null,
+                    "path": "http://localhost/api/v1/institution/tag",
+                    "per_page": 15,
+                    "prev_page_url": null,
+                    "to": 1,
+                    "total": 1
+                  },
+                  "message": "Tags retrieved successfully."
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/InactiveAccount" }
+        }
+      },
+      "post": {
+        "operationId": "createInstitutionTag",
+        "summary": "Create a tag in an institution",
+        "description": "Creates a tag with the given name and description in institution_id. institution_id must equal the authenticated user's own institution_id.",
+        "tags": ["Institution tags"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateTagRequest" },
+              "example": {
+                "institution_id": "22222222-2222-2222-2222-222222222222",
+                "name": "Contracts",
+                "description": "Legal contract documents"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tag created.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/CreateTagSuccess" },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "id": "11111111-1111-1111-1111-111111111111",
+                    "name": "Contracts",
+                    "description": "Legal contract documents"
+                  },
+                  "message": "Tag created successfully."
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    },
+    "/api/v1/institution/tag/{tag_id}": {
+      "delete": {
+        "operationId": "deleteInstitutionTag",
+        "summary": "Delete a tag",
+        "description": "Deletes the tag identified by tag_id. institution_id must equal the authenticated user's own institution_id.",
+        "tags": ["Institution tags"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "tag_id",
+            "in": "path",
+            "required": true,
+            "description": "Identifies the tag to delete. Must already exist in tags.id.",
+            "schema": { "type": "string", "format": "uuid" },
+            "example": "11111111-1111-1111-1111-111111111111"
+          },
+          { "$ref": "#/components/parameters/InstitutionId" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tag deleted.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DeleteTagSuccess" },
+                "example": { "success": true, "data": null, "message": "Tag removed successfully." }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" },
+          "500": { "$ref": "#/components/responses/ServerError" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "Sanctum"
+      }
+    },
+    "parameters": {
+      "InstitutionId": {
+        "name": "institution_id",
+        "in": "query",
+        "required": true,
+        "description": "Must equal the authenticated user's own institution_id, or the request is rejected as Forbidden.",
+        "schema": { "type": "string", "format": "uuid" },
+        "example": "22222222-2222-2222-2222-222222222222"
+      },
+      "Status": {
+        "name": "status",
+        "in": "query",
+        "required": false,
+        "description": "Filters tags by status when present.",
+        "schema": { "type": "boolean" },
+        "example": true
+      },
+      "PerPage": {
+        "name": "per_page",
+        "in": "query",
+        "required": false,
+        "description": "Page size. Defaults to 15.",
+        "schema": { "type": "integer", "minimum": 1 },
+        "example": 15
+      }
+    },
+    "schemas": {
+      "Tag": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "description", "created_at", "status"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid", "description": "Tag identifier." },
+          "name": { "type": "string", "description": "Display name." },
+          "description": {
+            "oneOf": [{ "type": "string" }, { "type": "null" }],
+            "description": "Optional free-text description."
+          },
+          "created_at": { "type": "string", "description": "Human-readable relative time since creation (e.g. \"8 days ago\")." },
+          "status": { "type": "boolean", "description": "Whether the tag is active." }
+        }
+      },
+      "PaginationLink": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["url", "label", "active"],
+        "properties": {
+          "url": { "type": ["string", "null"] },
+          "label": { "type": "string" },
+          "active": { "type": "boolean" }
+        }
+      },
+      "TagPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "current_page", "data", "first_page_url", "from", "last_page", "last_page_url",
+          "links", "next_page_url", "path", "per_page", "prev_page_url", "to", "total"
+        ],
+        "properties": {
+          "current_page": { "type": "integer" },
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Tag" } },
+          "first_page_url": { "type": ["string", "null"] },
+          "from": { "type": ["integer", "null"] },
+          "last_page": { "type": "integer" },
+          "last_page_url": { "type": ["string", "null"] },
+          "links": { "type": "array", "items": { "$ref": "#/components/schemas/PaginationLink" } },
+          "next_page_url": { "type": ["string", "null"] },
+          "path": { "type": "string" },
+          "per_page": { "type": "integer" },
+          "prev_page_url": { "type": ["string", "null"] },
+          "to": { "type": ["integer", "null"] },
+          "total": { "type": "integer" }
+        }
+      },
+      "TagPageSuccess": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "data", "message"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [true] },
+          "data": { "$ref": "#/components/schemas/TagPage" },
+          "message": { "type": "string", "enum": ["Tags retrieved successfully."] }
+        }
+      },
+      "CreateTagRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["institution_id", "name"],
+        "properties": {
+          "institution_id": { "type": "string", "format": "uuid", "description": "Must equal the authenticated user's own institution_id. Must already exist in institutions.id." },
+          "name": { "type": "string", "maxLength": 255 },
+          "description": {
+            "oneOf": [{ "type": "string" }, { "type": "null" }]
+          }
+        }
+      },
+      "CreateTagData": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "description"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "description": {
+            "oneOf": [{ "type": "string" }, { "type": "null" }]
+          }
+        }
+      },
+      "CreateTagSuccess": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "data", "message"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [true] },
+          "data": { "$ref": "#/components/schemas/CreateTagData" },
+          "message": { "type": "string", "enum": ["Tag created successfully."] }
+        }
+      },
+      "DeleteTagSuccess": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "data", "message"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [true] },
+          "data": { "type": "null" },
+          "message": { "type": "string", "enum": ["Tag removed successfully."] }
+        }
+      },
+      "LegacyError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "message"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [false] },
+          "message": { "type": "string" }
+        }
+      },
+      "InactiveAccountError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "message"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [false] },
+          "message": { "type": "string", "enum": ["This account is inactive."] }
+        }
+      },
+      "ForbiddenError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["message"],
+        "properties": {
+          "message": { "type": "string", "enum": ["Forbidden, User does not belong to the specified institution."] }
+        }
+      },
+      "ServerErrorResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "message"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [false] },
+          "message": { "type": "string", "enum": ["Something went wrong."] }
+        }
+      },
+      "ValidationFailedError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "message", "data"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [false] },
+          "message": { "type": "string", "enum": ["Validation failed."] },
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["error"],
+            "properties": {
+              "error": {
+                "type": "object",
+                "description": "Laravel validator error bag: field name to list of messages.",
+                "additionalProperties": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "Unauthenticated": {
+        "description": "A valid Sanctum bearer token is required.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/LegacyError" },
+            "example": { "success": false, "message": "Unauthenticated." }
+          }
+        }
+      },
+      "InactiveAccount": {
+        "description": "The authenticated user's account is inactive.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/InactiveAccountError" },
+            "example": { "success": false, "message": "This account is inactive." }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "The authenticated user's account is inactive, or institution_id does not equal the authenticated user's own institution_id.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "oneOf": [
+                { "$ref": "#/components/schemas/InactiveAccountError" },
+                { "$ref": "#/components/schemas/ForbiddenError" }
+              ]
+            },
+            "example": { "message": "Forbidden, User does not belong to the specified institution." }
+          }
+        }
+      },
+      "ValidationFailed": {
+        "description": "Request validation failed.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ValidationFailedError" },
+            "example": {
+              "success": false,
+              "message": "Validation failed.",
+              "data": { "error": { "name": ["The name field is required."] } }
+            }
+          }
+        }
+      },
+      "ServerError": {
+        "description": "An unexpected error occurred while processing the request.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ServerErrorResponse" },
+            "example": { "success": false, "message": "Something went wrong." }
+          }
+        }
+      }
+    }
+  }
+}
