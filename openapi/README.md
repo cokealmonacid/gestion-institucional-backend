@@ -19,6 +19,8 @@ Password-recovery endpoints and every other API endpoint are outside the authent
 
 The document-explorer contract includes four read operations, canonical node creation through `POST /api/v1/institution/tree-directory`, and logical document creation through `POST /api/v1/institution/tree-directory/{node_id}/documents`. The virtual root is not a node and does not contain documents; node creation targets it with an explicit nullable `parent_id` in the request body. Document creation requires a real accessible node and does not upload a file or create an initial version. The older node POST containing a parent identifier in the route remains runtime-only compatibility behavior and is not part of the canonical contract.
 
+`openapi/v1/document-lifecycle.json` is the backend-authoritative contract for document lifecycle detail, active version listing, first and subsequent private-file uploads, current and historical downloads, and selecting an active historical version as current. Version uploads accept at most 25 MiB; PHP and the serving HTTP stack must allow at least 25 MiB plus multipart overhead. The download audit row records authorization and response emission, not completed transfer.
+
 The institution-users contract is admin-only and limited to listing the users of an institution, registering a user in an institution, updating a user's profile, and updating a user's role. Every operation requires `institution_id` to equal the authenticated admin's own institution, and update operations additionally require it to equal the target user's institution.
 
 The institution-tags contract covers institution-scoped tag listing, creation, and deletion. Document-tag assignment routes remain runtime-only compatibility endpoints.

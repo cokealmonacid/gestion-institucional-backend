@@ -1,50 +1,35 @@
 # Document Version Lifecycle
 
-## Versionado
+## Versioning
 
-`Document` representa la entidad logica documental. `DocumentVersion` representa el archivo fisico asociado a esa entidad y su historial de versiones.
+`Document` is the logical document entity. `DocumentVersion` represents a private physical file and its version history. Version numbers are positive sequential integers scoped to a document.
 
-Un documento puede tener muchas versiones. El numero de version se asigna automaticamente como un entero incremental dentro del documento.
+The database protects uniqueness of `(document_id, version_number)`. Uploads lock the logical document, compute the next number, store the file privately, and compensate by deleting the stored file if the database transaction fails.
 
-## Version vigente
+## Current version
 
-`is_current` indica la version vigente del documento.
+A new version automatically becomes current. The nullable `current_marker` is the portable database invariant: `1` identifies the current row and `NULL` identifies historical rows. A unique `(document_id, current_marker)` index permits multiple historical rows while allowing at most one current row. `is_current` remains a compatibility mirror and public responses derive current state from `current_marker`.
 
-Para el MVP, cada nueva version queda vigente automaticamente:
+The integrity migration preserves every positive, integral, unique historical number, including gaps. For duplicates, the oldest row by creation time and ID preserves the number. Duplicate followers and rows with null, zero, negative, or non-integral numbers receive deterministic numbers after the greatest existing positive number, ordered by creation time and ID. No UUID, relationship, version, or file is deleted. When multiple active rows were marked current, the greatest version number, creation time, and ID remains current. A document with no versions, or without an active legacy current version, legitimately has no current version.
 
-- la nueva version queda con `is_current = true`;
-- las versiones anteriores del mismo documento quedan con `is_current = false`.
+`current_marker` is generated from `is_current`, its unique document-scoped index permits at most one current version, and a persistent database constraint requires every current version to be active. Rolling the migration back removes these constraints and the generated column, but cannot reconstruct repaired legacy numbers.
 
-El endpoint manual `PATCH /api/v1/documents/{document_id}/versions/{version_id}/current` permite marcar una version activa existente como vigente y desmarca todas las demas versiones del mismo documento.
+`PATCH /api/v1/documents/{document_id}/versions/{version_id}/current` lets an admin or editor make an active historical version current.
 
-Un documento puede quedar temporalmente sin version vigente si se desactiva la version vigente. Este PR no reasigna automaticamente otra version.
+## Legacy activation operations
 
-## Desactivacion logica
+Legacy activate/deactivate operations remain outside the canonical lifecycle contract and are not expanded by this increment.
 
-`active` indica si la version esta habilitada.
+## Institutional snapshot and storage
 
-`DELETE /api/v1/documents/{document_id}/versions/{version_id}` no elimina fisicamente la version ni el archivo. Solo cambia `active = false`.
+`DocumentVersion` copies `institution_id` and `node_id` from `Document` when it is created. The legacy `url` column stores an internal Laravel filesystem path/key, never a public URL and never part of the API resource.
 
-`PATCH /api/v1/documents/{document_id}/versions/{version_id}/activate` vuelve a dejar `active = true`, sin marcarla automaticamente como vigente.
+Files use private multi-tenant storage:
 
-## Snapshot institucional
-
-`DocumentVersion` copia `institution_id` y `node_id` desde `Document` al momento de crearse. Estos campos funcionan como snapshot historico y facilitan el scope multi-tenant.
-
-## Storage
-
-El campo legacy `url` se usa temporalmente para almacenar el path/key interno entregado por el filesystem de Laravel. No debe interpretarse como URL publica.
-
-El backend debe poder cambiar el disk local por storage externo sin modificar el contrato API.
-
-Los archivos se guardan con estructura multi-tenant:
-
-```txt
+```text
 institutions/{institution_id}/documents/{document_id}/versions/{version_id}/{filename}
 ```
 
-## Aprobacion futura
+Download records mean the backend authorized the request and emitted the download response; they do not prove transfer completion.
 
-El flujo de aprobacion no esta implementado en este PR.
-
-Cuando exista aprobacion, `approval_status` debe ser un estado separado de `is_current`. Una version vigente no necesariamente equivale a aprobada, salvo que una regla futura lo defina explicitamente.
+Storage and required download-record failures return controlled API errors. File deletion after a database failure is best-effort because an unavailable external storage service can leave an orphan that requires operational cleanup. A file can also disappear after the existence check and before filesystem streaming begins; the download record describes response emission, not completed transfer.

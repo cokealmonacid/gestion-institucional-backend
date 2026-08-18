@@ -50,6 +50,15 @@ return Application::configure(basePath: dirname(__DIR__))
             ) || (
                 $request->isMethod('POST')
                 && $request->is('api/v1/institution/tree-directory/*/documents')
+            ) || (
+                $request->isMethod('GET')
+                && preg_match('#^api/v1/documents/[^/]+(?:/download|/versions|/versions/[^/]+/download)?$#', $request->path())
+            ) || (
+                $request->isMethod('POST')
+                && preg_match('#^api/v1/documents/[^/]+/versions$#', $request->path())
+            ) || (
+                $request->isMethod('PATCH')
+                && preg_match('#^api/v1/documents/[^/]+/versions/[^/]+/current$#', $request->path())
             );
 
             if ($usesAuthenticationContract) {

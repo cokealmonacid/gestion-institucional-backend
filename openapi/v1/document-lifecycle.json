@@ -1,0 +1,134 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Acervo Document Lifecycle API",
+    "version": "1.0.0",
+    "description": "Backend-authoritative contract for logical document detail, active file versions, authenticated downloads, version upload, and current-version selection. Files remain in private storage. Deployments must configure PHP upload_max_filesize and post_max_size, and any HTTP-server body limit, to accept at least 25 MiB plus multipart overhead."
+  },
+  "paths": {
+    "/api/v1/documents/{document_id}": {
+      "get": {
+        "operationId": "getDocumentLifecycleDetail",
+        "summary": "Get document lifecycle detail",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/DocumentId" }],
+        "responses": {
+          "200": {
+            "description": "Document lifecycle detail retrieved.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DocumentDetailSuccess" }, "example": { "success": true, "data": { "id": "11111111-1111-1111-1111-111111111111", "name": "Institutional policy", "description": "Current policy.", "category": "Policy", "responsible_unit": "General Secretariat", "status": true, "author_id": "22222222-2222-2222-2222-222222222222", "institution_id": "55555555-5555-5555-5555-555555555555", "node_id": "33333333-3333-3333-3333-333333333333", "created_at": "2026-08-17T12:00:00.000000Z", "updated_at": "2026-08-17T12:00:00.000000Z", "author": { "id": "22222222-2222-2222-2222-222222222222", "name": "Editor User" }, "location": { "id": "33333333-3333-3333-3333-333333333333", "name": "Policies", "path": "33333333-3333-3333-3333-333333333333" }, "current_version": null, "version_count": 0, "capabilities": { "can_download": false, "can_upload_version": true, "can_mark_version_current": true } }, "message": "Document lifecycle detail retrieved successfully." } } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/InactiveUser" },
+          "404": { "$ref": "#/components/responses/DocumentNotAvailable" }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/versions": {
+      "get": {
+        "operationId": "listDocumentVersions",
+        "summary": "List active document versions",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/DocumentId" }],
+        "responses": {
+          "200": { "description": "Active versions retrieved in descending version order.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VersionCollectionSuccess" }, "example": { "success": true, "data": [{ "id": "44444444-4444-4444-4444-444444444444", "version_number": 1, "filename": "policy.pdf", "mime_type": "application/pdf", "file_size": 1200, "active": true, "is_current": true, "author": { "id": "22222222-2222-2222-2222-222222222222", "name": "Editor User" }, "created_at": "2026-08-17T12:00:00.000000Z", "updated_at": "2026-08-17T12:00:00.000000Z" }], "message": "Document versions retrieved successfully." } } } },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/InactiveUser" },
+          "404": { "$ref": "#/components/responses/DocumentNotAvailable" }
+        }
+      },
+      "post": {
+        "operationId": "createDocumentVersion",
+        "summary": "Upload the first or a new document version",
+        "description": "Admin and editor only. The first upload creates version 1. Each subsequent upload uses the next number and becomes current. Maximum file size is 25 MiB (26,214,400 bytes).",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/DocumentId" }],
+        "requestBody": {
+          "required": true,
+          "content": { "multipart/form-data": { "schema": { "type": "object", "additionalProperties": false, "required": ["file"], "properties": { "file": { "type": "string", "format": "binary", "maxLength": 26214400, "description": "PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT, JPG, JPEG, or PNG; at most 25 MiB." } } } } }
+        },
+        "responses": {
+          "201": { "description": "Document version created and made current.", "headers": { "Location": { "description": "Location of the created document version resource.", "schema": { "type": "string" } } }, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VersionSuccess" }, "example": { "success": true, "data": { "id": "44444444-4444-4444-4444-444444444444", "version_number": 1, "filename": "policy.pdf", "mime_type": "application/pdf", "file_size": 1200, "active": true, "is_current": true, "author": { "id": "22222222-2222-2222-2222-222222222222", "name": "Editor User" }, "created_at": "2026-08-17T12:00:00.000000Z", "updated_at": "2026-08-17T12:00:00.000000Z" }, "message": "Document version created successfully." } } } },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/MutationForbidden" },
+          "404": { "$ref": "#/components/responses/DocumentNotAvailable" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" },
+          "500": { "$ref": "#/components/responses/CreationOrStorageFailed" }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/download": {
+      "get": {
+        "operationId": "downloadCurrentDocumentVersion",
+        "summary": "Download the active current version",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/DocumentId" }],
+        "responses": {
+          "200": { "description": "Private file download emitted. The audit row records authorization and response emission, not completed transfer.", "headers": { "Content-Disposition": { "schema": { "type": "string" } }, "Content-Type": { "schema": { "type": "string" } } }, "content": { "application/octet-stream": { "schema": { "type": "string", "format": "binary" } } } },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/InactiveUser" },
+          "404": { "$ref": "#/components/responses/DownloadNotAvailable" },
+          "500": { "$ref": "#/components/responses/StorageFailed" }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/versions/{version_id}/download": {
+      "get": {
+        "operationId": "downloadDocumentVersion",
+        "summary": "Download an active historical or current version",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/DocumentId" }, { "$ref": "#/components/parameters/VersionId" }],
+        "responses": {
+          "200": { "description": "Private file download emitted. The audit row records authorization and response emission, not completed transfer.", "headers": { "Content-Disposition": { "schema": { "type": "string" } }, "Content-Type": { "schema": { "type": "string" } } }, "content": { "application/octet-stream": { "schema": { "type": "string", "format": "binary" } } } },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/InactiveUser" },
+          "404": { "$ref": "#/components/responses/DownloadNotAvailable" },
+          "500": { "$ref": "#/components/responses/StorageFailed" }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/versions/{version_id}/current": {
+      "patch": {
+        "operationId": "setCurrentDocumentVersion",
+        "summary": "Mark an active version as current",
+        "description": "Admin and editor only. Exactly one active version becomes current; a document with no versions may legitimately have no current version.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/DocumentId" }, { "$ref": "#/components/parameters/VersionId" }],
+        "responses": {
+          "200": { "description": "Version marked current.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VersionSuccess" }, "example": { "success": true, "data": { "id": "44444444-4444-4444-4444-444444444444", "version_number": 1, "filename": "policy.pdf", "mime_type": "application/pdf", "file_size": 1200, "active": true, "is_current": true, "author": null, "created_at": "2026-08-17T12:00:00.000000Z", "updated_at": "2026-08-17T12:00:00.000000Z" }, "message": "Document version marked as current successfully." } } } },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/MutationForbidden" },
+          "404": { "$ref": "#/components/responses/VersionOrDocumentNotAvailable" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": { "bearerAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "Sanctum" } },
+    "parameters": {
+      "DocumentId": { "name": "document_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+      "VersionId": { "name": "version_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+    },
+    "schemas": {
+      "AuthorSummary": { "type": ["object", "null"], "additionalProperties": false, "required": ["id", "name"], "properties": { "id": { "type": "string", "format": "uuid" }, "name": { "type": "string" } } },
+      "LocationSummary": { "type": "object", "additionalProperties": false, "required": ["id", "name", "path"], "properties": { "id": { "type": "string", "format": "uuid" }, "name": { "type": "string" }, "path": { "type": "string" } } },
+      "DocumentVersion": { "type": "object", "additionalProperties": false, "required": ["id", "version_number", "filename", "mime_type", "file_size", "active", "is_current", "author", "created_at", "updated_at"], "properties": { "id": { "type": "string", "format": "uuid" }, "version_number": { "type": "integer", "minimum": 1 }, "filename": { "type": "string" }, "mime_type": { "type": "string" }, "file_size": { "type": "integer", "minimum": 1, "maximum": 26214400 }, "active": { "type": "boolean", "enum": [true] }, "is_current": { "type": "boolean" }, "author": { "$ref": "#/components/schemas/AuthorSummary" }, "created_at": { "type": ["string", "null"], "format": "date-time" }, "updated_at": { "type": ["string", "null"], "format": "date-time" } } },
+      "Capabilities": { "type": "object", "additionalProperties": false, "required": ["can_download", "can_upload_version", "can_mark_version_current"], "properties": { "can_download": { "type": "boolean" }, "can_upload_version": { "type": "boolean" }, "can_mark_version_current": { "type": "boolean" } } },
+      "DocumentDetail": { "type": "object", "additionalProperties": false, "required": ["id", "name", "description", "category", "responsible_unit", "status", "author_id", "institution_id", "node_id", "created_at", "updated_at", "author", "location", "current_version", "version_count", "capabilities"], "properties": { "id": { "type": "string", "format": "uuid" }, "name": { "type": "string" }, "description": { "type": ["string", "null"] }, "category": { "type": ["string", "null"] }, "responsible_unit": { "type": ["string", "null"] }, "status": { "type": "boolean", "enum": [true] }, "author_id": { "type": ["string", "null"], "format": "uuid" }, "institution_id": { "type": "string", "format": "uuid" }, "node_id": { "type": "string", "format": "uuid" }, "created_at": { "type": ["string", "null"], "format": "date-time" }, "updated_at": { "type": ["string", "null"], "format": "date-time" }, "author": { "$ref": "#/components/schemas/AuthorSummary" }, "location": { "$ref": "#/components/schemas/LocationSummary" }, "current_version": { "oneOf": [{ "$ref": "#/components/schemas/DocumentVersion" }, { "type": "null" }] }, "version_count": { "type": "integer", "minimum": 0 }, "capabilities": { "$ref": "#/components/schemas/Capabilities" } } },
+      "DocumentDetailSuccess": { "type": "object", "additionalProperties": false, "required": ["success", "data", "message"], "properties": { "success": { "type": "boolean", "enum": [true] }, "data": { "$ref": "#/components/schemas/DocumentDetail" }, "message": { "type": "string" } } },
+      "VersionSuccess": { "type": "object", "additionalProperties": false, "required": ["success", "data", "message"], "properties": { "success": { "type": "boolean", "enum": [true] }, "data": { "$ref": "#/components/schemas/DocumentVersion" }, "message": { "type": "string" } } },
+      "VersionCollectionSuccess": { "type": "object", "additionalProperties": false, "required": ["success", "data", "message"], "properties": { "success": { "type": "boolean", "enum": [true] }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/DocumentVersion" } }, "message": { "type": "string" } } },
+      "Error": { "type": "object", "additionalProperties": false, "required": ["success", "error"], "properties": { "success": { "type": "boolean", "enum": [false] }, "error": { "type": "object", "required": ["code", "message"], "properties": { "code": { "type": "string" }, "message": { "type": "string" }, "fields": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "string" } } } } } } }
+    },
+    "responses": {
+      "Unauthenticated": { "description": "Authentication required.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "success": false, "error": { "code": "AUTH_UNAUTHENTICATED", "message": "Authentication is required." } } } } },
+      "InactiveUser": { "description": "The authenticated account is inactive.", "content": { "application/json": { "example": { "success": false, "message": "This account is inactive." } } } },
+      "MutationForbidden": { "description": "The role cannot mutate versions.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "success": false, "error": { "code": "DOCUMENT_VERSION_MUTATION_FORBIDDEN", "message": "You are not allowed to modify document versions." } } } } },
+      "DocumentNotAvailable": { "description": "Document missing, inactive, foreign, or outside an accessible canonical node path.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "success": false, "error": { "code": "DOCUMENT_NOT_AVAILABLE", "message": "The document is not available." } } } } },
+      "VersionOrDocumentNotAvailable": { "description": "Document or active version unavailable.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "success": false, "error": { "code": "DOCUMENT_VERSION_NOT_AVAILABLE", "message": "The document version is not available." } } } } },
+      "DownloadNotAvailable": { "description": "Document, active version, or physical file unavailable.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "success": false, "error": { "code": "DOCUMENT_FILE_NOT_AVAILABLE", "message": "The document file is not available." } } } } },
+      "ValidationFailed": { "description": "Multipart request invalid.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "success": false, "error": { "code": "VALIDATION_FAILED", "message": "The document version request is invalid.", "fields": { "file": ["The file field is required."] } } } } } },
+      "StorageFailed": { "description": "Storage access or required download emission failed in a controlled way.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "success": false, "error": { "code": "DOCUMENT_STORAGE_FAILED", "message": "The document storage service is unavailable." } } } } },
+      "CreationOrStorageFailed": { "description": "Storage or database persistence failed in a controlled way.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "examples": { "storage": { "value": { "success": false, "error": { "code": "DOCUMENT_STORAGE_FAILED", "message": "The document file could not be stored." } } }, "persistence": { "value": { "success": false, "error": { "code": "DOCUMENT_VERSION_CREATION_FAILED", "message": "The document version could not be created." } } } } } } }
+    }
+  }
+}
