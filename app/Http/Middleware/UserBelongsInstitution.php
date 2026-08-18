@@ -14,7 +14,7 @@ class UserBelongsInstitution
     {   
         if (auth()->user()->institution_id != $request->institution_id) {
             return response()->json([
-                'message' => 'Forbidden.'
+                'message' => 'Forbidden, User does not belong to the specified institution.',
             ], 403);
         }
 

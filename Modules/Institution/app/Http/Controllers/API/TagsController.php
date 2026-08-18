@@ -3,13 +3,28 @@
 namespace Modules\Institution\Http\Controllers\API;
 
 use App\Http\Controllers\BaseController;
-use App\Http\Controllers\Controller;
 use Modules\Institution\Models\Tag;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Modules\Institution\Http\Resources\TagResource;
 
 class TagsController extends BaseController
 {
+    public function index(Request $request)
+    {
+        $query = Tag::where('institution_id', $request->user()->institution_id);
+        if ($request->status) {
+            $query->where('status', $request->status);
+        }
+
+        $tags = $query->paginate($request->input('per_page', 15));
+        $tags->getCollection()->transform(
+            fn (Tag $tag) => (new TagResource($tag))->resolve($request)
+        );
+
+        return $this->sendResponse($tags, 'Tags retrieved successfully.');
+    }
+
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [

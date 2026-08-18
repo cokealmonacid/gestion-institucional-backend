@@ -24,6 +24,10 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'active'])->controller(TreeDire
     Route::patch('/institution/tree-directory/{node_id}/activate', 'activate');
 });
 
+Route::prefix('v1')->middleware(['auth:sanctum', 'active'])->controller(TagsController::class)->group(function () {
+    Route::get('/institution/tag', 'index');
+});
+
 Route::prefix('v1')->middleware(['auth:sanctum', 'active', 'user.institution'])->controller(TagsController::class)->group(function () {
     Route::post('/institution/tag', 'store');
     Route::delete('/institution/tag/{tag_id}', 'destroy');

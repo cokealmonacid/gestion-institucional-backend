@@ -19,11 +19,14 @@ class NodesFactory extends Factory
     {
         return [
             'id' => fake()->uuid(),
-            'name' => fake()->word(),
+            'name' => fake()->unique()->word(),
             'path' => fn (array $attributes) => $attributes['id'],
             'depth' => 0,
             'order' => fake()->numberBetween(1, 1000),
             'active' => fake()->boolean(),
+            'parent_scope' => 'R',
+            'normalized_name' => fn (array $attributes) => strtolower($attributes['name']),
+            'name_fingerprint' => fn (array $attributes) => hash('sha256', strtolower($attributes['name'])),
         ];
     }
 }
