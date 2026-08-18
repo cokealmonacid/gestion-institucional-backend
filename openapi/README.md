@@ -6,7 +6,8 @@ The backend repository is the authority for Acervo API contracts. The canonical 
 
 - [`v1/authentication.json`](v1/authentication.json), contract version `1.0.0`;
 - [`v1/document-explorer.json`](v1/document-explorer.json), contract version `1.0.0`;
-- [`v1/institution-users.json`](v1/institution-users.json), contract version `1.0.0`.
+- [`v1/institution-users.json`](v1/institution-users.json), contract version `1.0.0`;
+- [`v1/institution-tags.json`](v1/institution-tags.json), contract version `1.0.0`.
 
 The authentication contract scope is deliberately limited to:
 
@@ -19,6 +20,10 @@ Password-recovery endpoints and every other API endpoint are outside the authent
 The document-explorer contract includes four read operations, canonical node creation through `POST /api/v1/institution/tree-directory`, and logical document creation through `POST /api/v1/institution/tree-directory/{node_id}/documents`. The virtual root is not a node and does not contain documents; node creation targets it with an explicit nullable `parent_id` in the request body. Document creation requires a real accessible node and does not upload a file or create an initial version. The older node POST containing a parent identifier in the route remains runtime-only compatibility behavior and is not part of the canonical contract.
 
 The institution-users contract is admin-only and limited to listing the users of an institution, registering a user in an institution, updating a user's profile, and updating a user's role. Every operation requires `institution_id` to equal the authenticated admin's own institution, and update operations additionally require it to equal the target user's institution.
+
+The institution-tags contract covers institution-scoped tag listing, creation, and deletion. Document-tag assignment routes remain runtime-only compatibility endpoints.
+
+Deliberate runtime-only API routes are recorded in [`runtime-only-routes.json`](runtime-only-routes.json). Each versioned entry identifies the method, normalized path, and reason. `php artisan api:contract:audit` fails for uncovered runtime routes and for invalid, duplicate, stale, or redundant exceptions; remove an exception as soon as an OpenAPI contract documents its operation.
 
 The authentication contract records the public request and response envelopes, status codes, schemas, Bearer security, institution and role data, and authentication lifecycle currently implemented by the backend. Login issues a Sanctum Personal Access Token in `data.token`; no refresh token is defined. Logout revokes only the access token used for that request.
 
