@@ -1,19 +1,17 @@
 info:
-  name: Update user rol
+  name: Delete user
   type: http
   seq: 35
 
 http:
-  method: PATCH
-  url: "{{API}}/institution/users/role"
+  method: DELETE
+  url: "{{API}}/institution/users"
   body:
     type: json
     data: |-
       {
         "institution_id": {{INSTITUTION_ID}},
-        "email": "es@example.com",
-        "role": "admin",
-        "old_role": "admin"
+        "email": "uwisoky@example.com"
       }
   auth:
     type: bearer

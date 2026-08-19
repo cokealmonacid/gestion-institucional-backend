@@ -40,4 +40,5 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'active', 'isAdmin'])->controll
 Route::prefix('v1')->middleware(['auth:sanctum', 'active', 'user.institution', 'isAdmin'])->controller(UsersController::class)->group(function () {
     Route::post('/institution/users', 'store');
     Route::patch('/institution/users', 'update');
+    Route::delete('/institution/users', 'destroy');
 });

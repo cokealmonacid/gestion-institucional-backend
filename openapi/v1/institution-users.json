@@ -3,7 +3,7 @@
   "info": {
     "title": "Acervo Institutional Users API",
     "version": "1.0.0",
-    "description": "Admin-only contract for listing users of the authenticated admin's institution, registering a user in that institution, and updating a user's profile, role, and active status."
+    "description": "Admin-only contract for listing users of the authenticated admin's institution, registering a user in that institution, updating a user's profile, role, and active status, and deleting a user."
   },
   "tags": [
     {
@@ -140,6 +140,39 @@
           "403": { "$ref": "#/components/responses/Forbidden" },
           "422": { "$ref": "#/components/responses/ValidationFailed" }
         }
+      },
+      "delete": {
+        "operationId": "deleteInstitutionUser",
+        "summary": "Delete a user",
+        "description": "Soft-deletes the user identified by email. institution_id must equal both the authenticated admin's own institution_id and the target user's institution_id. An admin cannot delete their own account.",
+        "tags": ["Institution users"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/DeleteUserRequest" },
+              "example": {
+                "institution_id": "22222222-2222-2222-2222-222222222222",
+                "email": "ana.perez@example.com"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "User deleted.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/EmptyDataSuccess" },
+                "example": { "success": true, "data": [], "message": "Account deleted successfully." }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" }
+        }
       }
     }
   },
@@ -249,7 +282,8 @@
             "type": "string",
             "enum": [
               "Account registered successfully.",
-              "Account updated successfully."
+              "Account updated successfully.",
+              "Account deleted successfully."
             ]
           }
         }
@@ -277,6 +311,15 @@
           "name": { "type": "string", "maxLength": 255 },
           "role": { "$ref": "#/components/schemas/RoleType" },
           "active": { "type": "boolean", "description": "Whether the user may sign in to the platform." }
+        }
+      },
+      "DeleteUserRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["institution_id", "email"],
+        "properties": {
+          "institution_id": { "type": "string", "format": "uuid", "description": "Must equal the authenticated admin's own institution_id and the target user's institution_id." },
+          "email": { "type": "string", "format": "email", "description": "Identifies the user to delete. Must already exist in users.email, and must not be the authenticated admin's own email." }
         }
       },
       "LegacyError": {

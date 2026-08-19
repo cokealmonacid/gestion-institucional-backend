@@ -14,12 +14,13 @@ class InstitutionUsersContractTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_the_four_operations_require_authentication(): void
+    public function test_the_operations_require_authentication(): void
     {
         foreach ([
             fn () => $this->getJson('/api/v1/institution/users'),
             fn () => $this->postJson('/api/v1/institution/users', []),
             fn () => $this->patchJson('/api/v1/institution/users', []),
+            fn () => $this->deleteJson('/api/v1/institution/users', []),
         ] as $call) {
             $call()
                 ->assertUnauthorized()
@@ -210,6 +211,80 @@ class InstitutionUsersContractTest extends TestCase
             ->assertExactJson(['success' => true, 'data' => [], 'message' => 'Account updated successfully.']);
 
         $this->assertDatabaseHas('users', ['id' => $peer->id, 'active' => false]);
+    }
+
+    public function test_destroy_soft_deletes_the_targeted_user(): void
+    {
+        [$institution, $admin] = $this->institutionUser(admin: true);
+        $peer = User::factory()->for($institution)->create();
+
+        Sanctum::actingAs($admin);
+
+        $this->deleteJson('/api/v1/institution/users', [
+            'institution_id' => $institution->id,
+            'email' => $peer->email,
+        ])
+            ->assertOk()
+            ->assertExactJson(['success' => true, 'data' => [], 'message' => 'Account deleted successfully.']);
+
+        $this->assertSoftDeleted('users', ['id' => $peer->id]);
+    }
+
+    public function test_destroy_removes_the_user_from_the_index(): void
+    {
+        [$institution, $admin] = $this->institutionUser(admin: true);
+        $peer = User::factory()->for($institution)->create();
+
+        Sanctum::actingAs($admin);
+
+        $this->deleteJson('/api/v1/institution/users', [
+            'institution_id' => $institution->id,
+            'email' => $peer->email,
+        ])->assertOk();
+
+        $response = $this->getJson("/api/v1/institution/users?institution_id={$institution->id}")
+            ->assertOk()
+            ->assertJsonPath('data.total', 0);
+
+        $ids = collect($response->json('data.data'))->pluck('id')->all();
+        $this->assertNotContains($peer->id, $ids);
+    }
+
+    public function test_destroy_rejects_a_user_from_another_institution(): void
+    {
+        [$institution, $admin] = $this->institutionUser(admin: true);
+        $otherInstitution = Institution::factory()->create();
+        $foreignUser = User::factory()->for($otherInstitution)->create();
+
+        Sanctum::actingAs($admin);
+
+        $this->deleteJson('/api/v1/institution/users', [
+            'institution_id' => $institution->id,
+            'email' => $foreignUser->email,
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('message', 'Validation failed.')
+            ->assertJsonPath('data.error.institution_id.0', 'User does not belong to this institution.');
+
+        $this->assertDatabaseHas('users', ['id' => $foreignUser->id, 'deleted_at' => null]);
+    }
+
+    public function test_destroy_rejects_self_deletion(): void
+    {
+        [$institution, $admin] = $this->institutionUser(admin: true);
+
+        Sanctum::actingAs($admin);
+
+        $this->deleteJson('/api/v1/institution/users', [
+            'institution_id' => $institution->id,
+            'email' => $admin->email,
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('message', 'You cannot delete your own account.');
+
+        $this->assertDatabaseHas('users', ['id' => $admin->id, 'deleted_at' => null]);
     }
 
     /** @return array{Institution, User} */
