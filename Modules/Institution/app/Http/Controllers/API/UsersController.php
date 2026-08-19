@@ -17,6 +17,7 @@ class UsersController extends BaseController
     public function index(Request $request)
     {
         $users = User::where('institution_id', $request->user()->institution_id)
+            ->where('users.id', '!=', $request->user()->id)
             ->with('roles')
             ->paginate($request->input('per_page', 15));
 

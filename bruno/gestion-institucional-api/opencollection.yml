@@ -17,7 +17,7 @@ config:
 request:
   auth:
     type: bearer
-    token: 2|qUKa1SoHSfDMVmuekWfraZnxHJaVzgauTK69BwHM94ca0b9e
+    token: ""
   variables:
     - name: API
       value: http://127.0.0.1:8000/api/v1
