@@ -11,10 +11,12 @@ use Illuminate\Support\Facades\Validator;
 use Modules\Documents\Actions\CreateDocumentAction;
 use Modules\Documents\Exceptions\DocumentCreationException;
 use Modules\Documents\Http\Requests\CreateDocumentRequest;
+use Modules\Documents\Http\Resources\DocumentLifecycleResource;
 use Modules\Documents\Http\Resources\DocumentResource;
 use Modules\Documents\Models\Document;
 use Modules\Documents\Models\DocumentDownload;
 use Modules\Documents\Models\DocumentVersion;
+use Modules\Documents\Services\DocumentLifecycleAccess;
 use Modules\Nodes\Models\Node;
 
 class DocumentsController extends BaseController
@@ -32,21 +34,31 @@ class DocumentsController extends BaseController
 
     private function downloadVersion(Request $request, Document $document, DocumentVersion $version)
     {
-        $disk = Storage::disk(config('filesystems.default'));
-
-        if (! $version->url || ! $disk->exists($version->url)) {
-            return $this->sendError('Document file not found.', [], 404);
+        try {
+            $disk = Storage::disk(config('filesystems.default'));
+            $exists = $version->url && $disk->exists($version->url);
+        } catch (\Throwable) {
+            return ApiResponse::error('DOCUMENT_STORAGE_FAILED', 'The document storage service is unavailable.', 500);
         }
 
-        DocumentDownload::create([
-            'document_id' => $document->id,
-            'document_version_id' => $version->id,
-            'user_id' => $request->user()->id,
-        ]);
+        if (! $exists) {
+            return ApiResponse::error('DOCUMENT_FILE_NOT_AVAILABLE', 'The document file is not available.', 404);
+        }
 
-        return $disk->download($version->url, $version->filename, array_filter([
-            'Content-Type' => $version->mime_type,
-        ]));
+        try {
+            $response = $disk->download($version->url, $this->safeFilename($version->filename), array_filter([
+                'Content-Type' => $version->mime_type,
+            ]));
+            DocumentDownload::create([
+                'document_id' => $document->id,
+                'document_version_id' => $version->id,
+                'user_id' => $request->user()->id,
+            ]);
+
+            return $response;
+        } catch (\Throwable) {
+            return ApiResponse::error('DOCUMENT_STORAGE_FAILED', 'The document download could not be emitted.', 500);
+        }
     }
 
     public function indexByNode(Request $request, $node_id)
@@ -89,15 +101,25 @@ class DocumentsController extends BaseController
         ]);
     }
 
-    public function show(Request $request, $document_id)
+    public function show(Request $request, $document_id, DocumentLifecycleAccess $access)
     {
-        $document = $this->institutionDocumentQuery($request)->find($document_id);
+        $document = $access->findDocument($request->user(), $document_id);
 
         if (! $document) {
-            return $this->sendError('Document not found.', [], 404);
+            return ApiResponse::error('DOCUMENT_NOT_AVAILABLE', 'The document is not available.', 404);
         }
 
-        return $this->sendResponse($document, 'Document retrieved successfully.');
+        $document->load(['versions' => function ($query) {
+            $query->where('active', true)
+                ->with('author:id,name')
+                ->orderByDesc('version_number')
+                ->orderBy('id');
+        }]);
+
+        return ApiResponse::success(
+            (new DocumentLifecycleResource($document))->resolve($request),
+            'Document lifecycle detail retrieved successfully.',
+        );
     }
 
     public function update(Request $request, $document_id)
@@ -162,14 +184,12 @@ class DocumentsController extends BaseController
         return $this->sendResponse($document, 'Document activated successfully.');
     }
 
-    public function download(Request $request, $document_id)
+    public function download(Request $request, $document_id, DocumentLifecycleAccess $access)
     {
-        $document = $this->institutionDocumentQuery($request)
-            ->where('status', true)
-            ->find($document_id);
+        $document = $access->findDocument($request->user(), $document_id);
 
         if (! $document) {
-            return $this->sendError('Document not found.', [], 404);
+            return ApiResponse::error('DOCUMENT_NOT_AVAILABLE', 'The document is not available.', 404);
         }
 
         $version = $document->versions()
@@ -179,9 +199,25 @@ class DocumentsController extends BaseController
             ->first();
 
         if (! $version) {
-            return $this->sendError('Current document version not found.', [], 404);
+            return ApiResponse::error('DOCUMENT_VERSION_NOT_AVAILABLE', 'The current document version is not available.', 404);
         }
 
         return $this->downloadVersion($request, $document, $version);
+    }
+
+    private function safeFilename(string $filename): string
+    {
+        $filename = basename(str_replace('\\', '/', $filename));
+        $filename = trim((string) preg_replace('/[\x00-\x1F\x7F]/u', '', $filename));
+
+        if ($filename === '') {
+            return 'document';
+        }
+
+        $extension = pathinfo($filename, PATHINFO_EXTENSION);
+        $basename = pathinfo($filename, PATHINFO_FILENAME);
+        $suffix = $extension !== '' ? '.'.$extension : '';
+
+        return mb_substr($basename, 0, max(1, 240 - mb_strlen($suffix))).$suffix;
     }
 }
