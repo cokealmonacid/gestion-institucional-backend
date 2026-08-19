@@ -3,7 +3,7 @@
   "info": {
     "title": "Acervo Institutional Users API",
     "version": "1.0.0",
-    "description": "Admin-only contract for listing users of the authenticated admin's institution, registering a user in that institution, updating a user's profile, and updating a user's role."
+    "description": "Admin-only contract for listing users of the authenticated admin's institution, registering a user in that institution, and updating a user's profile, role, and active status."
   },
   "tags": [
     {
@@ -107,8 +107,8 @@
       },
       "patch": {
         "operationId": "updateInstitutionUser",
-        "summary": "Update a user's profile",
-        "description": "Updates the user identified by email. institution_id must equal both the authenticated admin's own institution_id and the target user's institution_id.",
+        "summary": "Update a user's profile, role, and active status",
+        "description": "Updates the user identified by email. institution_id must equal both the authenticated admin's own institution_id and the target user's institution_id. When role is present, it replaces any role currently assigned to the user.",
         "tags": ["Institution users"],
         "security": [{ "bearerAuth": [] }],
         "requestBody": {
@@ -120,8 +120,8 @@
                 "institution_id": "22222222-2222-2222-2222-222222222222",
                 "email": "ana.perez@example.com",
                 "name": "Ana Pérez Soto",
-                "password": "newpassword123",
-                "password_confirmation": "newpassword123"
+                "role": "admin",
+                "active": false
               }
             }
           }
@@ -133,43 +133,6 @@
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/EmptyDataSuccess" },
                 "example": { "success": true, "data": [], "message": "Account updated successfully." }
-              }
-            }
-          },
-          "401": { "$ref": "#/components/responses/Unauthenticated" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
-          "422": { "$ref": "#/components/responses/ValidationFailed" }
-        }
-      }
-    },
-    "/api/v1/institution/users/role": {
-      "patch": {
-        "operationId": "updateInstitutionUserRole",
-        "summary": "Update a user's role",
-        "description": "Removes old_role and grants role to the user identified by email. institution_id must equal both the authenticated admin's own institution_id and the target user's institution_id. role and old_role must differ.",
-        "tags": ["Institution users"],
-        "security": [{ "bearerAuth": [] }],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": { "$ref": "#/components/schemas/UpdateUserRoleRequest" },
-              "example": {
-                "institution_id": "22222222-2222-2222-2222-222222222222",
-                "email": "ana.perez@example.com",
-                "role": "admin",
-                "old_role": "editor"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Role updated.",
-            "content": {
-              "application/json": {
-                "schema": { "$ref": "#/components/schemas/EmptyDataSuccess" },
-                "example": { "success": true, "data": [], "message": "Role updated successfully." }
               }
             }
           },
@@ -286,8 +249,7 @@
             "type": "string",
             "enum": [
               "Account registered successfully.",
-              "Account updated successfully.",
-              "Role updated successfully."
+              "Account updated successfully."
             ]
           }
         }
@@ -313,19 +275,8 @@
           "institution_id": { "type": "string", "format": "uuid", "description": "Must equal the authenticated admin's own institution_id and the target user's institution_id." },
           "email": { "type": "string", "format": "email", "description": "Identifies the user to update. Must already exist in users.email." },
           "name": { "type": "string", "maxLength": 255 },
-          "password": { "type": "string", "minLength": 8 },
-          "password_confirmation": { "type": "string", "description": "Required and must equal password when password is present." }
-        }
-      },
-      "UpdateUserRoleRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["institution_id", "email", "role", "old_role"],
-        "properties": {
-          "institution_id": { "type": "string", "format": "uuid", "description": "Must equal the authenticated admin's own institution_id and the target user's institution_id." },
-          "email": { "type": "string", "format": "email", "description": "Identifies the user to update. Must already exist in users.email." },
-          "role": { "allOf": [{ "$ref": "#/components/schemas/RoleType" }], "description": "Must differ from old_role." },
-          "old_role": { "$ref": "#/components/schemas/RoleType" }
+          "role": { "$ref": "#/components/schemas/RoleType" },
+          "active": { "type": "boolean", "description": "Whether the user may sign in to the platform." }
         }
       },
       "LegacyError": {

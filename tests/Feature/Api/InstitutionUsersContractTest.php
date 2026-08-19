@@ -20,7 +20,6 @@ class InstitutionUsersContractTest extends TestCase
             fn () => $this->getJson('/api/v1/institution/users'),
             fn () => $this->postJson('/api/v1/institution/users', []),
             fn () => $this->patchJson('/api/v1/institution/users', []),
-            fn () => $this->patchJson('/api/v1/institution/users/role', []),
         ] as $call) {
             $call()
                 ->assertUnauthorized()
@@ -173,7 +172,7 @@ class InstitutionUsersContractTest extends TestCase
             ->assertJsonPath('data.error.institution_id.0', 'User does not belong to this institution.');
     }
 
-    public function test_update_role_swaps_the_targeted_users_role(): void
+    public function test_update_swaps_the_targeted_users_role(): void
     {
         [$institution, $admin] = $this->institutionUser(admin: true);
         $editorRole = Rol::create(['type' => RoleType::Editor]);
@@ -183,36 +182,34 @@ class InstitutionUsersContractTest extends TestCase
 
         Sanctum::actingAs($admin);
 
-        $this->patchJson('/api/v1/institution/users/role', [
+        $this->patchJson('/api/v1/institution/users', [
             'institution_id' => $institution->id,
             'email' => $peer->email,
             'role' => 'reader',
-            'old_role' => 'editor',
         ])
             ->assertOk()
-            ->assertExactJson(['success' => true, 'data' => [], 'message' => 'Role updated successfully.']);
+            ->assertExactJson(['success' => true, 'data' => [], 'message' => 'Account updated successfully.']);
 
         $this->assertTrue($peer->fresh()->roles()->where('type', RoleType::Reader)->exists());
         $this->assertFalse($peer->fresh()->roles()->where('type', RoleType::Editor)->exists());
     }
 
-    public function test_update_role_rejects_role_equal_to_old_role(): void
+    public function test_update_changes_the_targeted_users_active_status(): void
     {
         [$institution, $admin] = $this->institutionUser(admin: true);
-        Rol::create(['type' => RoleType::Editor]);
-        $peer = User::factory()->for($institution)->create();
+        $peer = User::factory()->for($institution)->create(['active' => true]);
 
         Sanctum::actingAs($admin);
 
-        $this->patchJson('/api/v1/institution/users/role', [
+        $this->patchJson('/api/v1/institution/users', [
             'institution_id' => $institution->id,
             'email' => $peer->email,
-            'role' => 'editor',
-            'old_role' => 'editor',
+            'active' => false,
         ])
-            ->assertStatus(422)
-            ->assertJsonPath('success', false)
-            ->assertJsonPath('message', 'Validation failed.');
+            ->assertOk()
+            ->assertExactJson(['success' => true, 'data' => [], 'message' => 'Account updated successfully.']);
+
+        $this->assertDatabaseHas('users', ['id' => $peer->id, 'active' => false]);
     }
 
     /** @return array{Institution, User} */
