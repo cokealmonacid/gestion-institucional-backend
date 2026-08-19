@@ -32,7 +32,7 @@ class UsersSeeder extends Seeder
         $institutions = Institution::all();
 
         foreach ($institutions as $institution) {
-            User::factory()->create([
+            User::factory(20)->create([
                 'password' => '12345678',
                 'institution_id' => $institution->id,
                 'active' => true,
