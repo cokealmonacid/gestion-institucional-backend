@@ -33,9 +33,12 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'active', 'user.institution'])-
     Route::delete('/institution/tag/{tag_id}', 'destroy');
 });
 
-Route::prefix('v1')->middleware(['auth:sanctum', 'active', 'user.institution', 'isAdmin'])->controller(UsersController::class)->group(function () {
+Route::prefix('v1')->middleware(['auth:sanctum', 'active', 'isAdmin'])->controller(UsersController::class)->group(function () {
     Route::get('/institution/users', 'index');
+});
+
+Route::prefix('v1')->middleware(['auth:sanctum', 'active', 'user.institution', 'isAdmin'])->controller(UsersController::class)->group(function () {
     Route::post('/institution/users', 'store');
     Route::patch('/institution/users', 'update');
-    Route::patch('/institution/users/role', 'updateRole');
+    Route::delete('/institution/users', 'destroy');
 });

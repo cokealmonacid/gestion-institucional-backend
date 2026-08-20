@@ -8,18 +8,15 @@ http:
   url: "{{API}}/institution/users"
   body:
     type: json
-    data: |-
-      {
-        "institution_id": {{INSTITUTION_ID}}
-      }
+    data: ""
   auth:
     type: bearer
-    token: 17|u9fkblhM3C44UWCouWBiVcC8tcSsM6yasXDIKPr779c13d5e
+    token: "{{TOKEN}}"
 
 runtime:
   variables:
     - name: INSTITUTION_ID
-      value: 019edce9-b6ab-709e-8b89-423dc58c5c74
+      value: 00000000-0000-0000-0000-000000000001
 
 settings:
   encodeUrl: true

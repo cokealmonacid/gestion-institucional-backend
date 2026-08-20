@@ -13,8 +13,8 @@ http:
         "institution_id": {{INSTITUTION_ID}},
         "name": "test-user",
         "email": "uwisoky@example.com",
-        "password": 87654321,
-        "password_confirmation": 87654321
+        "role": "admin",
+        "active": true
       }
   auth:
     type: bearer

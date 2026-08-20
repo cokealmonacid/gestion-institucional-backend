@@ -15,7 +15,7 @@ class InstitutionUsersOpenApiTest extends TestCase
         return json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
     }
 
-    public function test_contract_contains_only_the_four_approved_admin_operations(): void
+    public function test_contract_contains_only_the_approved_admin_operations(): void
     {
         $contract = $this->contract();
 
@@ -24,11 +24,9 @@ class InstitutionUsersOpenApiTest extends TestCase
         $this->assertArrayNotHasKey('servers', $contract);
         $this->assertSame([
             '/api/v1/institution/users',
-            '/api/v1/institution/users/role',
         ], array_keys($contract['paths']));
 
-        $this->assertSame(['get', 'post', 'patch'], array_keys($contract['paths']['/api/v1/institution/users']));
-        $this->assertSame(['patch'], array_keys($contract['paths']['/api/v1/institution/users/role']));
+        $this->assertSame(['get', 'post', 'patch', 'delete'], array_keys($contract['paths']['/api/v1/institution/users']));
     }
 
     public function test_contract_documents_the_effective_status_codes_and_security(): void
@@ -43,7 +41,7 @@ class InstitutionUsersOpenApiTest extends TestCase
         foreach ([
             $contract['paths']['/api/v1/institution/users']['post'],
             $contract['paths']['/api/v1/institution/users']['patch'],
-            $contract['paths']['/api/v1/institution/users/role']['patch'],
+            $contract['paths']['/api/v1/institution/users']['delete'],
         ] as $operation) {
             $this->assertSame([200, 401, 403, 422], array_keys($operation['responses']));
             $this->assertSame([['bearerAuth' => []]], $operation['security']);
@@ -93,7 +91,7 @@ class InstitutionUsersOpenApiTest extends TestCase
             $contract['paths']['/api/v1/institution/users']['get'],
             $contract['paths']['/api/v1/institution/users']['post'],
             $contract['paths']['/api/v1/institution/users']['patch'],
-            $contract['paths']['/api/v1/institution/users/role']['patch'],
+            $contract['paths']['/api/v1/institution/users']['delete'],
         ] as $operation) {
             $example = $operation['responses']['200']['content']['application/json']['example'];
 
