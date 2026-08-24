@@ -61,7 +61,7 @@ class DocumentsController extends BaseController
         }
     }
 
-    public function indexByNode(Request $request, $node_id)
+    public function indexByNode(Request $request, $node_id, DocumentLifecycleAccess $access)
     {
         $node = $this->activeNodeQuery($request)->find($node_id);
 
@@ -72,15 +72,23 @@ class DocumentsController extends BaseController
         $documents = $this->institutionDocumentQuery($request)
             ->where('node_id', $node->id)
             ->where('status', true)
+            ->with('currentActiveVersion:id,document_id,url,active,is_current')
+            ->withCount(['versions as active_versions_count' => fn ($query) => $query->where('active', true)])
             ->orderBy('created_at', 'desc')
             ->orderBy('id')
             ->get();
 
+        $request->attributes->set('document_lifecycle_can_mutate', $access->canMutate($request->user()));
+
         return $this->sendResponse(DocumentResource::collection($documents), 'Documents retrieved successfully.');
     }
 
-    public function store(CreateDocumentRequest $request, $node_id, CreateDocumentAction $action)
-    {
+    public function store(
+        CreateDocumentRequest $request,
+        $node_id,
+        CreateDocumentAction $action,
+        DocumentLifecycleAccess $access,
+    ) {
         try {
             $document = $action->execute($request->user(), $node_id, $request->validated());
         } catch (DocumentCreationException $exception) {
@@ -91,6 +99,8 @@ class DocumentsController extends BaseController
                 $exception->fields,
             );
         }
+
+        $request->attributes->set('document_lifecycle_can_mutate', $access->canMutate($request->user()));
 
         return response()->json([
             'success' => true,
@@ -115,6 +125,8 @@ class DocumentsController extends BaseController
                 ->orderByDesc('version_number')
                 ->orderBy('id');
         }]);
+
+        $request->attributes->set('document_lifecycle_can_mutate', $access->canMutate($request->user()));
 
         return ApiResponse::success(
             (new DocumentLifecycleResource($document))->resolve($request),

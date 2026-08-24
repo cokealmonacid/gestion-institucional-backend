@@ -20,7 +20,7 @@ class DocumentExplorerOpenApiTest extends TestCase
         $contract = $this->contract();
 
         $this->assertSame('3.1.0', $contract['openapi']);
-        $this->assertSame('2.1.0', $contract['info']['version']);
+        $this->assertSame('3.0.0', $contract['info']['version']);
         $this->assertArrayNotHasKey('servers', $contract);
         $this->assertSame([
             '/api/v1/institution/tree-directory',
@@ -117,6 +117,7 @@ class DocumentExplorerOpenApiTest extends TestCase
             'node_id',
             'created_at',
             'updated_at',
+            'lifecycle',
         ], $document['required']);
         $this->assertSame($document['required'], array_keys($document['properties']));
         $this->assertSame('boolean', $document['properties']['status']['type']);
@@ -124,6 +125,17 @@ class DocumentExplorerOpenApiTest extends TestCase
         $this->assertSame(['string', 'null'], $document['properties']['author_id']['type']);
         $this->assertSame('string', $document['properties']['node_id']['type']);
         $this->assertSame('uuid', $document['properties']['node_id']['format']);
+
+        $summary = $this->contract()['components']['schemas']['DocumentLifecycleSummary'];
+        $this->assertFalse($summary['additionalProperties']);
+        $this->assertSame(['version_count', 'has_current_version', 'capabilities'], $summary['required']);
+        $this->assertSame($summary['required'], array_keys($summary['properties']));
+        $this->assertSame(0, $summary['properties']['version_count']['minimum']);
+
+        $capabilities = $this->contract()['components']['schemas']['DocumentLifecycleSummaryCapabilities'];
+        $this->assertFalse($capabilities['additionalProperties']);
+        $this->assertSame(['can_download', 'can_upload_version'], $capabilities['required']);
+        $this->assertSame($capabilities['required'], array_keys($capabilities['properties']));
     }
 
     public function test_every_operation_has_a_complete_success_example(): void

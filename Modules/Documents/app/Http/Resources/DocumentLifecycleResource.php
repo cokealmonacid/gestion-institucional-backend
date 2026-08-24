@@ -4,7 +4,6 @@ namespace Modules\Documents\Http\Resources;
 
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Storage;
 use Modules\Documents\Services\DocumentLifecycleAccess;
 
 class DocumentLifecycleResource extends JsonResource
@@ -14,10 +13,9 @@ class DocumentLifecycleResource extends JsonResource
     {
         $currentVersion = $this->versions
             ->first(fn ($version) => $version->active && $version->is_current);
-        $canMutate = app(DocumentLifecycleAccess::class)->canMutate($request->user());
-        $canDownload = $currentVersion !== null
-            && $currentVersion->url
-            && Storage::disk(config('filesystems.default'))->exists($currentVersion->url);
+        $access = app(DocumentLifecycleAccess::class);
+        $canMutate = (bool) $request->attributes->get('document_lifecycle_can_mutate', false);
+        $canDownload = $access->canDownload($currentVersion);
 
         return [
             'id' => $this->id,

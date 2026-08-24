@@ -59,6 +59,13 @@ class Document extends Model
         return $this->hasMany(DocumentVersion::class, 'document_id');
     }
 
+    public function currentActiveVersion()
+    {
+        return $this->hasOne(DocumentVersion::class, 'document_id')
+            ->where('active', true)
+            ->where('is_current', true);
+    }
+
     public function downloads()
     {
         return $this->hasMany(DocumentDownload::class, 'document_id');
