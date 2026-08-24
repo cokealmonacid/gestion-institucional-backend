@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Acervo Institutional Document Explorer API",
-    "version": "2.1.0",
-    "description": "Contract for navigating the virtual institution root, reading real nodes and their direct documents, creating container nodes, and creating logical documents in real nodes. Node order is numeric and node paths are materialized UUID paths."
+    "version": "3.0.0",
+    "description": "Contract for navigating the virtual institution root, reading real nodes and their direct documents with authoritative lifecycle summaries, creating container nodes, and creating logical documents in real nodes. Node order is numeric and node paths are materialized UUID paths."
   },
   "tags": [
     {
@@ -192,7 +192,7 @@
       "get": {
         "operationId": "listInstitutionNodeDocuments",
         "summary": "List documents directly associated with a node",
-        "description": "Returns only active documents whose node_id is the selected active node. Documents from descendants and documents without a node are not returned.",
+        "description": "Returns only active documents whose node_id is the selected active node. Documents from descendants and documents without a node are not returned. Each document includes an authoritative lifecycle summary without requiring a detail request per row.",
         "tags": ["Document explorer"],
         "security": [{ "bearerAuth": [] }],
         "parameters": [{ "$ref": "#/components/parameters/NodeId" }],
@@ -216,7 +216,15 @@
                       "institution_id": "22222222-2222-2222-2222-222222222222",
                       "node_id": "11111111-1111-1111-1111-111111111111",
                       "created_at": "2026-08-03T12:00:00.000000Z",
-                      "updated_at": "2026-08-03T12:00:00.000000Z"
+                      "updated_at": "2026-08-03T12:00:00.000000Z",
+                      "lifecycle": {
+                        "version_count": 2,
+                        "has_current_version": true,
+                        "capabilities": {
+                          "can_download": true,
+                          "can_upload_version": true
+                        }
+                      }
                     }
                   ],
                   "message": "Documents retrieved successfully."
@@ -274,7 +282,15 @@
                     "institution_id": "22222222-2222-2222-2222-222222222222",
                     "node_id": "11111111-1111-1111-1111-111111111111",
                     "created_at": "2026-08-12T12:00:00.000000Z",
-                    "updated_at": "2026-08-12T12:00:00.000000Z"
+                    "updated_at": "2026-08-12T12:00:00.000000Z",
+                    "lifecycle": {
+                      "version_count": 0,
+                      "has_current_version": false,
+                      "capabilities": {
+                        "can_download": false,
+                        "can_upload_version": true
+                      }
+                    }
                   },
                   "message": "Document created successfully."
                 }
@@ -367,7 +383,7 @@
         "additionalProperties": false,
         "required": [
           "id", "name", "description", "category", "responsible_unit", "status",
-          "author_id", "institution_id", "node_id", "created_at", "updated_at"
+          "author_id", "institution_id", "node_id", "created_at", "updated_at", "lifecycle"
         ],
         "properties": {
           "id": { "type": "string", "format": "uuid", "description": "Document identifier." },
@@ -380,7 +396,27 @@
           "institution_id": { "type": "string", "format": "uuid", "description": "Compatibility field identifying the owning institution." },
           "node_id": { "type": "string", "format": "uuid", "description": "Selected real node directly containing the document." },
           "created_at": { "type": ["string", "null"], "format": "date-time", "description": "Creation timestamp. Documents are ordered by this value descending, then id ascending." },
-          "updated_at": { "type": ["string", "null"], "format": "date-time", "description": "Last update timestamp." }
+          "updated_at": { "type": ["string", "null"], "format": "date-time", "description": "Last update timestamp." },
+          "lifecycle": { "$ref": "#/components/schemas/DocumentLifecycleSummary" }
+        }
+      },
+      "DocumentLifecycleSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["version_count", "has_current_version", "capabilities"],
+        "properties": {
+          "version_count": { "type": "integer", "minimum": 0, "description": "Number of active contractual versions." },
+          "has_current_version": { "type": "boolean", "description": "Whether an active version is currently marked as current." },
+          "capabilities": { "$ref": "#/components/schemas/DocumentLifecycleSummaryCapabilities" }
+        }
+      },
+      "DocumentLifecycleSummaryCapabilities": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["can_download", "can_upload_version"],
+        "properties": {
+          "can_download": { "type": "boolean", "description": "Whether the authenticated user may attempt the canonical download for a current active version with a persisted storage reference. Physical object availability is verified by the download operation and is not guaranteed by this capability." },
+          "can_upload_version": { "type": "boolean", "description": "Whether the authenticated user may upload a first or subsequent version." }
         }
       },
       "NodeSuccess": {

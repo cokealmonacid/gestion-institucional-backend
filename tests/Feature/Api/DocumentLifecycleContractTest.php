@@ -191,6 +191,52 @@ class DocumentLifecycleContractTest extends TestCase
         }
     }
 
+    public function test_detail_uses_persisted_download_capability_without_accessing_storage(): void
+    {
+        [$institution, $reader] = $this->institutionUser(RoleType::Reader);
+        $document = $this->document($institution, $reader);
+        $version = $this->version($document, $reader, 1, true, true, 'private/missing.pdf');
+        Sanctum::actingAs($reader);
+        config(['filesystems.default' => 'missing-disk']);
+
+        $this->getJson("/api/v1/documents/{$document->id}")
+            ->assertOk()
+            ->assertJsonPath('data.current_version.id', $version->id)
+            ->assertJsonPath('data.capabilities.can_download', true);
+
+        $version->update(['url' => '   ']);
+        $this->getJson("/api/v1/documents/{$document->id}")
+            ->assertOk()
+            ->assertJsonPath('data.current_version.id', $version->id)
+            ->assertJsonPath('data.capabilities.can_download', false);
+    }
+
+    public function test_missing_and_failed_storage_are_decided_only_by_download(): void
+    {
+        Storage::fake('local');
+        config(['filesystems.default' => 'local']);
+        [$institution, $reader] = $this->institutionUser(RoleType::Reader);
+        $document = $this->document($institution, $reader);
+        $this->version($document, $reader, 1, true, true, 'private/missing.pdf');
+        Sanctum::actingAs($reader);
+
+        $this->getJson("/api/v1/documents/{$document->id}")
+            ->assertOk()
+            ->assertJsonPath('data.capabilities.can_download', true);
+        $this->get("/api/v1/documents/{$document->id}/download")
+            ->assertNotFound()
+            ->assertJsonPath('error.code', 'DOCUMENT_FILE_NOT_AVAILABLE');
+
+        config(['filesystems.default' => 'missing-disk']);
+        $this->getJson("/api/v1/documents/{$document->id}")
+            ->assertOk()
+            ->assertJsonPath('data.capabilities.can_download', true);
+        $this->get("/api/v1/documents/{$document->id}/download")
+            ->assertStatus(500)
+            ->assertJsonPath('error.code', 'DOCUMENT_STORAGE_FAILED')
+            ->assertJsonMissingPath('error.exception');
+    }
+
     public function test_inactive_document_missing_node_inactive_node_and_inactive_ancestor_are_unavailable(): void
     {
         [$institution, $reader] = $this->institutionUser(RoleType::Reader);

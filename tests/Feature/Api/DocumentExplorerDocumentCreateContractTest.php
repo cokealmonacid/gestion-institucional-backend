@@ -35,7 +35,11 @@ class DocumentExplorerDocumentCreateContractTest extends TestCase
             ->assertJsonPath('data.status', true)
             ->assertJsonPath('data.author_id', $user->id)
             ->assertJsonPath('data.institution_id', $institution->id)
-            ->assertJsonPath('data.node_id', $node->id);
+            ->assertJsonPath('data.node_id', $node->id)
+            ->assertJsonPath('data.lifecycle.version_count', 0)
+            ->assertJsonPath('data.lifecycle.has_current_version', false)
+            ->assertJsonPath('data.lifecycle.capabilities.can_download', false)
+            ->assertJsonPath('data.lifecycle.capabilities.can_upload_version', true);
 
         $documentId = $response->json('data.id');
         $this->assertDatabaseHas('documents', [
@@ -47,7 +51,7 @@ class DocumentExplorerDocumentCreateContractTest extends TestCase
         ]);
         $this->assertSame([
             'id', 'name', 'description', 'category', 'responsible_unit', 'status',
-            'author_id', 'institution_id', 'node_id', 'created_at', 'updated_at',
+            'author_id', 'institution_id', 'node_id', 'created_at', 'updated_at', 'lifecycle',
         ], array_keys($response->json('data')));
         $this->assertDatabaseCount('document_versions', 0);
     }

@@ -46,6 +46,14 @@ class DocumentLifecycleAccess
             ->exists();
     }
 
+    public function canDownload(?DocumentVersion $currentVersion): bool
+    {
+        return $currentVersion !== null
+            && $currentVersion->active
+            && $currentVersion->is_current
+            && trim((string) $currentVersion->url) !== '';
+    }
+
     private function nodePathIsAccessible(Node $node): bool
     {
         $pathIds = array_values(array_filter(explode('/', $node->path)));
