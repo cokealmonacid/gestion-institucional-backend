@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Acervo Institution Tags API",
-    "version": "1.0.0",
-    "description": "Contract for listing, creating, and deleting tags scoped to the authenticated user's institution."
+    "version": "2.0.0",
+    "description": "Contract for listing tags and for admin/editor tag management scoped to the authenticated user's institution."
   },
   "tags": [
     {
@@ -70,7 +70,7 @@
       "post": {
         "operationId": "createInstitutionTag",
         "summary": "Create a tag in an institution",
-        "description": "Creates a tag with the given name and description in institution_id. institution_id must equal the authenticated user's own institution_id.",
+        "description": "Admin and editor only. Creates a tag with the given name and description in the authenticated user's institution. institution_id must equal that derived institutional context.",
         "tags": ["Institution tags"],
         "security": [{ "bearerAuth": [] }],
         "requestBody": {
@@ -106,6 +106,7 @@
           },
           "401": { "$ref": "#/components/responses/Unauthenticated" },
           "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/TagNotFound" },
           "422": { "$ref": "#/components/responses/ValidationFailed" },
           "500": { "$ref": "#/components/responses/ServerError" }
         }
@@ -115,7 +116,7 @@
       "delete": {
         "operationId": "deleteInstitutionTag",
         "summary": "Delete a tag",
-        "description": "Deletes the tag identified by tag_id. institution_id must equal the authenticated user's own institution_id.",
+        "description": "Admin and editor only. Deletes the tag identified by tag_id when it belongs to the authenticated user's institution. Cross-institution and nonexistent tags are indistinguishable.",
         "tags": ["Institution tags"],
         "security": [{ "bearerAuth": [] }],
         "parameters": [
@@ -141,6 +142,7 @@
           },
           "401": { "$ref": "#/components/responses/Unauthenticated" },
           "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/TagNotFound" },
           "422": { "$ref": "#/components/responses/ValidationFailed" },
           "500": { "$ref": "#/components/responses/ServerError" }
         }
@@ -160,7 +162,7 @@
         "name": "institution_id",
         "in": "query",
         "required": true,
-        "description": "Must equal the authenticated user's own institution_id, or the request is rejected as Forbidden.",
+        "description": "Must match the authenticated user's derived institutional context.",
         "schema": { "type": "string", "format": "uuid" },
         "example": "22222222-2222-2222-2222-222222222222"
       },
@@ -245,7 +247,7 @@
         "additionalProperties": false,
         "required": ["institution_id", "name"],
         "properties": {
-          "institution_id": { "type": "string", "format": "uuid", "description": "Must equal the authenticated user's own institution_id. Must already exist in institutions.id." },
+          "institution_id": { "type": "string", "format": "uuid", "description": "Must equal the authenticated user's derived institutional context." },
           "name": { "type": "string", "maxLength": 255 },
           "description": {
             "oneOf": [{ "type": "string" }, { "type": "null" }]
@@ -361,7 +363,7 @@
         }
       },
       "Forbidden": {
-        "description": "The authenticated user's account is inactive, or institution_id does not equal the authenticated user's own institution_id.",
+        "description": "The account is inactive or the authenticated user is not an admin or editor.",
         "content": {
           "application/json": {
             "schema": {
@@ -371,6 +373,15 @@
               ]
             },
             "example": { "message": "Forbidden." }
+          }
+        }
+      },
+      "TagNotFound": {
+        "description": "The institution or tag is missing, inaccessible, or belongs to another institution.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/LegacyError" },
+            "example": { "success": false, "message": "Tag not found." }
           }
         }
       },

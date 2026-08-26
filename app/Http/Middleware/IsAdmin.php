@@ -2,7 +2,7 @@
 
 namespace App\Http\Middleware;
 
-use App\Enums\RoleType;
+use App\Enums\InstitutionAbility;
 use Closure;
 use Illuminate\Http\Request;
 
@@ -10,11 +10,11 @@ class IsAdmin
 {
     public function handle(Request $request, Closure $next)
     {
-        $isAdmin = auth()->user()->roles()->where('type', RoleType::Admin)->exists();
+        $isAdmin = $request->user()?->can(InstitutionAbility::ManageUsers->value) ?? false;
 
-        if (!$isAdmin) {
+        if (! $isAdmin) {
             return response()->json([
-                'message' => 'Forbidden.'
+                'message' => 'Forbidden.',
             ], 403);
         }
 
