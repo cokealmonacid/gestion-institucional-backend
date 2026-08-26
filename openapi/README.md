@@ -7,7 +7,8 @@ The backend repository is the authority for Acervo API contracts. The canonical 
 - [`v1/authentication.json`](v1/authentication.json), contract version `1.0.0`;
 - [`v1/document-explorer.json`](v1/document-explorer.json), contract version `1.0.0`;
 - [`v1/institution-users.json`](v1/institution-users.json), contract version `1.0.0`;
-- [`v1/institution-tags.json`](v1/institution-tags.json), contract version `1.0.0`.
+- [`v1/institution-tags.json`](v1/institution-tags.json), contract version `1.0.0`;
+- [`v1/user-search.json`](v1/user-search.json), contract version `1.0.0`.
 
 The authentication contract scope is deliberately limited to:
 
@@ -24,6 +25,8 @@ The document-explorer contract includes four read operations, canonical node cre
 The institution-users contract is admin-only and limited to listing the users of an institution, registering a user in an institution, updating a user's profile, and updating a user's role. Every operation requires `institution_id` to equal the authenticated admin's own institution, and update operations additionally require it to equal the target user's institution.
 
 The institution-tags contract covers institution-scoped tag listing, creation, and deletion. Document-tag assignment routes remain runtime-only compatibility endpoints.
+
+The user-search contract is admin-only and limited to a single typeahead-style lookup of active users by partial, case-insensitive match on name or email, across all institutions. It returns at most 10 results with only `id`, `name`, and `email` per user.
 
 Deliberate runtime-only API routes are recorded in [`runtime-only-routes.json`](runtime-only-routes.json). Each versioned entry identifies the method, normalized path, and reason. `php artisan api:contract:audit` fails for uncovered runtime routes and for invalid, duplicate, stale, or redundant exceptions; remove an exception as soon as an OpenAPI contract documents its operation.
 

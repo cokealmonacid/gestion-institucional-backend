@@ -1,0 +1,178 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Acervo User Search API",
+    "version": "1.0.0",
+    "description": "Admin-only contract for a typeahead-style search of active users by name or email, across all institutions."
+  },
+  "tags": [
+    {
+      "name": "User search",
+      "description": "Admin-only lookup of active users by partial name or email match."
+    }
+  ],
+  "paths": {
+    "/api/v1/user/search": {
+      "get": {
+        "operationId": "searchUsers",
+        "summary": "Search active users by name or email",
+        "description": "Returns up to 10 active users whose name or email contains q. The caller must be an admin.",
+        "tags": ["User search"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Query" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Users retrieved.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UserSearchSuccess" },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "users": [
+                      {
+                        "id": "55555555-5555-5555-5555-555555555555",
+                        "name": "Ana Pérez",
+                        "email": "ana.perez@example.com"
+                      }
+                    ]
+                  },
+                  "message": "Users retrieved successfully."
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "Sanctum"
+      }
+    },
+    "parameters": {
+      "Query": {
+        "name": "q",
+        "in": "query",
+        "required": true,
+        "description": "Search term matched against name and email, case-insensitively, as a partial (substring) match. Must be at least 2 characters.",
+        "schema": { "type": "string", "minLength": 2, "maxLength": 100 },
+        "example": "ana"
+      }
+    },
+    "schemas": {
+      "UserSearchResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "name", "email"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid", "description": "User identifier." },
+          "name": { "type": "string", "description": "Display name." },
+          "email": { "type": "string", "format": "email", "description": "Unique login email." }
+        }
+      },
+      "UserSearchData": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["users"],
+        "properties": {
+          "users": {
+            "type": "array",
+            "maxItems": 10,
+            "items": { "$ref": "#/components/schemas/UserSearchResult" }
+          }
+        }
+      },
+      "UserSearchSuccess": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "data", "message"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [true] },
+          "data": { "$ref": "#/components/schemas/UserSearchData" },
+          "message": { "type": "string", "enum": ["Users retrieved successfully."] }
+        }
+      },
+      "LegacyError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "message"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [false] },
+          "message": { "type": "string" }
+        }
+      },
+      "ForbiddenError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["message"],
+        "properties": {
+          "message": { "type": "string", "enum": ["Forbidden."] }
+        }
+      },
+      "ValidationFailedError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "message", "data"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [false] },
+          "message": { "type": "string", "enum": ["Validation failed."] },
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["error"],
+            "properties": {
+              "error": {
+                "type": "object",
+                "description": "Laravel validator error bag: field name to list of messages.",
+                "additionalProperties": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "responses": {
+      "Unauthenticated": {
+        "description": "A valid Sanctum bearer token is required.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/LegacyError" },
+            "example": { "success": false, "message": "Unauthenticated." }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "The authenticated user is not an admin.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ForbiddenError" },
+            "example": { "message": "Forbidden." }
+          }
+        }
+      },
+      "ValidationFailed": {
+        "description": "Request validation failed.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ValidationFailedError" },
+            "example": {
+              "success": false,
+              "message": "Validation failed.",
+              "data": { "error": { "q": ["The q field is required."] } }
+            }
+          }
+        }
+      }
+    }
+  }
+}

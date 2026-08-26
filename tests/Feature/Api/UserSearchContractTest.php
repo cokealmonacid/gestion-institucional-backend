@@ -10,7 +10,7 @@ use Laravel\Sanctum\Sanctum;
 use Modules\Institution\Models\Institution;
 use Tests\TestCase;
 
-class UserSearchTest extends TestCase
+class UserSearchContractTest extends TestCase
 {
     use RefreshDatabase;
 
@@ -25,6 +25,13 @@ class UserSearchTest extends TestCase
         return $admin;
     }
 
+    public function test_the_operation_requires_authentication(): void
+    {
+        $this->getJson('/api/v1/user/search?q=jane')
+            ->assertUnauthorized()
+            ->assertExactJson(['success' => false, 'message' => 'Unauthenticated.']);
+    }
+
     public function test_a_non_admin_user_is_forbidden(): void
     {
         $user = User::factory()->for(Institution::factory())->create();
@@ -32,7 +39,8 @@ class UserSearchTest extends TestCase
         Sanctum::actingAs($user);
 
         $this->getJson('/api/v1/user/search?q=jane')
-            ->assertForbidden();
+            ->assertForbidden()
+            ->assertExactJson(['message' => 'Forbidden.']);
     }
 
     public function test_an_admin_can_search_users_by_name(): void
@@ -42,10 +50,15 @@ class UserSearchTest extends TestCase
         $match = User::factory()->for(Institution::factory())->create(['name' => 'Jane Doe']);
         User::factory()->for(Institution::factory())->create(['name' => 'John Smith']);
 
-        $this->getJson('/api/v1/user/search?q=Jane')
+        $response = $this->getJson('/api/v1/user/search?q=Jane')
             ->assertOk()
-            ->assertJsonPath('data.users.0.id', $match->id)
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('message', 'Users retrieved successfully.')
             ->assertJsonCount(1, 'data.users');
+
+        $entry = $response->json('data.users.0');
+        $this->assertSame(['id', 'name', 'email'], array_keys($entry));
+        $this->assertSame($match->id, $entry['id']);
     }
 
     public function test_an_admin_can_search_users_by_email(): void
@@ -77,6 +90,18 @@ class UserSearchTest extends TestCase
         $this->actingAsAdmin();
 
         $this->getJson('/api/v1/user/search?q=j')
-            ->assertStatus(422);
+            ->assertStatus(422)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('message', 'Validation failed.')
+            ->assertJsonPath('data.error.q.0', 'The q field must be at least 2 characters.');
+    }
+
+    public function test_missing_query_is_rejected(): void
+    {
+        $this->actingAsAdmin();
+
+        $this->getJson('/api/v1/user/search')
+            ->assertStatus(422)
+            ->assertJsonPath('data.error.q.0', 'The q field is required.');
     }
 }
