@@ -17,5 +17,6 @@ Route::prefix('v1')->group(function () {
         Route::get('profile', 'profile');
         Route::put('profile', 'updateProfile');
         Route::patch('update-password', 'updatePassword');
+        Route::get('search', 'search')->middleware('isAdmin');
     });
 });
