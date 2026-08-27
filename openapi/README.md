@@ -4,7 +4,7 @@
 
 The backend repository is the authority for Acervo API contracts. The canonical OpenAPI 3.1 contracts are:
 
-- [`v1/authentication.json`](v1/authentication.json), contract version `1.0.0`;
+- [`v1/authentication.json`](v1/authentication.json), contract version `2.0.0`;
 - [`v1/document-explorer.json`](v1/document-explorer.json), contract version `4.0.0`;
 - [`v1/document-lifecycle.json`](v1/document-lifecycle.json), contract version `1.0.0`;
 - [`v1/institution-users.json`](v1/institution-users.json), contract version `2.0.0`;
@@ -31,7 +31,7 @@ The user-search contract is admin-only and limited to a single typeahead-style l
 
 Deliberate runtime-only API routes are recorded in [`runtime-only-routes.json`](runtime-only-routes.json). Each versioned entry identifies the method, normalized path, and reason. `php artisan api:contract:audit` fails for uncovered runtime routes and for invalid, duplicate, stale, or redundant exceptions; remove an exception as soon as an OpenAPI contract documents its operation.
 
-The authentication contract records the public request and response envelopes, status codes, schemas, Bearer security, institution and role data, and authentication lifecycle currently implemented by the backend. Login issues a Sanctum Personal Access Token in `data.token`; no refresh token is defined. Logout revokes only the access token used for that request.
+The authentication contract records the public request and response envelopes, status codes, schemas, Bearer security, institution, role and institutional ability data, and authentication lifecycle currently implemented by the backend. Login and profile expose the abilities currently allowed by backend Gates as informational frontend guidance; clients cannot use them as authorization credentials, and protected endpoints authorize every request independently. Login issues a Sanctum Personal Access Token in `data.token`; no refresh token is defined. Logout revokes only the access token used for that request.
 
 ## Relationship with code and tests
 

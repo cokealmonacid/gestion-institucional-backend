@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Acervo Authentication API",
-    "version": "1.0.0",
-    "description": "Canonical Bearer-token authentication contract for Acervo. Runtime API addresses are supplied by each deployment and are not part of this contract."
+    "version": "2.0.0",
+    "description": "Canonical Bearer-token authentication contract for Acervo. Authenticated user responses include informational institutional abilities for frontend presentation; every protected endpoint continues to authorize independently. Runtime API addresses are supplied by each deployment and are not part of this contract."
   },
   "paths": {
     "/api/v1/auth/login": {
@@ -182,12 +182,34 @@
       "User": {
         "type": "object",
         "additionalProperties": false,
+        "examples": [
+          {
+            "id": "92cbbb8b-3dce-45f4-ad41-02325b21c56e",
+            "name": "Usuario Editor",
+            "email": "editor@example.com",
+            "institution": {
+              "id": "59b1bfc3-d836-49df-b0ea-cc1e95575499",
+              "name": "Institución"
+            },
+            "roles": ["editor"],
+            "abilities": [
+              "institution.view",
+              "documents.manage",
+              "versions.manage",
+              "tags.manage",
+              "documents.tag",
+              "comments.manage",
+              "traceability.view"
+            ]
+          }
+        ],
         "required": [
           "id",
           "name",
           "email",
           "institution",
-          "roles"
+          "roles",
+          "abilities"
         ],
         "properties": {
           "id": {
@@ -212,6 +234,25 @@
                 "admin",
                 "editor",
                 "reader"
+              ]
+            }
+          },
+          "abilities": {
+            "type": "array",
+            "description": "Institutional abilities currently allowed by the backend Gates. Informational UI guidance only; array order has no authorization semantics.",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "institution.view",
+                "users.manage",
+                "nodes.manage",
+                "documents.manage",
+                "versions.manage",
+                "tags.manage",
+                "documents.tag",
+                "comments.manage",
+                "traceability.view"
               ]
             }
           }

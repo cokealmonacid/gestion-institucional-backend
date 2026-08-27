@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Authorization\InstitutionAbilityProjection;
 use BackedEnum;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -29,6 +30,7 @@ class UserResource extends JsonResource
                 ->sort()
                 ->values()
                 ->all(),
+            'abilities' => app(InstitutionAbilityProjection::class)->project($this->resource),
         ];
     }
 }

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Api;
 
+use App\Enums\InstitutionAbility;
 use App\Enums\RoleType;
 use App\Models\Rol;
 use App\Models\User;
@@ -156,6 +157,7 @@ class AuthenticationContractTest extends TestCase
                         'name' => 'Acervo Test',
                     ],
                     'roles' => ['admin', 'reader'],
+                    'abilities' => array_column(InstitutionAbility::cases(), 'value'),
                 ],
             ],
             'message' => 'Login successful.',
@@ -184,6 +186,15 @@ class AuthenticationContractTest extends TestCase
                             'name' => 'Acervo Test',
                         ],
                         'roles' => ['editor'],
+                        'abilities' => [
+                            InstitutionAbility::View->value,
+                            InstitutionAbility::ManageDocuments->value,
+                            InstitutionAbility::ManageVersions->value,
+                            InstitutionAbility::ManageTags->value,
+                            InstitutionAbility::TagDocuments->value,
+                            InstitutionAbility::ManageComments->value,
+                            InstitutionAbility::ViewTraceability->value,
+                        ],
                     ],
                 ],
                 'message' => 'Profile retrieved successfully.',
