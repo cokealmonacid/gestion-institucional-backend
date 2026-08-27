@@ -34,7 +34,17 @@ class InstitutionAuthorization
             self::MANAGE_ROLES[$ability->value] ?? [],
         );
 
-        return $allowedRoles !== []
-            && $actor->roles()->whereIn('type', $allowedRoles)->exists();
+        if ($allowedRoles === []) {
+            return false;
+        }
+
+        if ($actor->relationLoaded('roles')) {
+            return $actor->roles->contains(
+                fn (mixed $role): bool => $role->type instanceof RoleType
+                    && in_array($role->type->value, $allowedRoles, true),
+            );
+        }
+
+        return $actor->roles()->whereIn('type', $allowedRoles)->exists();
     }
 }
