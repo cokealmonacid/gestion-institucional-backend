@@ -5,10 +5,11 @@
 The backend repository is the authority for Acervo API contracts. The canonical OpenAPI 3.1 contracts are:
 
 - [`v1/authentication.json`](v1/authentication.json), contract version `1.0.0`;
-- [`v1/document-explorer.json`](v1/document-explorer.json), contract version `1.0.0`;
-- [`v1/institution-users.json`](v1/institution-users.json), contract version `1.0.0`;
-- [`v1/institution-tags.json`](v1/institution-tags.json), contract version `1.0.0`;
-- [`v1/user-search.json`](v1/user-search.json), contract version `1.0.0`.
+- [`v1/document-explorer.json`](v1/document-explorer.json), contract version `4.0.0`;
+- [`v1/document-lifecycle.json`](v1/document-lifecycle.json), contract version `1.0.0`;
+- [`v1/institution-users.json`](v1/institution-users.json), contract version `2.0.0`;
+- [`v1/institution-tags.json`](v1/institution-tags.json), contract version `2.0.0`;
+- [`v1/user-search.json`](v1/user-search.json), contract version `2.0.0`.
 
 The authentication contract scope is deliberately limited to:
 
@@ -18,15 +19,15 @@ The authentication contract scope is deliberately limited to:
 
 Password-recovery endpoints and every other API endpoint are outside the authentication contract version.
 
-The document-explorer contract includes four read operations, canonical node creation through `POST /api/v1/institution/tree-directory`, and logical document creation through `POST /api/v1/institution/tree-directory/{node_id}/documents`. The virtual root is not a node and does not contain documents; node creation targets it with an explicit nullable `parent_id` in the request body. Document creation requires a real accessible node and does not upload a file or create an initial version. The older node POST containing a parent identifier in the route remains runtime-only compatibility behavior and is not part of the canonical contract.
+The document-explorer contract includes four read operations, admin-only canonical node creation through `POST /api/v1/institution/tree-directory`, and admin/editor logical document creation through `POST /api/v1/institution/tree-directory/{node_id}/documents`. The virtual root is not a node and does not contain documents; node creation targets it with an explicit nullable `parent_id` in the request body. Document creation requires a real accessible node and does not upload a file or create an initial version. The older node POST containing a parent identifier in the route remains runtime-only compatibility behavior and is not part of the canonical contract.
 
 `openapi/v1/document-lifecycle.json` is the backend-authoritative contract for document lifecycle detail, active version listing, first and subsequent private-file uploads, current and historical downloads, and selecting an active historical version as current. Version uploads accept at most 25 MiB; PHP and the serving HTTP stack must allow at least 25 MiB plus multipart overhead. The download audit row records authorization and response emission, not completed transfer.
 
-The institution-users contract is admin-only and limited to listing the users of an institution, registering a user in an institution, updating a user's profile, and updating a user's role. Every operation requires `institution_id` to equal the authenticated admin's own institution, and update operations additionally require it to equal the target user's institution.
+The institution-users contract is admin-only and limited to listing every user in the authenticated admin's institution, registering a user there, updating a user's profile, role and active status, and deleting a user. Institutional context is always derived from the authenticated admin. The compatibility `institution_id` must match that context; foreign and nonexistent institutional users are indistinguishable.
 
-The institution-tags contract covers institution-scoped tag listing, creation, and deletion. Document-tag assignment routes remain runtime-only compatibility endpoints.
+The institution-tags contract allows every institutional role to list tags and restricts tag creation and deletion to admins and editors. Document-tag assignment routes remain runtime-only compatibility endpoints.
 
-The user-search contract is admin-only and limited to a single typeahead-style lookup of active users by partial, case-insensitive match on name or email, across all institutions. It returns at most 10 results with only `id`, `name`, and `email` per user.
+The user-search contract is admin-only and limited to a single typeahead-style lookup of active users in the authenticated admin's institution by partial, case-insensitive match on name or email. It returns at most 10 results with only `id`, `name`, and `email` per user; users from other institutions are never observable and no tenant selector is accepted.
 
 Deliberate runtime-only API routes are recorded in [`runtime-only-routes.json`](runtime-only-routes.json). Each versioned entry identifies the method, normalized path, and reason. `php artisan api:contract:audit` fails for uncovered runtime routes and for invalid, duplicate, stale, or redundant exceptions; remove an exception as soon as an OpenAPI contract documents its operation.
 

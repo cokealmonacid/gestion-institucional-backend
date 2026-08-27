@@ -2,7 +2,7 @@
 
 namespace Modules\Documents\Services;
 
-use App\Enums\RoleType;
+use App\Enums\InstitutionAbility;
 use App\Models\User;
 use Modules\Documents\Models\Document;
 use Modules\Documents\Models\DocumentVersion;
@@ -41,9 +41,7 @@ class DocumentLifecycleAccess
 
     public function canMutate(User $actor): bool
     {
-        return $actor->roles()
-            ->whereIn('type', [RoleType::Admin->value, RoleType::Editor->value])
-            ->exists();
+        return $actor->can(InstitutionAbility::ManageVersions->value);
     }
 
     public function canDownload(?DocumentVersion $currentVersion): bool

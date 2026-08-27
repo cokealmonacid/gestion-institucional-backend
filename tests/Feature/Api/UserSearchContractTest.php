@@ -14,44 +14,51 @@ class UserSearchContractTest extends TestCase
 {
     use RefreshDatabase;
 
-    private function actingAsAdmin(): User
-    {
-        $admin = User::factory()->for(Institution::factory())->create();
-        $role = Rol::create(['type' => RoleType::Admin]);
-        $admin->roles()->attach($role);
-
-        Sanctum::actingAs($admin);
-
-        return $admin;
-    }
-
     public function test_the_operation_requires_authentication(): void
     {
-        $this->getJson('/api/v1/user/search?q=jane')
-            ->assertUnauthorized()
+        $this->getJson('/api/v1/user/search?q=jane')->assertUnauthorized()
             ->assertExactJson(['success' => false, 'message' => 'Unauthenticated.']);
     }
 
-    public function test_a_non_admin_user_is_forbidden(): void
+    public function test_editor_reader_and_roleless_users_are_forbidden(): void
     {
-        $user = User::factory()->for(Institution::factory())->create();
+        foreach ([RoleType::Editor, RoleType::Reader, null] as $role) {
+            Sanctum::actingAs($this->institutionUser($role));
+            $this->getJson('/api/v1/user/search?q=jane')->assertForbidden()
+                ->assertExactJson(['message' => 'Forbidden.']);
+        }
+    }
 
-        Sanctum::actingAs($user);
+    public function test_a_user_without_an_institution_is_forbidden_even_with_admin_role(): void
+    {
+        $admin = User::factory()->create(['institution_id' => null]);
+        $admin->roles()->attach(Rol::firstOrCreate(['type' => RoleType::Admin]));
+        Sanctum::actingAs($admin);
 
-        $this->getJson('/api/v1/user/search?q=jane')
-            ->assertForbidden()
+        $this->getJson('/api/v1/user/search?q=jane')->assertForbidden()
             ->assertExactJson(['message' => 'Forbidden.']);
     }
 
-    public function test_an_admin_can_search_users_by_name(): void
+    public function test_multiple_roles_follow_the_central_users_manage_union(): void
     {
-        $this->actingAsAdmin();
+        $institution = Institution::factory()->create();
+        $admin = $this->institutionUser(RoleType::Admin, $institution);
+        $admin->roles()->attach(Rol::firstOrCreate(['type' => RoleType::Reader]));
+        $match = User::factory()->for($institution)->create(['name' => 'Jane Local']);
+        Sanctum::actingAs($admin);
 
-        $match = User::factory()->for(Institution::factory())->create(['name' => 'Jane Doe']);
-        User::factory()->for(Institution::factory())->create(['name' => 'John Smith']);
+        $this->getJson('/api/v1/user/search?q=Jane')->assertOk()
+            ->assertJsonPath('data.users.0.id', $match->id);
+    }
 
-        $response = $this->getJson('/api/v1/user/search?q=Jane')
-            ->assertOk()
+    public function test_an_admin_finds_an_active_local_user_by_name_with_only_public_fields(): void
+    {
+        $institution = Institution::factory()->create();
+        Sanctum::actingAs($this->institutionUser(RoleType::Admin, $institution));
+        $match = User::factory()->for($institution)->create(['name' => 'Jane Doe']);
+        User::factory()->for($institution)->create(['name' => 'John Smith']);
+
+        $response = $this->getJson('/api/v1/user/search?q=jAnE')->assertOk()
             ->assertJsonPath('success', true)
             ->assertJsonPath('message', 'Users retrieved successfully.')
             ->assertJsonCount(1, 'data.users');
@@ -61,47 +68,88 @@ class UserSearchContractTest extends TestCase
         $this->assertSame($match->id, $entry['id']);
     }
 
-    public function test_an_admin_can_search_users_by_email(): void
+    public function test_an_admin_finds_an_active_local_user_by_email(): void
     {
-        $this->actingAsAdmin();
+        $institution = Institution::factory()->create();
+        Sanctum::actingAs($this->institutionUser(RoleType::Admin, $institution));
+        $match = User::factory()->for($institution)->create(['email' => 'match@example.com']);
+        User::factory()->for($institution)->create(['email' => 'other@example.com']);
 
-        $match = User::factory()->for(Institution::factory())->create(['email' => 'match@example.com']);
-        User::factory()->for(Institution::factory())->create(['email' => 'other@example.com']);
-
-        $this->getJson('/api/v1/user/search?q=match@example.com')
-            ->assertOk()
+        $this->getJson('/api/v1/user/search?q=MATCH@example.com')->assertOk()
             ->assertJsonPath('data.users.0.id', $match->id)
             ->assertJsonCount(1, 'data.users');
     }
 
-    public function test_inactive_users_are_excluded_from_results(): void
+    public function test_a_shared_term_returns_only_the_local_user_and_exposes_no_foreign_data(): void
     {
-        $this->actingAsAdmin();
+        $institution = Institution::factory()->create();
+        Sanctum::actingAs($this->institutionUser(RoleType::Admin, $institution));
+        $local = User::factory()->for($institution)->create(['name' => 'Shared Local', 'email' => 'local-shared@example.com']);
+        $foreign = User::factory()->for(Institution::factory())->create(['name' => 'Shared Foreign', 'email' => 'foreign-shared@example.com']);
 
-        User::factory()->inactive()->for(Institution::factory())->create(['name' => 'Jane Inactive']);
-
-        $this->getJson('/api/v1/user/search?q=Jane')
-            ->assertOk()
-            ->assertJsonCount(0, 'data.users');
+        $response = $this->getJson('/api/v1/user/search?q=shared')->assertOk()
+            ->assertJsonCount(1, 'data.users')->assertJsonPath('data.users.0.id', $local->id);
+        $body = $response->getContent();
+        $this->assertStringNotContainsString($foreign->id, $body);
+        $this->assertStringNotContainsString($foreign->name, $body);
+        $this->assertStringNotContainsString($foreign->email, $body);
     }
 
-    public function test_query_shorter_than_two_characters_is_rejected(): void
+    public function test_a_foreign_only_match_returns_an_empty_result(): void
     {
-        $this->actingAsAdmin();
+        $institution = Institution::factory()->create();
+        Sanctum::actingAs($this->institutionUser(RoleType::Admin, $institution));
+        $foreign = User::factory()->for(Institution::factory())->create(['name' => 'Confidential Needle', 'email' => 'confidential-needle@example.com']);
 
-        $this->getJson('/api/v1/user/search?q=j')
-            ->assertStatus(422)
-            ->assertJsonPath('success', false)
-            ->assertJsonPath('message', 'Validation failed.')
+        $response = $this->getJson('/api/v1/user/search?q=needle')->assertOk()->assertJsonCount(0, 'data.users');
+        $this->assertStringNotContainsString($foreign->id, $response->getContent());
+        $this->assertStringNotContainsString($foreign->name, $response->getContent());
+        $this->assertStringNotContainsString($foreign->email, $response->getContent());
+    }
+
+    public function test_institution_and_active_predicates_apply_to_both_name_and_email_matches(): void
+    {
+        $institution = Institution::factory()->create();
+        Sanctum::actingAs($this->institutionUser(RoleType::Admin, $institution));
+        $local = User::factory()->for($institution)->create(['name' => 'Scope Match']);
+        $inactive = User::factory()->inactive()->for($institution)->create(['email' => 'scope-match@example.com']);
+        $foreignByName = User::factory()->for(Institution::factory())->create(['name' => 'Scope Foreign']);
+        $foreignByEmail = User::factory()->for(Institution::factory())->create(['email' => 'scope-foreign@example.com']);
+
+        $response = $this->getJson('/api/v1/user/search?q=scope')->assertOk()
+            ->assertJsonCount(1, 'data.users')->assertJsonPath('data.users.0.id', $local->id);
+
+        foreach ([$inactive, $foreignByName, $foreignByEmail] as $excluded) {
+            $this->assertStringNotContainsString($excluded->id, $response->getContent());
+        }
+    }
+
+    public function test_results_are_limited_to_ten(): void
+    {
+        $institution = Institution::factory()->create();
+        Sanctum::actingAs($this->institutionUser(RoleType::Admin, $institution));
+        User::factory()->count(12)->for($institution)->create(['name' => 'Limit Match']);
+
+        $this->getJson('/api/v1/user/search?q=Limit')->assertOk()->assertJsonCount(10, 'data.users');
+    }
+
+    public function test_query_validation_is_preserved(): void
+    {
+        Sanctum::actingAs($this->institutionUser(RoleType::Admin));
+        $this->getJson('/api/v1/user/search?q=j')->assertStatus(422)
+            ->assertJsonPath('success', false)->assertJsonPath('message', 'Validation failed.')
             ->assertJsonPath('data.error.q.0', 'The q field must be at least 2 characters.');
+        $this->getJson('/api/v1/user/search')->assertStatus(422)
+            ->assertJsonPath('data.error.q.0', 'The q field is required.');
     }
 
-    public function test_missing_query_is_rejected(): void
+    private function institutionUser(?RoleType $role, ?Institution $institution = null): User
     {
-        $this->actingAsAdmin();
+        $user = User::factory()->for($institution ?? Institution::factory())->create();
+        if ($role) {
+            $user->roles()->attach(Rol::firstOrCreate(['type' => $role]));
+        }
 
-        $this->getJson('/api/v1/user/search')
-            ->assertStatus(422)
-            ->assertJsonPath('data.error.q.0', 'The q field is required.');
+        return $user;
     }
 }

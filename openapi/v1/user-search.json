@@ -2,13 +2,13 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Acervo User Search API",
-    "version": "1.0.0",
-    "description": "Admin-only contract for a typeahead-style search of active users by name or email, across all institutions."
+    "version": "2.0.0",
+    "description": "Admin-only contract for a typeahead-style search of active users by name or email within the authenticated admin's institution."
   },
   "tags": [
     {
       "name": "User search",
-      "description": "Admin-only lookup of active users by partial name or email match."
+      "description": "Admin-only institutional lookup of active users by partial name or email match."
     }
   ],
   "paths": {
@@ -16,7 +16,7 @@
       "get": {
         "operationId": "searchUsers",
         "summary": "Search active users by name or email",
-        "description": "Returns up to 10 active users whose name or email contains q. The caller must be an admin.",
+        "description": "Returns up to 10 active users in the authenticated admin's institution whose name or email contains q. Users from other institutions are never observable and no institution selector is accepted.",
         "tags": ["User search"],
         "security": [{ "bearerAuth": [] }],
         "parameters": [
@@ -64,7 +64,7 @@
         "name": "q",
         "in": "query",
         "required": true,
-        "description": "Search term matched against name and email, case-insensitively, as a partial (substring) match. Must be at least 2 characters.",
+        "description": "Search term matched against name and email within the authenticated admin's institution, case-insensitively, as a partial (substring) match. Must be at least 2 characters.",
         "schema": { "type": "string", "minLength": 2, "maxLength": 100 },
         "example": "ana"
       }
@@ -75,7 +75,7 @@
         "additionalProperties": false,
         "required": ["id", "name", "email"],
         "properties": {
-          "id": { "type": "string", "format": "uuid", "description": "User identifier." },
+          "id": { "type": "string", "format": "uuid", "description": "Identifier of a user in the authenticated admin's institution." },
           "name": { "type": "string", "description": "Display name." },
           "email": { "type": "string", "format": "email", "description": "Unique login email." }
         }
@@ -152,7 +152,7 @@
         }
       },
       "Forbidden": {
-        "description": "The authenticated user is not an admin.",
+        "description": "The authenticated user does not have institutional users.manage authority.",
         "content": {
           "application/json": {
             "schema": { "$ref": "#/components/schemas/ForbiddenError" },

@@ -20,7 +20,7 @@ class UserSearchOpenApiTest extends TestCase
         $contract = $this->contract();
 
         $this->assertSame('3.1.0', $contract['openapi']);
-        $this->assertSame('1.0.0', $contract['info']['version']);
+        $this->assertSame('2.0.0', $contract['info']['version']);
         $this->assertArrayNotHasKey('servers', $contract);
         $this->assertSame(['/api/v1/user/search'], array_keys($contract['paths']));
         $this->assertSame(['get'], array_keys($contract['paths']['/api/v1/user/search']));
@@ -50,6 +50,17 @@ class UserSearchOpenApiTest extends TestCase
         $this->assertArrayNotHasKey('password', $result['properties']);
         $this->assertArrayNotHasKey('remember_token', $result['properties']);
         $this->assertArrayNotHasKey('active', $result['properties']);
+    }
+
+    public function test_contract_limits_search_to_the_authenticated_institution_without_a_selector(): void
+    {
+        $contract = $this->contract();
+        $operation = $contract['paths']['/api/v1/user/search']['get'];
+
+        $this->assertStringContainsString("authenticated admin's institution", $contract['info']['description']);
+        $this->assertStringContainsString('Users from other institutions are never observable', $operation['description']);
+        $this->assertSame([['$ref' => '#/components/parameters/Query']], $operation['parameters']);
+        $this->assertSame(10, $contract['components']['schemas']['UserSearchData']['properties']['users']['maxItems']);
     }
 
     public function test_forbidden_response_has_no_success_key(): void

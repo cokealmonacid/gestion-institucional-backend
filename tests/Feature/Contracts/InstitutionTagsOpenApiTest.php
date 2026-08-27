@@ -21,7 +21,7 @@ class InstitutionTagsOpenApiTest extends TestCase
         $contract = $this->contract();
 
         $this->assertSame('3.1.0', $contract['openapi']);
-        $this->assertSame('1.0.0', $contract['info']['version']);
+        $this->assertSame('2.0.0', $contract['info']['version']);
         $this->assertArrayNotHasKey('servers', $contract);
         $this->assertSame([
             '/api/v1/institution/tag',
@@ -41,8 +41,10 @@ class InstitutionTagsOpenApiTest extends TestCase
         ];
 
         $this->assertSame([200, 401, 403], array_keys($operations[0]['responses']));
-        $this->assertSame([200, 401, 403, 422, 500], array_keys($operations[1]['responses']));
-        $this->assertSame([200, 401, 403, 422, 500], array_keys($operations[2]['responses']));
+        $this->assertSame([200, 401, 403, 404, 422, 500], array_keys($operations[1]['responses']));
+        $this->assertSame([200, 401, 403, 404, 422, 500], array_keys($operations[2]['responses']));
+        $this->assertStringContainsString('Admin and editor only', $operations[1]['description']);
+        $this->assertStringContainsString('Admin and editor only', $operations[2]['description']);
 
         foreach ($operations as $operation) {
             $this->assertSame([['bearerAuth' => []]], $operation['security']);

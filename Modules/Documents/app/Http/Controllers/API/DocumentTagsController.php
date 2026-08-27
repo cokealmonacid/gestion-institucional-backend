@@ -3,48 +3,46 @@
 namespace Modules\Documents\Http\Controllers\API;
 
 use App\Http\Controllers\BaseController;
-use Modules\Documents\Models\DocumentTag;
-use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\Exists;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
+use Modules\Documents\Models\Document;
+use Modules\Documents\Models\DocumentTag;
+use Modules\Institution\Models\Tag;
 
 class DocumentTagsController extends BaseController
 {
-    private function institutionDocumentRule(Request $request): Exists
-    {
-        return Rule::exists('documents', 'id')
-            ->where('institution_id', $request->user()->institution_id);
-    }
-
-    private function institutionTagRule(Request $request): Exists
-    {
-        return Rule::exists('tags', 'id')
-            ->where('institution_id', $request->user()->institution_id);
-    }
-
     public function store(Request $request, $document_id)
     {
-        $validator = Validator::make(array_merge($request->all(), ['document_id' => $document_id]), [
-            'document_id' => ['required', $this->institutionDocumentRule($request)],
+        $validator = Validator::make($request->all(), [
+            'tag_id' => ['required'],
+        ]);
+
+        if ($validator->fails()) {
+            return $this->sendError('Validation failed.', ['error' => $validator->errors()], 422);
+        }
+
+        if (! $this->documentAndTagsAreAvailable($request, $document_id, [$request->tag_id])) {
+            return $this->sendError('Document or tag not found.', [], 404);
+        }
+
+        $assignmentValidator = Validator::make($request->all(), [
             'tag_id' => [
-                'required',
-                $this->institutionTagRule($request),
                 Rule::unique('document_tags', 'tag_id')->where('document_id', $document_id),
             ],
         ], [
             'tag_id.unique' => 'Tag already assigned to Document.',
         ]);
 
-        if ($validator->fails()) {
-            return $this->sendError('Validation failed.', ['error'=> $validator->errors()], 422);
+        if ($assignmentValidator->fails()) {
+            return $this->sendError('Validation failed.', ['error' => $assignmentValidator->errors()], 422);
         }
 
         try {
             DocumentTag::create([
                 'document_id' => $document_id,
                 'tag_id' => $request->tag_id,
-                'assigned_by_id' => auth()->id()
+                'assigned_by_id' => auth()->id(),
             ]);
 
             return $this->sendResponse(null, 'Tag added successfully.');
@@ -58,24 +56,26 @@ class DocumentTagsController extends BaseController
         $validator = Validator::make(
             array_merge($request->all(), ['document_id' => $document_id]),
             [
-                'document_id' => ['required', $this->institutionDocumentRule($request)],
                 'tags_id' => 'required|array|min:1',
                 'tags_id.*' => [
                     'required',
                     'distinct',
-                    $this->institutionTagRule($request),
                 ],
             ]
         );
 
         if ($validator->fails()) {
-            return $this->sendError('Validation failed.', ['error'=> $validator->errors()], 422);
+            return $this->sendError('Validation failed.', ['error' => $validator->errors()], 422);
+        }
+
+        if (! $this->documentAndTagsAreAvailable($request, $document_id, $request->tags_id)) {
+            return $this->sendError('Document or tag not found.', [], 404);
         }
 
         try {
             DocumentTag::where('document_id', $document_id)->delete();
 
-            $tags = array_map(fn($tag_id) => [
+            $tags = array_map(fn ($tag_id) => [
                 'document_id' => $document_id,
                 'tag_id' => $tag_id,
                 'assigned_by_id' => auth()->id(),
@@ -91,13 +91,16 @@ class DocumentTagsController extends BaseController
 
     public function destroy(Request $request, $document_id)
     {
-        $validator = Validator::make(array_merge($request->all(), ['document_id' => $document_id]), [
-            'document_id' => ['required', $this->institutionDocumentRule($request)],
-            'tag_id' => ['required', $this->institutionTagRule($request)],
+        $validator = Validator::make($request->all(), [
+            'tag_id' => ['required'],
         ]);
 
         if ($validator->fails()) {
-            return $this->sendError('Validation failed.', ['error'=> $validator->errors()], 422);
+            return $this->sendError('Validation failed.', ['error' => $validator->errors()], 422);
+        }
+
+        if (! $this->documentAndTagsAreAvailable($request, $document_id, [$request->tag_id])) {
+            return $this->sendError('Document or tag not found.', [], 404);
         }
 
         try {
@@ -110,5 +113,19 @@ class DocumentTagsController extends BaseController
         } catch (\Exception $e) {
             return $this->sendError('Something went wrong.', [], 500);
         }
+    }
+
+    /** @param array<int, string> $tagIds */
+    private function documentAndTagsAreAvailable(Request $request, string $documentId, array $tagIds): bool
+    {
+        $institutionId = $request->user()->institution_id;
+        $documentExists = Document::where('institution_id', $institutionId)
+            ->whereKey($documentId)
+            ->exists();
+        $tagCount = Tag::where('institution_id', $institutionId)
+            ->whereIn('id', array_unique($tagIds))
+            ->count();
+
+        return $documentExists && $tagCount === count(array_unique($tagIds));
     }
 }

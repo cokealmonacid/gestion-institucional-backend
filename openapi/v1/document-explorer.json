@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Acervo Institutional Document Explorer API",
-    "version": "3.0.0",
+    "version": "4.0.0",
     "description": "Contract for navigating the virtual institution root, reading real nodes and their direct documents with authoritative lifecycle summaries, creating container nodes, and creating logical documents in real nodes. Node order is numeric and node paths are materialized UUID paths."
   },
   "tags": [
@@ -53,7 +53,7 @@
       "post": {
         "operationId": "createInstitutionNode",
         "summary": "Create a container node",
-        "description": "Creates an active node in the virtual root when parent_id is null, or under an active node in the authenticated user's institution. Admin and editor roles are allowed. All hierarchy, ordering, institution and lifecycle fields are server-derived. Every current Node is a container; NODE_PARENT_NOT_CONTAINER is reserved for a future node subtype and is not currently reachable.",
+        "description": "Creates an active node in the virtual root when parent_id is null, or under an active node in the authenticated user's institution. Only the admin role is allowed. All hierarchy, ordering, institution and lifecycle fields are server-derived. Every current Node is a container; NODE_PARENT_NOT_CONTAINER is reserved for a future node subtype and is not currently reachable.",
         "tags": ["Document explorer"],
         "security": [{ "bearerAuth": [] }],
         "requestBody": {
@@ -514,7 +514,7 @@
         }
       },
       "NodeCreateForbidden": {
-        "description": "The authenticated user is not an admin or editor.",
+        "description": "The authenticated user is not an admin.",
         "content": {
           "application/json": {
             "schema": { "$ref": "#/components/schemas/CanonicalError" },

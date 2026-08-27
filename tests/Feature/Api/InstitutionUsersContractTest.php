@@ -6,6 +6,7 @@ use App\Enums\RoleType;
 use App\Models\Rol;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 use Modules\Institution\Models\Institution;
 use Tests\TestCase;
@@ -28,14 +29,36 @@ class InstitutionUsersContractTest extends TestCase
         }
     }
 
-    public function test_non_admin_users_are_forbidden(): void
+    public function test_editor_and_reader_cannot_list_or_manage_users(): void
     {
-        [$institution, $user] = $this->institutionUser();
-        Sanctum::actingAs($user);
+        foreach ([RoleType::Editor, RoleType::Reader] as $roleType) {
+            [$institution, $user] = $this->institutionUser();
+            $user->roles()->attach(Rol::firstOrCreate(['type' => $roleType]));
+            $target = User::factory()->for($institution)->create();
+            Sanctum::actingAs($user);
 
-        $this->getJson("/api/v1/institution/users?institution_id={$institution->id}")
-            ->assertForbidden()
-            ->assertExactJson(['message' => 'Forbidden.']);
+            foreach ([
+                fn () => $this->getJson("/api/v1/institution/users?institution_id={$institution->id}"),
+                fn () => $this->postJson('/api/v1/institution/users', ['institution_id' => $institution->id]),
+                fn () => $this->patchJson('/api/v1/institution/users', [
+                    'institution_id' => $institution->id,
+                    'email' => $target->email,
+                    'name' => 'Forbidden',
+                ]),
+                fn () => $this->deleteJson('/api/v1/institution/users', [
+                    'institution_id' => $institution->id,
+                    'email' => $target->email,
+                ]),
+            ] as $call) {
+                $call()->assertForbidden()->assertExactJson(['message' => 'Forbidden.']);
+            }
+
+            $this->assertDatabaseHas('users', [
+                'id' => $target->id,
+                'name' => $target->name,
+                'deleted_at' => null,
+            ]);
+        }
     }
 
     public function test_institution_id_must_match_the_authenticated_admins_own_institution(): void
@@ -44,9 +67,14 @@ class InstitutionUsersContractTest extends TestCase
         $otherInstitution = Institution::factory()->create();
         Sanctum::actingAs($admin);
 
-        $this->getJson("/api/v1/institution/users?institution_id={$otherInstitution->id}")
-            ->assertForbidden()
-            ->assertExactJson(['message' => 'Forbidden.']);
+        foreach ([$otherInstitution->id, (string) Str::uuid()] as $institutionId) {
+            $this->getJson("/api/v1/institution/users?institution_id={$institutionId}")
+                ->assertNotFound()
+                ->assertExactJson([
+                    'success' => false,
+                    'message' => 'Institution user not found.',
+                ]);
+        }
     }
 
     public function test_index_lists_only_users_of_the_given_institution(): void
@@ -136,6 +164,29 @@ class InstitutionUsersContractTest extends TestCase
             ->assertJsonPath('data.error.email.0', 'The email has already been taken.');
     }
 
+    public function test_request_institution_id_cannot_select_where_a_user_is_registered(): void
+    {
+        [$institution, $admin] = $this->institutionUser(admin: true);
+        $foreignInstitution = Institution::factory()->create();
+        Rol::create(['type' => RoleType::Editor]);
+        Sanctum::actingAs($admin);
+
+        $this->postJson('/api/v1/institution/users', [
+            'institution_id' => $foreignInstitution->id,
+            'name' => 'Foreign target',
+            'email' => 'foreign-target@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+            'rol' => 'editor',
+        ])->assertNotFound()->assertExactJson([
+            'success' => false,
+            'message' => 'Institution user not found.',
+        ]);
+
+        $this->assertDatabaseMissing('users', ['email' => 'foreign-target@example.com']);
+        $this->assertDatabaseHas('users', ['id' => $admin->id, 'institution_id' => $institution->id]);
+    }
+
     public function test_update_changes_the_targeted_users_profile(): void
     {
         [$institution, $admin] = $this->institutionUser(admin: true);
@@ -154,7 +205,7 @@ class InstitutionUsersContractTest extends TestCase
         $this->assertDatabaseHas('users', ['id' => $peer->id, 'name' => 'New name']);
     }
 
-    public function test_update_rejects_a_user_from_another_institution(): void
+    public function test_update_cannot_distinguish_foreign_from_nonexistent_users(): void
     {
         [$institution, $admin] = $this->institutionUser(admin: true);
         $otherInstitution = Institution::factory()->create();
@@ -162,15 +213,18 @@ class InstitutionUsersContractTest extends TestCase
 
         Sanctum::actingAs($admin);
 
-        $this->patchJson('/api/v1/institution/users', [
-            'institution_id' => $institution->id,
-            'email' => $foreignUser->email,
-            'name' => 'New name',
-        ])
-            ->assertStatus(422)
-            ->assertJsonPath('success', false)
-            ->assertJsonPath('message', 'Validation failed.')
-            ->assertJsonPath('data.error.institution_id.0', 'User does not belong to this institution.');
+        foreach ([$foreignUser->email, 'missing@example.com'] as $email) {
+            $this->patchJson('/api/v1/institution/users', [
+                'institution_id' => $institution->id,
+                'email' => $email,
+                'name' => 'New name',
+            ])->assertNotFound()->assertExactJson([
+                'success' => false,
+                'message' => 'Institution user not found.',
+            ]);
+        }
+
+        $this->assertDatabaseHas('users', ['id' => $foreignUser->id, 'name' => $foreignUser->name]);
     }
 
     public function test_update_swaps_the_targeted_users_role(): void
@@ -244,13 +298,13 @@ class InstitutionUsersContractTest extends TestCase
 
         $response = $this->getJson("/api/v1/institution/users?institution_id={$institution->id}")
             ->assertOk()
-            ->assertJsonPath('data.total', 0);
+            ->assertJsonPath('data.total', 1);
 
         $ids = collect($response->json('data.data'))->pluck('id')->all();
         $this->assertNotContains($peer->id, $ids);
     }
 
-    public function test_destroy_rejects_a_user_from_another_institution(): void
+    public function test_destroy_cannot_distinguish_foreign_from_nonexistent_users(): void
     {
         [$institution, $admin] = $this->institutionUser(admin: true);
         $otherInstitution = Institution::factory()->create();
@@ -258,16 +312,43 @@ class InstitutionUsersContractTest extends TestCase
 
         Sanctum::actingAs($admin);
 
-        $this->deleteJson('/api/v1/institution/users', [
-            'institution_id' => $institution->id,
-            'email' => $foreignUser->email,
-        ])
-            ->assertStatus(422)
-            ->assertJsonPath('success', false)
-            ->assertJsonPath('message', 'Validation failed.')
-            ->assertJsonPath('data.error.institution_id.0', 'User does not belong to this institution.');
+        foreach ([$foreignUser->email, 'missing@example.com'] as $email) {
+            $this->deleteJson('/api/v1/institution/users', [
+                'institution_id' => $institution->id,
+                'email' => $email,
+            ])->assertNotFound()->assertExactJson([
+                'success' => false,
+                'message' => 'Institution user not found.',
+            ]);
+        }
 
         $this->assertDatabaseHas('users', ['id' => $foreignUser->id, 'deleted_at' => null]);
+    }
+
+    public function test_request_institution_id_cannot_expand_update_or_destroy_scope(): void
+    {
+        [$institution, $admin] = $this->institutionUser(admin: true);
+        $peer = User::factory()->for($institution)->create(['name' => 'Original']);
+        $foreignInstitution = Institution::factory()->create();
+        Sanctum::actingAs($admin);
+
+        $payload = [
+            'institution_id' => $foreignInstitution->id,
+            'email' => $peer->email,
+        ];
+
+        $this->patchJson('/api/v1/institution/users', $payload + ['name' => 'Changed'])
+            ->assertNotFound()
+            ->assertExactJson(['success' => false, 'message' => 'Institution user not found.']);
+        $this->deleteJson('/api/v1/institution/users', $payload)
+            ->assertNotFound()
+            ->assertExactJson(['success' => false, 'message' => 'Institution user not found.']);
+
+        $this->assertDatabaseHas('users', [
+            'id' => $peer->id,
+            'name' => 'Original',
+            'deleted_at' => null,
+        ]);
     }
 
     public function test_destroy_rejects_self_deletion(): void

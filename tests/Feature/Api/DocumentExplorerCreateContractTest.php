@@ -48,23 +48,22 @@ class DocumentExplorerCreateContractTest extends TestCase
         ]);
     }
 
-    public function test_editor_creates_a_child_with_an_id_materialized_path_and_next_sibling_order(): void
+    public function test_editor_cannot_create_a_child_node(): void
     {
         [$institution, $user] = $this->institutionUser(RoleType::Editor);
         $parent = $this->node($institution, 'Root', null, 1);
-        $first = $this->node($institution, 'First', $parent, 1);
         Sanctum::actingAs($user);
 
-        $response = $this->postJson('/api/v1/institution/tree-directory', [
+        $this->postJson('/api/v1/institution/tree-directory', [
             'name' => 'Child',
             'parent_id' => $parent->id,
-        ])->assertCreated()
-            ->assertJsonPath('data.parent_id', $parent->id)
-            ->assertJsonPath('data.depth', 1)
-            ->assertJsonPath('data.order', 2);
+        ])->assertForbidden()->assertJsonPath('error.code', 'NODE_CREATE_FORBIDDEN');
 
-        $this->assertSame($parent->path.'/'.$response->json('data.id'), $response->json('data.path'));
-        $this->assertNotSame($first->id, $response->json('data.id'));
+        $this->assertDatabaseMissing('nodes', [
+            'institution_id' => $institution->id,
+            'parent_id' => $parent->id,
+            'name' => 'Child',
+        ]);
     }
 
     public function test_distinct_root_names_and_same_name_under_different_parents_are_allowed(): void
@@ -189,7 +188,7 @@ class DocumentExplorerCreateContractTest extends TestCase
 
     public function test_legacy_post_keeps_its_200_success_shape_but_uses_server_derived_values(): void
     {
-        [$institution, $user] = $this->institutionUser(RoleType::Editor);
+        [$institution, $user] = $this->institutionUser(RoleType::Admin);
         $parent = $this->node($institution, 'Parent', null, 1);
         Sanctum::actingAs($user);
 
@@ -208,6 +207,17 @@ class DocumentExplorerCreateContractTest extends TestCase
         $this->assertSame(1, $data['order']);
         $this->assertArrayNotHasKey('normalized_name', $data);
         $this->assertArrayNotHasKey('parent_scope', $data);
+    }
+
+    public function test_legacy_node_creation_is_also_admin_only(): void
+    {
+        [$institution, $editor] = $this->institutionUser(RoleType::Editor);
+        $parent = $this->node($institution, 'Parent', null, 1);
+        Sanctum::actingAs($editor);
+
+        $this->postJson("/api/v1/institution/tree-directory/{$parent->id}", ['name' => 'Denied'])
+            ->assertForbidden();
+        $this->assertDatabaseMissing('nodes', ['name' => 'Denied']);
     }
 
     public function test_order_constraint_prevents_two_positions_in_the_same_scope(): void

@@ -82,6 +82,7 @@ class UsersController extends BaseController
         $q = $request->query('q');
 
         $users = User::query()
+            ->where('institution_id', $request->user()->institution_id)
             ->where('active', true)
             ->where(function ($query) use ($q) {
                 $query->where('name', 'like', "%{$q}%")

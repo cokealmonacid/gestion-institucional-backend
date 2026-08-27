@@ -2,8 +2,11 @@
 
 namespace Tests\Feature\Api;
 
+use App\Enums\RoleType;
+use App\Models\Rol;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 use Modules\Institution\Models\Institution;
 use Modules\Institution\Models\Tag;
@@ -63,8 +66,17 @@ class InstitutionTagsContractTest extends TestCase
         $this->postJson('/api/v1/institution/tag', [
             'institution_id' => $other->id,
             'name' => 'Foreign',
-        ])->assertForbidden()->assertExactJson([
-            'message' => 'Forbidden.',
+        ])->assertNotFound()->assertExactJson([
+            'success' => false,
+            'message' => 'Institution not found.',
+        ]);
+
+        $this->postJson('/api/v1/institution/tag', [
+            'institution_id' => (string) Str::uuid(),
+            'name' => 'Missing institution',
+        ])->assertNotFound()->assertExactJson([
+            'success' => false,
+            'message' => 'Institution not found.',
         ]);
 
         $this->postJson('/api/v1/institution/tag', [
@@ -72,11 +84,41 @@ class InstitutionTagsContractTest extends TestCase
         ])->assertUnprocessable()->assertJsonPath('message', 'Validation failed.');
     }
 
+    public function test_reader_cannot_create_or_delete_tags(): void
+    {
+        [$institution, $reader] = $this->institutionUser(RoleType::Reader);
+        $tag = Tag::factory()->create(['institution_id' => $institution->id]);
+        Sanctum::actingAs($reader);
+
+        $this->postJson('/api/v1/institution/tag', [
+            'institution_id' => $institution->id,
+            'name' => 'Forbidden',
+        ])->assertForbidden();
+        $this->deleteJson("/api/v1/institution/tag/{$tag->id}?institution_id={$institution->id}")
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('tags', ['id' => $tag->id]);
+        $this->assertDatabaseMissing('tags', ['name' => 'Forbidden']);
+    }
+
+    public function test_tag_from_another_institution_is_unavailable_for_deletion(): void
+    {
+        [$institution, $editor] = $this->institutionUser(RoleType::Editor);
+        $foreign = Tag::factory()->create(['institution_id' => Institution::factory()]);
+        Sanctum::actingAs($editor);
+
+        $this->deleteJson("/api/v1/institution/tag/{$foreign->id}?institution_id={$institution->id}")
+            ->assertNotFound();
+
+        $this->assertDatabaseHas('tags', ['id' => $foreign->id]);
+    }
+
     /** @return array{Institution, User} */
-    private function institutionUser(): array
+    private function institutionUser(RoleType $role = RoleType::Editor): array
     {
         $institution = Institution::factory()->create();
         $user = User::factory()->for($institution)->create();
+        $user->roles()->attach(Rol::firstOrCreate(['type' => $role]));
 
         return [$institution, $user];
     }
