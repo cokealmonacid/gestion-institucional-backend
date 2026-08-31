@@ -1,0 +1,67 @@
+name: Propose contract distribution update
+
+on:
+  push:
+    branches: [develop]
+    paths: ['openapi/**']
+
+permissions:
+  contents: read
+
+jobs:
+  propose-update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: backend
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/create-github-app-token@v2
+        id: contracts-token
+        with:
+          app-id: ${{ secrets.CONTRACTS_APP_ID }}
+          private-key: ${{ secrets.CONTRACTS_APP_PRIVATE_KEY }}
+          owner: cokealmonacid
+          repositories: gestion-institucional-contracts
+      - name: Clone the distribution repository
+        env:
+          GH_TOKEN: ${{ steps.contracts-token.outputs.token }}
+        run: gh repo clone cokealmonacid/gestion-institucional-contracts contracts
+      - name: Copy contracts and regenerate provenance
+        run: >-
+          node contracts/scripts/sync-from-backend.mjs
+          --source "$GITHUB_WORKSPACE/backend/openapi/v1"
+          --repository "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git"
+          --commit "$GITHUB_SHA"
+      - name: Push or update the review branch
+        id: changes
+        working-directory: contracts
+        env:
+          CONTRACTS_TOKEN: ${{ steps.contracts-token.outputs.token }}
+        run: |
+          git config user.name 'Acervo Contracts Bot'
+          git config user.email 'contracts-bot@users.noreply.github.com'
+          git switch -C sync/backend-develop
+          git add openapi manifest.json
+          if git diff --cached --quiet; then
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git commit -m "Sync contracts from backend ${GITHUB_SHA}"
+          git remote set-url origin "https://x-access-token:${CONTRACTS_TOKEN}@github.com/cokealmonacid/gestion-institucional-contracts.git"
+          git push --force-with-lease origin sync/backend-develop
+          echo 'changed=true' >> "$GITHUB_OUTPUT"
+      - name: Create or update the review pull request
+        if: steps.changes.outputs.changed == 'true'
+        working-directory: contracts
+        env:
+          GH_TOKEN: ${{ steps.contracts-token.outputs.token }}
+        run: |
+          existing=$(gh pr list --repo cokealmonacid/gestion-institucional-contracts --head cokealmonacid:sync/backend-develop --base main --state open --json number --jq '.[0].number')
+          if [ -n "$existing" ]; then
+            gh pr edit "$existing" --repo cokealmonacid/gestion-institucional-contracts --body "Origen: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}"
+          else
+            gh pr create --repo cokealmonacid/gestion-institucional-contracts --base main --head cokealmonacid:sync/backend-develop --title 'Sync contracts from backend' --body "Origen: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}"
+          fi
