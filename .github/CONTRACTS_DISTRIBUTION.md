@@ -19,4 +19,4 @@ Do not add either value to Git, `.env` files, workflow output, or pull-request t
 
 ## Expected behavior
 
-After a merged backend change modifies `openapi/`, the workflow uses the app token to update `sync/backend-develop` in the contracts repository. It then creates, or refreshes, a pull request to `main`. A human must review and merge that pull request before a release is published.
+After a merged backend change modifies `openapi/`, the workflow uses the app token to update `sync/backend-develop` in the contracts repository. It then creates, or refreshes, a pull request to `develop`. A human must review and merge that pull request before a release is published.

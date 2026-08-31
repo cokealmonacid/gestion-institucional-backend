@@ -59,9 +59,9 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.contracts-token.outputs.token }}
         run: |
-          existing=$(gh pr list --repo cokealmonacid/gestion-institucional-contracts --head cokealmonacid:sync/backend-develop --base main --state open --json number --jq '.[0].number')
+          existing=$(gh pr list --repo cokealmonacid/gestion-institucional-contracts --head cokealmonacid:sync/backend-develop --base develop --state open --json number --jq '.[0].number')
           if [ -n "$existing" ]; then
             gh pr edit "$existing" --repo cokealmonacid/gestion-institucional-contracts --body "Origen: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}"
           else
-            gh pr create --repo cokealmonacid/gestion-institucional-contracts --base main --head cokealmonacid:sync/backend-develop --title 'Sync contracts from backend' --body "Origen: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}"
+            gh pr create --repo cokealmonacid/gestion-institucional-contracts --base develop --head cokealmonacid:sync/backend-develop --title 'Sync contracts from backend' --body "Origen: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}"
           fi
