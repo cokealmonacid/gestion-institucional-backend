@@ -18,13 +18,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - uses: actions/create-github-app-token@v2
+      - uses: actions/create-github-app-token@v3
         id: contracts-token
         with:
-          app-id: ${{ secrets.CONTRACTS_APP_ID }}
+          client-id: ${{ vars.CONTRACTS_APP_CLIENT_ID }}
           private-key: ${{ secrets.CONTRACTS_APP_PRIVATE_KEY }}
-          owner: cokealmonacid
+          owner: ${{ github.repository_owner }}
           repositories: gestion-institucional-contracts
+          permission-contents: write
+          permission-pull-requests: write
       - name: Clone the distribution repository
         env:
           GH_TOKEN: ${{ steps.contracts-token.outputs.token }}
