@@ -8,6 +8,7 @@ use Modules\Documents\Http\Controllers\API\DocumentVersionsController;
 
 Route::middleware(['auth:sanctum', 'active', 'can:institution.view'])->prefix('v1')->group(function () {
     Route::controller(DocumentsController::class)->group(function () {
+        Route::get('/institution/documents', 'index');
         Route::get('/institution/tree-directory/{node_id}/documents', 'indexByNode');
         Route::post('/institution/tree-directory/{node_id}/documents', 'store');
         Route::get('/documents/{document_id}', 'show');

@@ -8,11 +8,13 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Modules\Documents\Actions\CreateDocumentAction;
 use Modules\Documents\Exceptions\DocumentCreationException;
 use Modules\Documents\Http\Requests\CreateDocumentRequest;
 use Modules\Documents\Http\Resources\DocumentLifecycleResource;
 use Modules\Documents\Http\Resources\DocumentResource;
+use Modules\Documents\Http\Resources\InstitutionDocumentResource;
 use Modules\Documents\Models\Document;
 use Modules\Documents\Models\DocumentDownload;
 use Modules\Documents\Models\DocumentVersion;
@@ -59,6 +61,38 @@ class DocumentsController extends BaseController
         } catch (\Throwable) {
             return ApiResponse::error('DOCUMENT_STORAGE_FAILED', 'The document download could not be emitted.', 500);
         }
+    }
+
+    public function index(Request $request, DocumentLifecycleAccess $access)
+    {
+        $validator = Validator::make($request->all(), [
+            'per_page' => ['sometimes', 'integer', 'min:1'],
+            'status' => ['sometimes', Rule::in([true, false, 1, 0, '1', '0', 'true', 'false'])],
+        ]);
+
+        if ($validator->fails()) {
+            return $this->sendError('Validation failed.', ['error' => $validator->errors()], 422);
+        }
+
+        $documents = $this->institutionDocumentQuery($request)
+            ->when(
+                ! $request->has('status') || $request->boolean('status'),
+                fn (Builder $query) => $query->where('status', true),
+            )
+            ->with('author:id,name')
+            ->with('currentActiveVersion:id,document_id,url,active,is_current')
+            ->withCount(['versions as active_versions_count' => fn ($query) => $query->where('active', true)])
+            ->orderBy('created_at', 'desc')
+            ->orderBy('id')
+            ->paginate($request->input('per_page', 15));
+
+        $request->attributes->set('document_lifecycle_can_mutate', $access->canMutate($request->user()));
+
+        $documents->getCollection()->transform(
+            fn (Document $document) => (new InstitutionDocumentResource($document))->resolve($request)
+        );
+
+        return $this->sendResponse($documents, 'Documents retrieved successfully.');
     }
 
     public function indexByNode(Request $request, $node_id, DocumentLifecycleAccess $access)
