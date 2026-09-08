@@ -1,0 +1,235 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Acervo Institution Documents API",
+    "version": "1.0.0",
+    "description": "Contract for listing, with pagination, every document belonging to the authenticated user's institution regardless of its node. Active documents are returned by default; the status parameter optionally includes inactive documents."
+  },
+  "tags": [
+    {
+      "name": "Institution documents",
+      "description": "Global institution-scoped document listing with pagination."
+    }
+  ],
+  "paths": {
+    "/api/v1/institution/documents": {
+      "get": {
+        "operationId": "listInstitutionDocuments",
+        "summary": "List documents of the authenticated user's institution",
+        "description": "Returns a paginated list of every document whose institution_id matches the authenticated user's own institution_id, across all nodes. Only active documents are returned by default; passing status=false additionally includes inactive documents. Each document includes its author name, an authoritative lifecycle summary without requiring a detail request per row, and a human-readable creation time. Documents are ordered by creation timestamp descending, then id ascending.",
+        "tags": ["Institution documents"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/PerPage" },
+          { "$ref": "#/components/parameters/Status" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Documents retrieved.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DocumentPageSuccess" },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "current_page": 1,
+                    "data": [
+                      {
+                        "id": "44444444-4444-4444-4444-444444444444",
+                        "name": "Reglamento institucional",
+                        "description": "Reglamento vigente.",
+                        "category": "Normativa",
+                        "responsible_unit": "Secretaría General",
+                        "status": true,
+                        "author": "María Pérez",
+                        "node_id": "11111111-1111-1111-1111-111111111111",
+                        "created_at": "3 weeks ago",
+                        "updated_at": "2026-08-03T12:00:00.000000Z",
+                        "lifecycle": {
+                          "version_count": 2,
+                          "has_current_version": true,
+                          "capabilities": {
+                            "can_download": true,
+                            "can_upload_version": true
+                          }
+                        }
+                      }
+                    ],
+                    "first_page_url": "http://localhost/api/v1/institution/documents?page=1",
+                    "from": 1,
+                    "last_page": 1,
+                    "last_page_url": "http://localhost/api/v1/institution/documents?page=1",
+                    "links": [
+                      { "url": null, "label": "&laquo; Previous", "active": false },
+                      { "url": "http://localhost/api/v1/institution/documents?page=1", "label": "1", "active": true },
+                      { "url": null, "label": "Next &raquo;", "active": false }
+                    ],
+                    "next_page_url": null,
+                    "path": "http://localhost/api/v1/institution/documents",
+                    "per_page": 15,
+                    "prev_page_url": null,
+                    "to": 1,
+                    "total": 1
+                  },
+                  "message": "Documents retrieved successfully."
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/InactiveAccount" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "Sanctum"
+      }
+    },
+    "parameters": {
+      "PerPage": {
+        "name": "per_page",
+        "in": "query",
+        "required": false,
+        "description": "Page size. Defaults to 15.",
+        "schema": { "type": "integer", "minimum": 1 },
+        "example": 15
+      },
+      "Status": {
+        "name": "status",
+        "in": "query",
+        "required": false,
+        "description": "Filters documents by status. Defaults to true, returning only active documents. Pass false to additionally include inactive documents.",
+        "schema": { "type": "boolean" },
+        "example": true
+      }
+    },
+    "schemas": {
+      "Document": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id", "name", "description", "category", "responsible_unit", "status",
+          "author", "node_id", "created_at", "updated_at", "lifecycle"
+        ],
+        "properties": {
+          "id": { "type": "string", "format": "uuid", "description": "Document identifier." },
+          "name": { "type": "string", "description": "Display name." },
+          "description": { "type": ["string", "null"], "description": "Document description." },
+          "category": { "type": ["string", "null"], "description": "Document category." },
+          "responsible_unit": { "type": ["string", "null"], "description": "Responsible institutional unit." },
+          "status": { "type": "boolean", "description": "Whether the document is active. Active documents are returned by default; status=false additionally returns inactive documents." },
+          "author": { "type": ["string", "null"], "description": "Author display name when available." },
+          "node_id": { "type": "string", "format": "uuid", "description": "Compatibility field identifying the real node directly containing the document." },
+          "created_at": { "type": "string", "description": "Human-readable relative time since creation (e.g. \"3 weeks ago\")." },
+          "updated_at": { "type": ["string", "null"], "format": "date-time", "description": "Last update timestamp." },
+          "lifecycle": { "$ref": "#/components/schemas/DocumentLifecycleSummary" }
+        }
+      },
+      "DocumentLifecycleSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["version_count", "has_current_version", "capabilities"],
+        "properties": {
+          "version_count": { "type": "integer", "minimum": 0, "description": "Number of active contractual versions." },
+          "has_current_version": { "type": "boolean", "description": "Whether an active version is currently marked as current." },
+          "capabilities": { "$ref": "#/components/schemas/DocumentLifecycleSummaryCapabilities" }
+        }
+      },
+      "DocumentLifecycleSummaryCapabilities": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["can_download", "can_upload_version"],
+        "properties": {
+          "can_download": { "type": "boolean", "description": "Whether the authenticated user may attempt the canonical download for a current active version with a persisted storage reference. Physical object availability is verified by the download operation and is not guaranteed by this capability." },
+          "can_upload_version": { "type": "boolean", "description": "Whether the authenticated user may upload a first or subsequent version." }
+        }
+      },
+      "PaginationLink": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["url", "label", "active"],
+        "properties": {
+          "url": { "type": ["string", "null"] },
+          "label": { "type": "string" },
+          "active": { "type": "boolean" }
+        }
+      },
+      "DocumentPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "current_page", "data", "first_page_url", "from", "last_page", "last_page_url",
+          "links", "next_page_url", "path", "per_page", "prev_page_url", "to", "total"
+        ],
+        "properties": {
+          "current_page": { "type": "integer" },
+          "data": { "type": "array", "items": { "$ref": "#/components/schemas/Document" } },
+          "first_page_url": { "type": ["string", "null"] },
+          "from": { "type": ["integer", "null"] },
+          "last_page": { "type": "integer" },
+          "last_page_url": { "type": ["string", "null"] },
+          "links": { "type": "array", "items": { "$ref": "#/components/schemas/PaginationLink" } },
+          "next_page_url": { "type": ["string", "null"] },
+          "path": { "type": "string" },
+          "per_page": { "type": "integer" },
+          "prev_page_url": { "type": ["string", "null"] },
+          "to": { "type": ["integer", "null"] },
+          "total": { "type": "integer" }
+        }
+      },
+      "DocumentPageSuccess": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "data", "message"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [true] },
+          "data": { "$ref": "#/components/schemas/DocumentPage" },
+          "message": { "type": "string", "enum": ["Documents retrieved successfully."] }
+        }
+      },
+      "LegacyError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "message"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [false] },
+          "message": { "type": "string" }
+        }
+      },
+      "InactiveAccountError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "message"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [false] },
+          "message": { "type": "string", "enum": ["This account is inactive."] }
+        }
+      }
+    },
+    "responses": {
+      "Unauthenticated": {
+        "description": "A valid Sanctum bearer token is required.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/LegacyError" },
+            "example": { "success": false, "message": "Unauthenticated." }
+          }
+        }
+      },
+      "InactiveAccount": {
+        "description": "The authenticated user's account is inactive.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/InactiveAccountError" },
+            "example": { "success": false, "message": "This account is inactive." }
+          }
+        }
+      }
+    }
+  }
+}
