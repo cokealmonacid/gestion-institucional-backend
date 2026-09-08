@@ -10,12 +10,17 @@ Create a GitHub App named `acervo-contracts-sync` under the `cokealmonacid` acco
 - Pull requests: Read and write.
 - Metadata: Read.
 
+Install the app for the `cokealmonacid` account and select **Only select repositories**, including `gestion-institucional-contracts`. Generating an app key is not enough: the installation must explicitly include that repository.
+
 Generate a private key for the app. In the backend repository's **Settings → Secrets and variables → Actions**, create:
 
-- `CONTRACTS_APP_ID`: GitHub App ID.
 - `CONTRACTS_APP_PRIVATE_KEY`: full PEM private-key content.
 
-Do not add either value to Git, `.env` files, workflow output, or pull-request text.
+Under **Variables**, create:
+
+- `CONTRACTS_APP_CLIENT_ID`: GitHub App Client ID (not its numeric App ID).
+
+Do not add the private key to Git, `.env` files, workflow output, or pull-request text. The old `CONTRACTS_APP_ID` secret is no longer used by the v3 workflow and can be removed after the workflow is merged.
 
 ## Expected behavior
 
