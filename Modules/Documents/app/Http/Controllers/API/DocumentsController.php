@@ -2,15 +2,19 @@
 
 namespace Modules\Documents\Http\Controllers\API;
 
+use App\Enums\InstitutionAbility;
 use App\Http\Controllers\BaseController;
 use App\Http\Responses\ApiResponse;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Modules\Documents\Actions\CreateDocumentAction;
+use Modules\Documents\Actions\UpdateDocumentResponsibilityAction;
 use Modules\Documents\Exceptions\DocumentCreationException;
+use Modules\Documents\Exceptions\DocumentResponsibilityException;
 use Modules\Documents\Http\Requests\CreateDocumentRequest;
 use Modules\Documents\Http\Resources\DocumentLifecycleResource;
 use Modules\Documents\Http\Resources\DocumentResource;
@@ -166,6 +170,79 @@ class DocumentsController extends BaseController
             (new DocumentLifecycleResource($document))->resolve($request),
             'Document lifecycle detail retrieved successfully.',
         );
+    }
+
+    public function responsibleOptions(Request $request, $document_id, DocumentLifecycleAccess $access)
+    {
+        if ($request->user()->cannot(InstitutionAbility::ManageDocuments->value)) {
+            return ApiResponse::error('DOCUMENT_RESPONSIBILITY_FORBIDDEN', 'You are not allowed to manage document responsibility.', 403);
+        }
+        $validator = Validator::make($request->query(), ['q' => ['required', 'string', 'min:2', 'max:100']]);
+        if ($validator->fails()) {
+            return ApiResponse::error('VALIDATION_FAILED', 'The responsible user search request is invalid.', 422, $validator->errors()->toArray());
+        }
+        if (! $access->findDocument($request->user(), $document_id)) {
+            return ApiResponse::error('DOCUMENT_NOT_AVAILABLE', 'The document is not available.', 404);
+        }
+
+        $term = mb_strtolower($validator->validated()['q']);
+        $users = User::query()
+            ->where('institution_id', $request->user()->institution_id)
+            ->where('active', true)
+            ->where(function (Builder $query) use ($term): void {
+                $query->whereRaw('LOWER(name) LIKE ?', ["%{$term}%"])
+                    ->orWhereRaw('LOWER(email) LIKE ?', ["%{$term}%"]);
+            })
+            ->orderBy('name')->orderBy('id')->limit(10)->get(['id', 'name', 'email'])
+            ->map(fn (User $user): array => ['id' => $user->id, 'name' => $user->name, 'email' => $user->email])->all();
+
+        return ApiResponse::success(['users' => $users], 'Responsible user options retrieved successfully.');
+    }
+
+    public function updateResponsible(
+        Request $request,
+        $document_id,
+        DocumentLifecycleAccess $access,
+        UpdateDocumentResponsibilityAction $action,
+    ) {
+        if ($request->user()->cannot(InstitutionAbility::ManageDocuments->value)) {
+            return ApiResponse::error('DOCUMENT_RESPONSIBILITY_FORBIDDEN', 'You are not allowed to manage document responsibility.', 403);
+        }
+        $validator = Validator::make($request->all(), [
+            'responsible_user_id' => ['present', 'nullable', 'uuid'],
+            'expected_revision' => ['required', 'integer', 'min:0'],
+        ]);
+        foreach (array_diff(array_keys($request->all()), ['responsible_user_id', 'expected_revision']) as $field) {
+            $validator->errors()->add($field, "The {$field} field is not allowed.");
+        }
+        if ($validator->fails()) {
+            return ApiResponse::error('VALIDATION_FAILED', 'The document responsibility request is invalid.', 422, $validator->errors()->toArray());
+        }
+        if (! $access->findDocument($request->user(), $document_id)) {
+            return ApiResponse::error('DOCUMENT_NOT_AVAILABLE', 'The document is not available.', 404);
+        }
+
+        try {
+            $document = $action->execute(
+                $request->user(), $document_id, $validator->validated()['responsible_user_id'],
+                $validator->validated()['expected_revision'],
+            );
+        } catch (DocumentResponsibilityException $exception) {
+            return ApiResponse::error($exception->errorCode, $exception->getMessage(), $exception->status);
+        } catch (\Throwable) {
+            return ApiResponse::error('DOCUMENT_RESPONSIBILITY_FAILED', 'The document responsibility could not be updated.', 500);
+        }
+
+        $responsible = $document->responsibleUser;
+
+        return ApiResponse::success([
+            'responsible' => $responsible ? [
+                'id' => $responsible->id,
+                'name' => $responsible->name,
+                'active' => (bool) $responsible->active && ! $responsible->trashed(),
+            ] : null,
+            'responsibility_revision' => (int) $document->responsibility_revision,
+        ], 'Document responsibility updated successfully.');
     }
 
     public function update(Request $request, $document_id)

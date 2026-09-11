@@ -12,6 +12,8 @@ Route::middleware(['auth:sanctum', 'active', 'can:institution.view'])->prefix('v
         Route::get('/institution/tree-directory/{node_id}/documents', 'indexByNode');
         Route::post('/institution/tree-directory/{node_id}/documents', 'store');
         Route::get('/documents/{document_id}', 'show');
+        Route::get('/documents/{document_id}/responsible-options', 'responsibleOptions');
+        Route::patch('/documents/{document_id}/responsible', 'updateResponsible');
         Route::patch('/documents/{document_id}', 'update')->middleware('can:documents.manage');
         Route::delete('/documents/{document_id}', 'destroy')->middleware('can:documents.manage');
         Route::patch('/documents/{document_id}/activate', 'activate')->middleware('can:documents.manage');

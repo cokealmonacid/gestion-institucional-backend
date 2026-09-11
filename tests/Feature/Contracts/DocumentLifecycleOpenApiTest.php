@@ -11,11 +11,11 @@ class DocumentLifecycleOpenApiTest extends TestCase
         return json_decode((string) file_get_contents(base_path('openapi/v1/document-lifecycle.json')), true, 512, JSON_THROW_ON_ERROR);
     }
 
-    public function test_contract_publishes_exactly_the_six_lifecycle_operations(): void
+    public function test_contract_publishes_exactly_the_eight_lifecycle_operations(): void
     {
         $contract = $this->contract();
         $this->assertSame('3.1.0', $contract['openapi']);
-        $this->assertSame('1.0.0', $contract['info']['version']);
+        $this->assertSame('2.0.0', $contract['info']['version']);
 
         $operations = [];
         foreach ($contract['paths'] as $path) {
@@ -26,7 +26,8 @@ class DocumentLifecycleOpenApiTest extends TestCase
         }
 
         $this->assertSame([
-            'getDocumentLifecycleDetail', 'listDocumentVersions',
+            'getDocumentLifecycleDetail', 'searchDocumentResponsibleOptions',
+            'updateDocumentResponsible', 'listDocumentVersions',
             'createDocumentVersion', 'downloadCurrentDocumentVersion',
             'downloadDocumentVersion', 'setCurrentDocumentVersion',
         ], $operations);
@@ -51,6 +52,17 @@ class DocumentLifecycleOpenApiTest extends TestCase
         }
 
         $detail = $contract['components']['schemas']['DocumentDetail'];
+        $this->assertFalse($detail['additionalProperties']);
+        foreach (['responsible', 'responsibility_revision'] as $field) {
+            $this->assertContains($field, $detail['required']);
+            $this->assertArrayHasKey($field, $detail['properties']);
+        }
+        foreach (['ResponsibleSummary', 'ResponsibleOption', 'UpdateResponsibilityRequest', 'ResponsibilityData'] as $schema) {
+            $this->assertFalse($contract['components']['schemas'][$schema]['additionalProperties']);
+        }
+        foreach (['401', '403', '404', '409', '422', '500'] as $status) {
+            $this->assertArrayHasKey($status, $contract['paths']['/api/v1/documents/{document_id}/responsible']['patch']['responses']);
+        }
         foreach (['author_id', 'institution_id', 'node_id'] as $legacyField) {
             $this->assertContains($legacyField, $detail['required']);
             $this->assertArrayHasKey($legacyField, $detail['properties']);

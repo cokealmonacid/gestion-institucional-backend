@@ -6,7 +6,8 @@ The backend repository is the authority for Acervo API contracts. The canonical 
 
 - [`v1/authentication.json`](v1/authentication.json), contract version `2.0.0`;
 - [`v1/document-explorer.json`](v1/document-explorer.json), contract version `4.0.0`;
-- [`v1/document-lifecycle.json`](v1/document-lifecycle.json), contract version `1.0.0`;
+- [`v1/document-lifecycle.json`](v1/document-lifecycle.json), contract version `2.0.0`;
+- [`v1/institution-documents.json`](v1/institution-documents.json), contract version `1.0.0`;
 - [`v1/institution-users.json`](v1/institution-users.json), contract version `2.0.0`;
 - [`v1/institution-tags.json`](v1/institution-tags.json), contract version `2.0.0`;
 - [`v1/user-search.json`](v1/user-search.json), contract version `2.0.0`.
@@ -21,7 +22,7 @@ Password-recovery endpoints and every other API endpoint are outside the authent
 
 The document-explorer contract includes four read operations, admin-only canonical node creation through `POST /api/v1/institution/tree-directory`, and admin/editor logical document creation through `POST /api/v1/institution/tree-directory/{node_id}/documents`. The virtual root is not a node and does not contain documents; node creation targets it with an explicit nullable `parent_id` in the request body. Document creation requires a real accessible node and does not upload a file or create an initial version. The older node POST containing a parent identifier in the route remains runtime-only compatibility behavior and is not part of the canonical contract.
 
-`openapi/v1/document-lifecycle.json` is the backend-authoritative contract for document lifecycle detail, active version listing, first and subsequent private-file uploads, current and historical downloads, and selecting an active historical version as current. Version uploads accept at most 25 MiB; PHP and the serving HTTP stack must allow at least 25 MiB plus multipart overhead. The download audit row records authorization and response emission, not completed transfer.
+`openapi/v1/document-lifecycle.json` is the backend-authoritative contract for document lifecycle detail, responsible-user selection and optimistic assignment, active version listing, first and subsequent private-file uploads, current and historical downloads, and selecting an active historical version as current. Version 2.0.0 is major because required responsible fields were added to a closed detail schema. Version uploads accept at most 25 MiB; PHP and the serving HTTP stack must allow at least 25 MiB plus multipart overhead. The download audit row records authorization and response emission, not completed transfer.
 
 The institution-users contract is admin-only and limited to listing every user in the authenticated admin's institution, registering a user there, updating a user's profile, role and active status, and deleting a user. Institutional context is always derived from the authenticated admin. The compatibility `institution_id` must match that context; foreign and nonexistent institutional users are indistinguishable.
 
