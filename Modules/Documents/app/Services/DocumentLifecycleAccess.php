@@ -20,7 +20,7 @@ class DocumentLifecycleAccess
             ->where('institution_id', $actor->institution_id)
             ->where('status', true)
             ->whereNotNull('node_id')
-            ->with(['author:id,name', 'node:id,name,path,institution_id,active'])
+            ->with(['author:id,name', 'responsibleUser:id,name,active,deleted_at', 'node:id,name,path,institution_id,active'])
             ->find($documentId);
 
         if (! $document || ! $document->node || ! $this->nodePathIsAccessible($document->node)) {

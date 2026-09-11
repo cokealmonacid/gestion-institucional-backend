@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Modules\Documents\Models\Document;
 use Modules\Institution\Models\Institution;
 
 #[Fillable(['name', 'email', 'password', 'institution_id', 'active'])]
@@ -48,5 +49,10 @@ class User extends Authenticatable
     public function institution()
     {
         return $this->belongsTo(Institution::class);
+    }
+
+    public function responsibleDocuments()
+    {
+        return $this->hasMany(Document::class, 'responsible_user_id');
     }
 }

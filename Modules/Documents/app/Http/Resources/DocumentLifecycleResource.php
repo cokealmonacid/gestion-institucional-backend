@@ -23,6 +23,12 @@ class DocumentLifecycleResource extends JsonResource
             'description' => $this->description,
             'category' => $this->category,
             'responsible_unit' => $this->responsible_unit,
+            'responsible' => $this->responsibleUser ? [
+                'id' => $this->responsibleUser->id,
+                'name' => $this->responsibleUser->name,
+                'active' => (bool) $this->responsibleUser->active && ! $this->responsibleUser->trashed(),
+            ] : null,
+            'responsibility_revision' => (int) $this->responsibility_revision,
             'status' => (bool) $this->status,
             'author_id' => $this->author_id,
             'institution_id' => $this->institution_id,
