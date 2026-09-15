@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Acervo Institution Documents API",
-    "version": "1.0.0",
-    "description": "Contract for listing, with pagination, every document belonging to the authenticated user's institution regardless of its node. Active documents are returned by default; the status parameter optionally includes inactive documents."
+    "version": "1.1.0",
+    "description": "Contract for listing, with pagination, every document belonging to the authenticated user's institution regardless of its node, and searching active institution documents by name."
   },
   "tags": [
     {
@@ -78,6 +78,66 @@
           },
           "401": { "$ref": "#/components/responses/Unauthenticated" },
           "403": { "$ref": "#/components/responses/InactiveAccount" }
+        }
+      }
+    },
+    "/api/v1/institution/documents/search": {
+      "get": {
+        "operationId": "searchInstitutionDocuments",
+        "summary": "Search active documents of the authenticated user's institution",
+        "description": "Returns at most ten active documents in the authenticated user's institution whose name contains q, ordered by name and identifier. The search is case-insensitive on supported database drivers.",
+        "tags": ["Institution documents"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "description": "Case-insensitive document-name search term.",
+            "schema": { "type": "string", "minLength": 2, "maxLength": 100 },
+            "example": "policy"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching documents retrieved.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DocumentSearchSuccess" },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "documents": [
+                      {
+                        "id": "44444444-4444-4444-4444-444444444444",
+                        "name": "Institutional policy",
+                        "description": "Current institutional policy.",
+                        "category": "Policy",
+                        "responsible_unit": "General Secretariat",
+                        "status": true,
+                        "author": "María Pérez",
+                        "node_id": "11111111-1111-1111-1111-111111111111",
+                        "created_at": "3 weeks ago",
+                        "updated_at": "2026-08-03T12:00:00.000000Z",
+                        "lifecycle": {
+                          "version_count": 2,
+                          "has_current_version": true,
+                          "capabilities": { "can_download": true, "can_upload_version": true }
+                        }
+                      }
+                    ]
+                  },
+                  "message": "Documents retrieved successfully."
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/InactiveAccount" },
+          "422": {
+            "description": "The search query is missing or invalid.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DocumentSearchValidationError" } } }
+          }
         }
       }
     }
@@ -190,6 +250,44 @@
           "success": { "type": "boolean", "enum": [true] },
           "data": { "$ref": "#/components/schemas/DocumentPage" },
           "message": { "type": "string", "enum": ["Documents retrieved successfully."] }
+        }
+      },
+      "DocumentSearchResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["documents"],
+        "properties": {
+          "documents": { "type": "array", "maxItems": 10, "items": { "$ref": "#/components/schemas/Document" } }
+        }
+      },
+      "DocumentSearchSuccess": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "data", "message"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [true] },
+          "data": { "$ref": "#/components/schemas/DocumentSearchResult" },
+          "message": { "type": "string", "enum": ["Documents retrieved successfully."] }
+        }
+      },
+      "DocumentSearchValidationError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "data", "message"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [false] },
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["error"],
+            "properties": {
+              "error": {
+                "type": "object",
+                "additionalProperties": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          },
+          "message": { "type": "string", "enum": ["Validation failed."] }
         }
       },
       "LegacyError": {

@@ -16,15 +16,19 @@ class InstitutionDocumentsOpenApiTest extends TestCase
         );
     }
 
-    public function test_contract_contains_only_the_single_document_listing_operation(): void
+    public function test_contract_contains_the_listing_and_search_operations(): void
     {
         $contract = $this->contract();
 
         $this->assertSame('3.1.0', $contract['openapi']);
-        $this->assertSame('1.0.0', $contract['info']['version']);
+        $this->assertSame('1.1.0', $contract['info']['version']);
         $this->assertArrayNotHasKey('servers', $contract);
-        $this->assertSame(['/api/v1/institution/documents'], array_keys($contract['paths']));
+        $this->assertSame([
+            '/api/v1/institution/documents',
+            '/api/v1/institution/documents/search',
+        ], array_keys($contract['paths']));
         $this->assertSame(['get'], array_keys($contract['paths']['/api/v1/institution/documents']));
+        $this->assertSame(['get'], array_keys($contract['paths']['/api/v1/institution/documents/search']));
     }
 
     public function test_operation_documents_security_status_codes_and_a_complete_success_example(): void
@@ -69,6 +73,24 @@ class InstitutionDocumentsOpenApiTest extends TestCase
         $this->assertSame('per_page', $contract['components']['parameters']['PerPage']['name']);
         $this->assertSame('status', $contract['components']['parameters']['Status']['name']);
         $this->assertSame('boolean', $contract['components']['parameters']['Status']['schema']['type']);
+    }
+
+    public function test_search_operation_documents_its_query_and_response_contract(): void
+    {
+        $contract = $this->contract();
+        $operation = $contract['paths']['/api/v1/institution/documents/search']['get'];
+
+        $this->assertSame('searchInstitutionDocuments', $operation['operationId']);
+        $this->assertSame([['bearerAuth' => []]], $operation['security']);
+        $this->assertSame([200, 401, 403, 422], array_keys($operation['responses']));
+        $this->assertSame('q', $operation['parameters'][0]['name']);
+        $this->assertTrue($operation['parameters'][0]['required']);
+        $this->assertSame(2, $operation['parameters'][0]['schema']['minLength']);
+        $this->assertSame(100, $operation['parameters'][0]['schema']['maxLength']);
+
+        $schemas = $contract['components']['schemas'];
+        $this->assertSame(10, $schemas['DocumentSearchResult']['properties']['documents']['maxItems']);
+        $this->assertSame('#/components/schemas/Document', $schemas['DocumentSearchResult']['properties']['documents']['items']['$ref']);
     }
 
     public function test_document_page_shape_is_closed_and_uses_the_lifecycle_summary(): void

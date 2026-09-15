@@ -99,6 +99,38 @@ class DocumentsController extends BaseController
         return $this->sendResponse($documents, 'Documents retrieved successfully.');
     }
 
+    public function search(Request $request, DocumentLifecycleAccess $access)
+    {
+        $validator = Validator::make($request->all(), [
+            'q' => ['required', 'string', 'min:2', 'max:100'],
+        ]);
+
+        if ($validator->fails()) {
+            return $this->sendError('Validation failed.', ['error' => $validator->errors()], 422);
+        }
+
+        $q = $request->query('q');
+
+        $documents = $this->institutionDocumentQuery($request)
+            ->where('status', true)
+            ->where('name', 'like', "%{$q}%")
+            ->with('author:id,name')
+            ->with('currentActiveVersion:id,document_id,url,active,is_current')
+            ->withCount(['versions as active_versions_count' => fn ($query) => $query->where('active', true)])
+            ->orderBy('name')
+            ->orderBy('id')
+            ->limit(10)
+            ->get();
+
+        $request->attributes->set('document_lifecycle_can_mutate', $access->canMutate($request->user()));
+
+        return ApiResponse::success([
+            'documents' => $documents->map(
+                fn (Document $document) => (new InstitutionDocumentResource($document))->resolve($request)
+            )->values()->all(),
+        ], 'Documents retrieved successfully.');
+    }
+
     public function indexByNode(Request $request, $node_id, DocumentLifecycleAccess $access)
     {
         $node = $this->activeNodeQuery($request)->find($node_id);
