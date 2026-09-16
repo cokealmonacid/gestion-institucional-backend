@@ -145,6 +145,53 @@ class DocumentResponsibilityContractTest extends TestCase
         }
     }
 
+    public function test_cross_institution_assignment_is_private_across_explorer_detail_and_patch_recovery(): void
+    {
+        [$institution, $actor, $document] = $this->context(RoleType::Editor);
+        $foreign = User::factory()->for(Institution::factory())->create([
+            'name' => 'Foreign Responsible',
+            'email' => 'foreign-responsible@example.test',
+        ]);
+        $local = User::factory()->for($institution)->create(['name' => 'Local Responsible']);
+        $document->update(['responsible_user_id' => $foreign->id, 'responsibility_revision' => 7]);
+        Sanctum::actingAs($actor);
+
+        foreach ([
+            "/api/v1/institution/tree-directory/{$document->node_id}/documents",
+            "/api/v1/documents/{$document->id}",
+        ] as $uri) {
+            $response = $this->getJson($uri)->assertOk();
+            $path = str_contains($uri, 'tree-directory') ? 'data.0' : 'data';
+            $response->assertJsonPath("{$path}.responsible", null)
+                ->assertJsonPath("{$path}.responsibility_revision", 7);
+            $this->assertStringNotContainsString($foreign->id, $response->getContent());
+            $this->assertStringNotContainsString($foreign->name, $response->getContent());
+            $this->assertStringNotContainsString($foreign->email, $response->getContent());
+        }
+
+        $uri = "/api/v1/documents/{$document->id}/responsible";
+        $this->patchJson($uri, ['responsible_user_id' => $foreign->id, 'expected_revision' => 7])
+            ->assertNotFound()
+            ->assertExactJson([
+                'success' => false,
+                'error' => ['code' => 'DOCUMENT_RESPONSIBLE_NOT_AVAILABLE', 'message' => 'The selected responsible user is not available.'],
+            ]);
+        $this->assertDatabaseHas('documents', [
+            'id' => $document->id,
+            'responsible_user_id' => $foreign->id,
+            'responsibility_revision' => 7,
+        ]);
+
+        $this->patchJson($uri, ['responsible_user_id' => $local->id, 'expected_revision' => 7])
+            ->assertOk()
+            ->assertExactJson($this->success($local, 8));
+
+        $document->update(['responsible_user_id' => $foreign->id, 'responsibility_revision' => 9]);
+        $this->patchJson($uri, ['responsible_user_id' => null, 'expected_revision' => 9])
+            ->assertOk()
+            ->assertExactJson($this->success(null, 10));
+    }
+
     public function test_options_are_tenant_scoped_active_ordered_limited_and_exact(): void
     {
         [$institution, $actor, $document] = $this->context(RoleType::Editor);
