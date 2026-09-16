@@ -23,6 +23,7 @@ use Modules\Documents\Models\Document;
 use Modules\Documents\Models\DocumentDownload;
 use Modules\Documents\Models\DocumentVersion;
 use Modules\Documents\Services\DocumentLifecycleAccess;
+use Modules\Documents\Support\DocumentResponsibleProjection;
 use Modules\Nodes\Models\Node;
 
 class DocumentsController extends BaseController
@@ -142,6 +143,7 @@ class DocumentsController extends BaseController
         $documents = $this->institutionDocumentQuery($request)
             ->where('node_id', $node->id)
             ->where('status', true)
+            ->with('responsibleUser:id,name,active,deleted_at,institution_id')
             ->with('currentActiveVersion:id,document_id,url,active,is_current')
             ->withCount(['versions as active_versions_count' => fn ($query) => $query->where('active', true)])
             ->orderBy('created_at', 'desc')
@@ -171,6 +173,7 @@ class DocumentsController extends BaseController
         }
 
         $request->attributes->set('document_lifecycle_can_mutate', $access->canMutate($request->user()));
+        $document->setRelation('responsibleUser', null);
 
         return response()->json([
             'success' => true,
@@ -265,14 +268,8 @@ class DocumentsController extends BaseController
             return ApiResponse::error('DOCUMENT_RESPONSIBILITY_FAILED', 'The document responsibility could not be updated.', 500);
         }
 
-        $responsible = $document->responsibleUser;
-
         return ApiResponse::success([
-            'responsible' => $responsible ? [
-                'id' => $responsible->id,
-                'name' => $responsible->name,
-                'active' => (bool) $responsible->active && ! $responsible->trashed(),
-            ] : null,
+            'responsible' => DocumentResponsibleProjection::for($document),
             'responsibility_revision' => (int) $document->responsibility_revision,
         ], 'Document responsibility updated successfully.');
     }

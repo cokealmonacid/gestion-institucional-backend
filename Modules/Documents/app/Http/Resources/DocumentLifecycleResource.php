@@ -5,6 +5,7 @@ namespace Modules\Documents\Http\Resources;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Modules\Documents\Services\DocumentLifecycleAccess;
+use Modules\Documents\Support\DocumentResponsibleProjection;
 
 class DocumentLifecycleResource extends JsonResource
 {
@@ -23,11 +24,7 @@ class DocumentLifecycleResource extends JsonResource
             'description' => $this->description,
             'category' => $this->category,
             'responsible_unit' => $this->responsible_unit,
-            'responsible' => $this->responsibleUser ? [
-                'id' => $this->responsibleUser->id,
-                'name' => $this->responsibleUser->name,
-                'active' => (bool) $this->responsibleUser->active && ! $this->responsibleUser->trashed(),
-            ] : null,
+            'responsible' => DocumentResponsibleProjection::for($this->resource),
             'responsibility_revision' => (int) $this->responsibility_revision,
             'status' => (bool) $this->status,
             'author_id' => $this->author_id,

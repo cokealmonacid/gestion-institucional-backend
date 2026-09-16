@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Acervo Institutional Document Explorer API",
-    "version": "4.0.0",
+    "version": "5.0.0",
     "description": "Contract for navigating the virtual institution root, reading real nodes and their direct documents with authoritative lifecycle summaries, creating container nodes, and creating logical documents in real nodes. Node order is numeric and node paths are materialized UUID paths."
   },
   "tags": [
@@ -211,6 +211,12 @@
                       "description": "Reglamento vigente.",
                       "category": "Normativa",
                       "responsible_unit": "Secretaría General",
+                      "responsible": {
+                        "id": "66666666-6666-4666-8666-666666666666",
+                        "name": "Responsible User",
+                        "active": true
+                      },
+                      "responsibility_revision": 2,
                       "status": true,
                       "author_id": null,
                       "institution_id": "22222222-2222-2222-2222-222222222222",
@@ -277,6 +283,8 @@
                     "description": "Current institutional regulations.",
                     "category": "Regulations",
                     "responsible_unit": "General Secretariat",
+                    "responsible": null,
+                    "responsibility_revision": 0,
                     "status": true,
                     "author_id": "55555555-5555-5555-5555-555555555555",
                     "institution_id": "22222222-2222-2222-2222-222222222222",
@@ -382,7 +390,8 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
-          "id", "name", "description", "category", "responsible_unit", "status",
+          "id", "name", "description", "category", "responsible_unit", "responsible",
+          "responsibility_revision", "status",
           "author_id", "institution_id", "node_id", "created_at", "updated_at", "lifecycle"
         ],
         "properties": {
@@ -391,6 +400,8 @@
           "description": { "type": ["string", "null"], "description": "Document description." },
           "category": { "type": ["string", "null"], "description": "Document category." },
           "responsible_unit": { "type": ["string", "null"], "description": "Responsible institutional unit." },
+          "responsible": { "$ref": "#/components/schemas/ResponsibleSummary" },
+          "responsibility_revision": { "type": "integer", "minimum": 0, "description": "Persisted optimistic-concurrency revision for personal responsibility, including when responsible is null." },
           "status": { "type": "boolean", "enum": [true], "description": "Compatibility field; this listing only returns active documents." },
           "author_id": { "type": ["string", "null"], "format": "uuid", "description": "Compatibility field containing the author identifier when available." },
           "institution_id": { "type": "string", "format": "uuid", "description": "Compatibility field identifying the owning institution." },
@@ -398,6 +409,16 @@
           "created_at": { "type": ["string", "null"], "format": "date-time", "description": "Creation timestamp. Documents are ordered by this value descending, then id ascending." },
           "updated_at": { "type": ["string", "null"], "format": "date-time", "description": "Last update timestamp." },
           "lifecycle": { "$ref": "#/components/schemas/DocumentLifecycleSummary" }
+        }
+      },
+      "ResponsibleSummary": {
+        "type": ["object", "null"],
+        "additionalProperties": false,
+        "required": ["id", "name", "active"],
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "active": { "type": "boolean", "description": "False for an inactive or soft-deleted user; those states are not publicly distinguished." }
         }
       },
       "DocumentLifecycleSummary": {

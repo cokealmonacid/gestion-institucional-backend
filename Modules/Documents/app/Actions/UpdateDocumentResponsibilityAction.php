@@ -29,7 +29,7 @@ class UpdateDocumentResponsibilityAction
                 throw new DocumentResponsibilityException('DOCUMENT_RESPONSIBLE_NOT_AVAILABLE', 'The selected responsible user is not available.', 404);
             }
             if ((string) $document->responsible_user_id === (string) $responsibleId) {
-                return $document->load('responsibleUser:id,name,active,deleted_at');
+                return $document->load('responsibleUser:id,name,active,deleted_at,institution_id');
             }
 
             $previous = $document->responsibleUser()->first();
@@ -48,7 +48,7 @@ class UpdateDocumentResponsibilityAction
                 'revision' => $revision,
             ]);
 
-            return $document->load('responsibleUser:id,name,active,deleted_at');
+            return $document->load('responsibleUser:id,name,active,deleted_at,institution_id');
         });
     }
 }

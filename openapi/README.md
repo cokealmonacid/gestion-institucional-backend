@@ -5,7 +5,7 @@
 The backend repository is the authority for Acervo API contracts. The canonical OpenAPI 3.1 contracts are:
 
 - [`v1/authentication.json`](v1/authentication.json), contract version `2.0.0`;
-- [`v1/document-explorer.json`](v1/document-explorer.json), contract version `4.0.0`;
+- [`v1/document-explorer.json`](v1/document-explorer.json), contract version `5.0.0`;
 - [`v1/document-lifecycle.json`](v1/document-lifecycle.json), contract version `2.0.0`;
 - [`v1/institution-documents.json`](v1/institution-documents.json), contract version `1.0.0`;
 - [`v1/institution-users.json`](v1/institution-users.json), contract version `2.0.0`;
@@ -20,7 +20,7 @@ The authentication contract scope is deliberately limited to:
 
 Password-recovery endpoints and every other API endpoint are outside the authentication contract version.
 
-The document-explorer contract includes four read operations, admin-only canonical node creation through `POST /api/v1/institution/tree-directory`, and admin/editor logical document creation through `POST /api/v1/institution/tree-directory/{node_id}/documents`. The virtual root is not a node and does not contain documents; node creation targets it with an explicit nullable `parent_id` in the request body. Document creation requires a real accessible node and does not upload a file or create an initial version. The older node POST containing a parent identifier in the route remains runtime-only compatibility behavior and is not part of the canonical contract.
+The document-explorer contract includes four read operations, admin-only canonical node creation through `POST /api/v1/institution/tree-directory`, and admin/editor logical document creation through `POST /api/v1/institution/tree-directory/{node_id}/documents`. The virtual root is not a node and does not contain documents; node creation targets it with an explicit nullable `parent_id` in the request body. Document rows and the creation response include the institution-safe responsible-user summary and its optimistic-concurrency revision. Document creation requires a real accessible node and does not upload a file or create an initial version. The older node POST containing a parent identifier in the route remains runtime-only compatibility behavior and is not part of the canonical contract.
 
 `openapi/v1/document-lifecycle.json` is the backend-authoritative contract for document lifecycle detail, responsible-user selection and optimistic assignment, active version listing, first and subsequent private-file uploads, current and historical downloads, and selecting an active historical version as current. Version 2.0.0 is major because required responsible fields were added to a closed detail schema. Version uploads accept at most 25 MiB; PHP and the serving HTTP stack must allow at least 25 MiB plus multipart overhead. The download audit row records authorization and response emission, not completed transfer.
 

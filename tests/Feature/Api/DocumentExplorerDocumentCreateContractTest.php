@@ -6,6 +6,7 @@ use App\Enums\RoleType;
 use App\Models\Rol;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Modules\Documents\Models\Document;
 use Modules\Institution\Models\Institution;
@@ -21,6 +22,12 @@ class DocumentExplorerDocumentCreateContractTest extends TestCase
         [$institution, $user] = $this->institutionUser(RoleType::Admin);
         $node = $this->node($institution, 'Documents');
         Sanctum::actingAs($user);
+        $userQueries = [];
+        DB::listen(function ($query) use (&$userQueries): void {
+            if (str_contains(strtolower($query->sql), 'from "users"')) {
+                $userQueries[] = $query->sql;
+            }
+        });
 
         $response = $this->postJson("/api/v1/institution/tree-directory/{$node->id}/documents", [
             'name' => 'Institutional regulations',
@@ -36,6 +43,8 @@ class DocumentExplorerDocumentCreateContractTest extends TestCase
             ->assertJsonPath('data.author_id', $user->id)
             ->assertJsonPath('data.institution_id', $institution->id)
             ->assertJsonPath('data.node_id', $node->id)
+            ->assertJsonPath('data.responsible', null)
+            ->assertJsonPath('data.responsibility_revision', 0)
             ->assertJsonPath('data.lifecycle.version_count', 0)
             ->assertJsonPath('data.lifecycle.has_current_version', false)
             ->assertJsonPath('data.lifecycle.capabilities.can_download', false)
@@ -50,9 +59,11 @@ class DocumentExplorerDocumentCreateContractTest extends TestCase
             'status' => true,
         ]);
         $this->assertSame([
-            'id', 'name', 'description', 'category', 'responsible_unit', 'status',
+            'id', 'name', 'description', 'category', 'responsible_unit', 'responsible',
+            'responsibility_revision', 'status',
             'author_id', 'institution_id', 'node_id', 'created_at', 'updated_at', 'lifecycle',
         ], array_keys($response->json('data')));
+        $this->assertCount(0, $userQueries);
         $this->assertDatabaseCount('document_versions', 0);
     }
 

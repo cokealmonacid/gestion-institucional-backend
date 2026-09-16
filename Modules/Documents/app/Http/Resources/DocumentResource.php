@@ -5,6 +5,7 @@ namespace Modules\Documents\Http\Resources;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Modules\Documents\Services\DocumentLifecycleAccess;
+use Modules\Documents\Support\DocumentResponsibleProjection;
 
 class DocumentResource extends JsonResource
 {
@@ -23,6 +24,8 @@ class DocumentResource extends JsonResource
             'description' => $this->description,
             'category' => $this->category,
             'responsible_unit' => $this->responsible_unit,
+            'responsible' => DocumentResponsibleProjection::for($this->resource),
+            'responsibility_revision' => (int) $this->responsibility_revision,
             'status' => $this->status,
             'author_id' => $this->author_id,
             'institution_id' => $this->institution_id,
