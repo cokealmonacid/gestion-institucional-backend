@@ -10,6 +10,8 @@ abstract class TestCase extends BaseTestCase
     {
         parent::setUp();
 
+        config(['documents.storage_disk' => null]);
+
         $this->withoutVite();
     }
 }

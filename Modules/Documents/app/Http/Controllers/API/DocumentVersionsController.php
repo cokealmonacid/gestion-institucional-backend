@@ -20,6 +20,11 @@ use Modules\Documents\Services\DocumentLifecycleAccess;
 
 class DocumentVersionsController extends BaseController
 {
+    private function storageDisk(): string
+    {
+        return config('documents.storage_disk') ?: config('filesystems.default');
+    }
+
     private function institutionDocumentQuery(Request $request): Builder
     {
         return Document::where('institution_id', $request->user()->institution_id);
@@ -49,7 +54,7 @@ class DocumentVersionsController extends BaseController
     private function downloadVersion(Request $request, Document $document, DocumentVersion $version)
     {
         try {
-            $disk = Storage::disk(config('filesystems.default'));
+            $disk = Storage::disk($this->storageDisk());
             $exists = $version->url && $disk->exists($version->url);
         } catch (\Throwable) {
             return ApiResponse::error('DOCUMENT_STORAGE_FAILED', 'The document storage service is unavailable.', 500);
@@ -155,7 +160,7 @@ class DocumentVersionsController extends BaseController
             .'/versions/'.$versionId
             .'/'.$storedFilename;
 
-        $disk = config('filesystems.default');
+        $disk = $this->storageDisk();
         try {
             $stored = $file->storeAs(dirname($path), basename($path), $disk);
         } catch (\Throwable) {
@@ -219,8 +224,10 @@ class DocumentVersionsController extends BaseController
 
                 return $version;
             });
-        } catch (\Throwable) {
+        } catch (\Throwable $exception) {
             $this->deleteStoredFile($disk, $stored);
+
+            report($exception);
 
             return ApiResponse::error('DOCUMENT_VERSION_CREATION_FAILED', 'The document version could not be created.', 500);
         }
