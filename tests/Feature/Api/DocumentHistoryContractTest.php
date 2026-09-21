@@ -14,6 +14,7 @@ use Laravel\Sanctum\Sanctum;
 use Modules\Documents\Models\Document;
 use Modules\Documents\Models\DocumentEvent;
 use Modules\Documents\Models\DocumentVersion;
+use Modules\Documents\Services\BackfillDocumentEvents;
 use Modules\Institution\Models\Institution;
 use Modules\Nodes\Models\Node;
 use Tests\TestCase;
@@ -56,10 +57,50 @@ class DocumentHistoryContractTest extends TestCase
         $upload = DocumentEvent::where('version_id', $secondId)->firstOrFail();
         $this->assertTrue($upload->detail['became_current']);
 
+        $createdJsonType = DB::table('document_events')
+            ->where('document_id', $documentId)
+            ->where('type', 'document.created')
+            ->selectRaw('UPPER(json_type(detail)) as detail_json_type')
+            ->value('detail_json_type');
+        $this->assertSame('OBJECT', $createdJsonType);
+
+        $history = $this->decodedHistory($documentId);
+        $this->assertSame(['data', 'message', 'meta', 'success'], $this->sortedKeys($history));
+        $this->assertSame(['next_cursor'], $this->sortedKeys($history->meta));
+        $detailKeys = [
+            'document.created' => [],
+            'document.version_uploaded' => ['became_current'],
+            'document.current_version_changed' => ['new_version', 'previous_version'],
+            'document.responsible_assigned' => ['new_responsible_name', 'previous_responsible_name'],
+            'document.responsible_changed' => ['new_responsible_name', 'previous_responsible_name'],
+            'document.responsible_removed' => ['new_responsible_name', 'previous_responsible_name'],
+        ];
+        foreach ($history->data as $event) {
+            $this->assertSame(['actor', 'detail', 'id', 'occurred_at', 'type', 'version'], $this->sortedKeys($event));
+            $this->assertInstanceOf(\stdClass::class, $event->detail);
+            $this->assertSame($detailKeys[$event->type], $this->sortedKeys($event->detail));
+        }
+
         $count = DocumentEvent::where('document_id', $documentId)->count();
         $this->patchJson($responsibilityUri, ['responsible_user_id' => null, 'expected_revision' => 3])->assertOk();
         $this->patchJson("/api/v1/documents/{$documentId}/versions/{$firstId}/current")->assertOk();
         $this->assertSame($count, DocumentEvent::where('document_id', $documentId)->count());
+    }
+
+    public function test_backfilled_document_created_detail_is_an_empty_json_object_in_history(): void
+    {
+        [, $reader, , $document] = $this->context(RoleType::Reader, true);
+        app(BackfillDocumentEvents::class)->execute();
+        Sanctum::actingAs($reader);
+
+        $history = $this->decodedHistory($document->id);
+        $created = collect($history->data)->firstWhere('type', 'document.created');
+
+        $this->assertNotNull($created);
+        $this->assertInstanceOf(\stdClass::class, $created->detail);
+        $this->assertSame([], get_object_vars($created->detail));
+        $this->assertStringContainsString('"detail":{}', json_encode($created, JSON_THROW_ON_ERROR));
+        $this->assertStringNotContainsString('"detail":[]', json_encode($created, JSON_THROW_ON_ERROR));
     }
 
     public function test_history_is_cursor_paginated_without_gaps_for_equal_timestamps_and_has_bounded_queries(): void
@@ -325,5 +366,23 @@ class DocumentHistoryContractTest extends TestCase
     private function eventCursor(DocumentEvent $event): string
     {
         return $this->cursor(['occurred_at' => $event->getRawOriginal('occurred_at'), 'id' => $event->id]);
+    }
+
+    private function decodedHistory(string $documentId): \stdClass
+    {
+        $response = $this->getJson("/api/v1/documents/{$documentId}/history?limit=100")->assertOk();
+        $decoded = json_decode($response->getContent(), false, 512, JSON_THROW_ON_ERROR);
+        $this->assertInstanceOf(\stdClass::class, $decoded);
+
+        return $decoded;
+    }
+
+    /** @return list<string> */
+    private function sortedKeys(\stdClass $value): array
+    {
+        $keys = array_keys(get_object_vars($value));
+        sort($keys);
+
+        return $keys;
     }
 }

@@ -56,10 +56,10 @@ class DocumentEventResource extends JsonResource
     }
 
     /** @param array<string, mixed> $detail */
-    private function publicDetail(array $detail): array
+    private function publicDetail(array $detail): array|object
     {
         return match ($this->type) {
-            DocumentEventType::Created => [],
+            DocumentEventType::Created => (object) [],
             DocumentEventType::VersionUploaded => [
                 'became_current' => is_bool($detail['became_current'] ?? null)
                     ? $detail['became_current'] : null,
