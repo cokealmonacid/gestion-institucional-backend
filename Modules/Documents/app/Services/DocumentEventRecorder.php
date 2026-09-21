@@ -30,7 +30,9 @@ class DocumentEventRecorder
             'actor_user_id' => $this->validActor($document, $actor)?->id,
             'actor_name' => $this->validActor($document, $actor)?->name,
             'version_id' => $version?->id,
-            'detail' => $detail,
+            'detail' => $type === DocumentEventType::Created
+                ? (object) []
+                : $detail,
             'origin' => $origin,
             'source_type' => $sourceType,
             'source_id' => $sourceId,

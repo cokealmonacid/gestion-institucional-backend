@@ -49,6 +49,11 @@ class DocumentEventMigrationTest extends TestCase
         $this->assertDatabaseHas('document_events', ['source_id' => $history->id, 'type' => 'document.responsible_assigned']);
         $this->assertSame(0, DB::table('document_events')->whereNotNull('actor_name')->count());
         $this->assertSame(3, DB::table('document_events')->where('actor_user_id', $user->id)->count());
+        $createdDetailType = DB::table('document_events')
+            ->where('type', 'document.created')
+            ->selectRaw('UPPER(json_type(detail)) as detail_json_type')
+            ->value('detail_json_type');
+        $this->assertSame('OBJECT', $createdDetailType);
         $this->assertDatabaseMissing('document_events', ['type' => 'document.current_version_changed']);
         $this->assertTrue(Schema::hasColumns('document_events', [
             'document_id', 'institution_id', 'type', 'actor_user_id', 'actor_name',
