@@ -4,15 +4,22 @@ namespace Modules\Documents\Actions;
 
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Modules\Documents\Enums\DocumentEventType;
 use Modules\Documents\Exceptions\DocumentResponsibilityException;
 use Modules\Documents\Models\Document;
 use Modules\Documents\Models\DocumentResponsibleHistory;
+use Modules\Documents\Services\DocumentEventRecorder;
 
 class UpdateDocumentResponsibilityAction
 {
-    public function execute(User $actor, string $documentId, ?string $responsibleId, int $expectedRevision): Document
-    {
-        return DB::transaction(function () use ($actor, $documentId, $responsibleId, $expectedRevision): Document {
+    public function execute(
+        User $actor,
+        string $documentId,
+        ?string $responsibleId,
+        int $expectedRevision,
+        DocumentEventRecorder $events,
+    ): Document {
+        return DB::transaction(function () use ($actor, $documentId, $responsibleId, $expectedRevision, $events): Document {
             $document = Document::query()->where('institution_id', $actor->institution_id)
                 ->where('status', true)->lockForUpdate()->find($documentId);
 
@@ -38,7 +45,7 @@ class UpdateDocumentResponsibilityAction
             $document->responsibility_revision = $revision;
             $document->save();
 
-            DocumentResponsibleHistory::create([
+            $history = DocumentResponsibleHistory::create([
                 'document_id' => $document->id,
                 'previous_responsible_user_id' => $previous?->id,
                 'new_responsible_user_id' => $responsible?->id,
@@ -47,6 +54,16 @@ class UpdateDocumentResponsibilityAction
                 'new_responsible_name' => $responsible?->name,
                 'revision' => $revision,
             ]);
+
+            $type = $previous === null
+                ? DocumentEventType::ResponsibleAssigned
+                : ($responsible === null
+                    ? DocumentEventType::ResponsibleRemoved
+                    : DocumentEventType::ResponsibleChanged);
+            $events->record($document, $type, $actor, [
+                'previous_responsible_name' => $previous?->name,
+                'new_responsible_name' => $responsible?->name,
+            ], 'document_responsibility', $history->id, occurredAt: $history->created_at);
 
             return $document->load('responsibleUser:id,name,active,deleted_at,institution_id');
         });

@@ -22,6 +22,7 @@ use Modules\Documents\Http\Resources\InstitutionDocumentResource;
 use Modules\Documents\Models\Document;
 use Modules\Documents\Models\DocumentDownload;
 use Modules\Documents\Models\DocumentVersion;
+use Modules\Documents\Services\DocumentEventRecorder;
 use Modules\Documents\Services\DocumentLifecycleAccess;
 use Modules\Documents\Support\DocumentResponsibleProjection;
 use Modules\Nodes\Models\Node;
@@ -160,9 +161,10 @@ class DocumentsController extends BaseController
         $node_id,
         CreateDocumentAction $action,
         DocumentLifecycleAccess $access,
+        DocumentEventRecorder $events,
     ) {
         try {
-            $document = $action->execute($request->user(), $node_id, $request->validated());
+            $document = $action->execute($request->user(), $node_id, $request->validated(), $events);
         } catch (DocumentCreationException $exception) {
             return ApiResponse::error(
                 $exception->errorCode,
@@ -239,6 +241,7 @@ class DocumentsController extends BaseController
         $document_id,
         DocumentLifecycleAccess $access,
         UpdateDocumentResponsibilityAction $action,
+        DocumentEventRecorder $events,
     ) {
         if ($request->user()->cannot(InstitutionAbility::ManageDocuments->value)) {
             return ApiResponse::error('DOCUMENT_RESPONSIBILITY_FORBIDDEN', 'You are not allowed to manage document responsibility.', 403);
@@ -261,6 +264,7 @@ class DocumentsController extends BaseController
             $document = $action->execute(
                 $request->user(), $document_id, $validator->validated()['responsible_user_id'],
                 $validator->validated()['expected_revision'],
+                $events,
             );
         } catch (DocumentResponsibilityException $exception) {
             return ApiResponse::error($exception->errorCode, $exception->getMessage(), $exception->status);

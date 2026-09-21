@@ -3,14 +3,17 @@
 namespace Modules\Documents\Actions;
 
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
+use Modules\Documents\Enums\DocumentEventType;
 use Modules\Documents\Exceptions\DocumentCreationException;
 use Modules\Documents\Models\Document;
+use Modules\Documents\Services\DocumentEventRecorder;
 use Modules\Nodes\Models\Node;
 
 class CreateDocumentAction
 {
     /** @param array{name: string, description?: ?string, category?: ?string, responsible_unit?: ?string} $attributes */
-    public function execute(User $actor, string $nodeId, array $attributes): Document
+    public function execute(User $actor, string $nodeId, array $attributes, DocumentEventRecorder $events): Document
     {
         if ($actor->institution_id === null) {
             throw $this->locationNotFound();
@@ -25,13 +28,27 @@ class CreateDocumentAction
             throw $this->locationNotFound();
         }
 
-        return Document::create([
-            ...$attributes,
-            'status' => true,
-            'author_id' => $actor->id,
-            'institution_id' => $actor->institution_id,
-            'node_id' => $node->id,
-        ]);
+        return DB::transaction(function () use ($actor, $attributes, $node, $events): Document {
+            $document = Document::create([
+                ...$attributes,
+                'status' => true,
+                'author_id' => $actor->id,
+                'institution_id' => $actor->institution_id,
+                'node_id' => $node->id,
+            ]);
+
+            $events->record(
+                $document,
+                DocumentEventType::Created,
+                $actor,
+                [],
+                'document',
+                $document->id,
+                occurredAt: $document->created_at,
+            );
+
+            return $document;
+        });
     }
 
     private function ancestorsAreAccessible(Node $node): bool

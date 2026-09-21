@@ -11,11 +11,11 @@ class DocumentLifecycleOpenApiTest extends TestCase
         return json_decode((string) file_get_contents(base_path('openapi/v1/document-lifecycle.json')), true, 512, JSON_THROW_ON_ERROR);
     }
 
-    public function test_contract_publishes_exactly_the_eight_lifecycle_operations(): void
+    public function test_contract_publishes_exactly_the_nine_lifecycle_operations(): void
     {
         $contract = $this->contract();
         $this->assertSame('3.1.0', $contract['openapi']);
-        $this->assertSame('2.0.0', $contract['info']['version']);
+        $this->assertSame('2.1.0', $contract['info']['version']);
 
         $operations = [];
         foreach ($contract['paths'] as $path) {
@@ -26,11 +26,39 @@ class DocumentLifecycleOpenApiTest extends TestCase
         }
 
         $this->assertSame([
-            'getDocumentLifecycleDetail', 'searchDocumentResponsibleOptions',
+            'getDocumentLifecycleDetail', 'listDocumentHistory', 'searchDocumentResponsibleOptions',
             'updateDocumentResponsible', 'listDocumentVersions',
             'createDocumentVersion', 'downloadCurrentDocumentVersion',
             'downloadDocumentVersion', 'setCurrentDocumentVersion',
         ], $operations);
+    }
+
+    public function test_history_contract_is_cursor_paginated_closed_and_private(): void
+    {
+        $contract = $this->contract();
+        $operation = $contract['paths']['/api/v1/documents/{document_id}/history']['get'];
+        $parameters = collect($operation['parameters'])->keyBy(fn (array $parameter) => $parameter['name'] ?? 'document_id');
+
+        $this->assertSame(20, $parameters['limit']['schema']['default']);
+        $this->assertSame(100, $parameters['limit']['schema']['maximum']);
+        $this->assertSame('string', $parameters['cursor']['schema']['type']);
+        $this->assertSame([200, 401, 403, 404, 422], array_keys($operation['responses']));
+
+        foreach (['DocumentEventBase', 'DocumentEventActor', 'DocumentEventVersion', 'DocumentHistorySuccess'] as $schema) {
+            $this->assertFalse($contract['components']['schemas'][$schema]['additionalProperties']);
+        }
+        $event = $contract['components']['schemas']['DocumentEvent'];
+        $this->assertSame([
+            'document.created', 'document.version_uploaded', 'document.current_version_changed',
+            'document.responsible_assigned', 'document.responsible_changed', 'document.responsible_removed',
+        ], array_keys($event['discriminator']['mapping']));
+        $this->assertCount(6, $event['oneOf']);
+        $this->assertSame([true], $contract['components']['schemas']['VersionUploadedDetail']['properties']['became_current']['oneOf'][0]['enum']);
+        $this->assertContains('new_version', $contract['components']['schemas']['CurrentVersionChangedDetail']['required']);
+        $encoded = json_encode($event, JSON_THROW_ON_ERROR);
+        foreach (['origin', 'source_type', 'source_id', 'institution_id', 'node_id', 'email', 'url'] as $privateField) {
+            $this->assertStringNotContainsString($privateField, $encoded);
+        }
     }
 
     public function test_contract_documents_multipart_binary_public_shapes_and_errors(): void

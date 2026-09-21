@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Acervo Document Lifecycle API",
-    "version": "2.0.0",
-    "description": "Backend-authoritative contract for logical document detail, its responsible user with optimistic concurrency, active file versions, authenticated downloads, version upload, and current-version selection. Version 2 adds required properties to the closed detail schema and is therefore a major change."
+    "version": "2.1.0",
+    "description": "Backend-authoritative contract for logical document detail, document traceability, its responsible user with optimistic concurrency, active file versions, authenticated downloads, version upload, and current-version selection. Version 2.1 adds a backward-compatible cursor-paginated document history operation."
   },
   "paths": {
     "/api/v1/documents/{document_id}": {
@@ -20,6 +20,26 @@
           "401": { "$ref": "#/components/responses/Unauthenticated" },
           "403": { "$ref": "#/components/responses/InactiveUser" },
           "404": { "$ref": "#/components/responses/DocumentNotAvailable" }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/history": {
+      "get": {
+        "operationId": "listDocumentHistory",
+        "summary": "List document history",
+        "description": "Returns persisted document events newest first. Equal timestamps are ordered deterministically. Internal event origin and source identity are never exposed.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/DocumentId" },
+          { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 } },
+          { "name": "cursor", "in": "query", "required": false, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Document history retrieved.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DocumentHistorySuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/TraceabilityForbidden" },
+          "404": { "$ref": "#/components/responses/DocumentNotAvailable" },
+          "422": { "$ref": "#/components/responses/HistoryValidationFailed" }
         }
       }
     },
@@ -133,6 +153,21 @@
       "InactiveAccountError": { "type": "object", "additionalProperties": false, "required": ["success", "message"], "properties": { "success": { "type": "boolean", "enum": [false] }, "message": { "type": "string" } } },
       "LocationSummary": { "type": "object", "additionalProperties": false, "required": ["id", "name", "path"], "properties": { "id": { "type": "string", "format": "uuid" }, "name": { "type": "string" }, "path": { "type": "string" } } },
       "DocumentVersion": { "type": "object", "additionalProperties": false, "required": ["id", "version_number", "filename", "mime_type", "file_size", "active", "is_current", "author", "created_at", "updated_at"], "properties": { "id": { "type": "string", "format": "uuid" }, "version_number": { "type": "integer", "minimum": 1 }, "filename": { "type": "string" }, "mime_type": { "type": "string" }, "file_size": { "type": "integer", "minimum": 1, "maximum": 26214400 }, "active": { "type": "boolean", "enum": [true] }, "is_current": { "type": "boolean" }, "author": { "$ref": "#/components/schemas/AuthorSummary" }, "created_at": { "type": ["string", "null"], "format": "date-time" }, "updated_at": { "type": ["string", "null"], "format": "date-time" } } },
+      "DocumentEventActor": { "type": ["object", "null"], "additionalProperties": false, "required": ["id", "name", "active"], "properties": { "id": { "type": "string", "format": "uuid" }, "name": { "type": ["string", "null"], "description": "For a recorded event, the name captured when the event occurred. For a legacy event, the current public name of the surviving same-institution actor, when available. Missing, hard-deleted, invalid or foreign actors are represented by actor: null." }, "active": { "type": "boolean", "description": "Current public activity state; false also covers soft deletion." } } },
+      "DocumentEventVersion": { "type": ["object", "null"], "additionalProperties": false, "required": ["id", "version_number", "filename"], "properties": { "id": { "type": "string", "format": "uuid" }, "version_number": { "type": "integer", "minimum": 1 }, "filename": { "type": "string" } } },
+      "DocumentCreatedDetail": { "type": "object", "additionalProperties": false, "properties": {} },
+      "VersionUploadedDetail": { "type": "object", "additionalProperties": false, "required": ["became_current"], "properties": { "became_current": { "oneOf": [{ "type": "boolean", "enum": [true] }, { "type": "null" }], "description": "True for newly recorded uploads. Null for legacy uploads whose automatic-current effect is not independently proven." } } },
+      "CurrentVersionChangedDetail": { "type": "object", "additionalProperties": false, "required": ["previous_version", "new_version"], "properties": { "previous_version": { "$ref": "#/components/schemas/DocumentEventVersion" }, "new_version": { "$ref": "#/components/schemas/DocumentEventVersion" } } },
+      "ResponsibilityChangedDetail": { "type": "object", "additionalProperties": false, "required": ["previous_responsible_name", "new_responsible_name"], "properties": { "previous_responsible_name": { "type": ["string", "null"] }, "new_responsible_name": { "type": ["string", "null"] } } },
+      "DocumentEventBase": { "type": "object", "additionalProperties": false, "required": ["id", "type", "occurred_at", "actor", "version", "detail"], "properties": { "id": { "type": "string", "format": "uuid" }, "type": { "type": "string" }, "occurred_at": { "type": "string", "format": "date-time" }, "actor": { "$ref": "#/components/schemas/DocumentEventActor" }, "version": { "$ref": "#/components/schemas/DocumentEventVersion" }, "detail": {} } },
+      "DocumentCreatedEvent": { "allOf": [{ "$ref": "#/components/schemas/DocumentEventBase" }, { "type": "object", "properties": { "type": { "enum": ["document.created"] }, "detail": { "$ref": "#/components/schemas/DocumentCreatedDetail" } } }] },
+      "VersionUploadedEvent": { "allOf": [{ "$ref": "#/components/schemas/DocumentEventBase" }, { "type": "object", "properties": { "type": { "enum": ["document.version_uploaded"] }, "detail": { "$ref": "#/components/schemas/VersionUploadedDetail" } } }] },
+      "CurrentVersionChangedEvent": { "allOf": [{ "$ref": "#/components/schemas/DocumentEventBase" }, { "type": "object", "properties": { "type": { "enum": ["document.current_version_changed"] }, "detail": { "$ref": "#/components/schemas/CurrentVersionChangedDetail" } } }] },
+      "ResponsibleAssignedEvent": { "allOf": [{ "$ref": "#/components/schemas/DocumentEventBase" }, { "type": "object", "properties": { "type": { "enum": ["document.responsible_assigned"] }, "detail": { "$ref": "#/components/schemas/ResponsibilityChangedDetail" } } }] },
+      "ResponsibleChangedEvent": { "allOf": [{ "$ref": "#/components/schemas/DocumentEventBase" }, { "type": "object", "properties": { "type": { "enum": ["document.responsible_changed"] }, "detail": { "$ref": "#/components/schemas/ResponsibilityChangedDetail" } } }] },
+      "ResponsibleRemovedEvent": { "allOf": [{ "$ref": "#/components/schemas/DocumentEventBase" }, { "type": "object", "properties": { "type": { "enum": ["document.responsible_removed"] }, "detail": { "$ref": "#/components/schemas/ResponsibilityChangedDetail" } } }] },
+      "DocumentEvent": { "oneOf": [{ "$ref": "#/components/schemas/DocumentCreatedEvent" }, { "$ref": "#/components/schemas/VersionUploadedEvent" }, { "$ref": "#/components/schemas/CurrentVersionChangedEvent" }, { "$ref": "#/components/schemas/ResponsibleAssignedEvent" }, { "$ref": "#/components/schemas/ResponsibleChangedEvent" }, { "$ref": "#/components/schemas/ResponsibleRemovedEvent" }], "discriminator": { "propertyName": "type", "mapping": { "document.created": "#/components/schemas/DocumentCreatedEvent", "document.version_uploaded": "#/components/schemas/VersionUploadedEvent", "document.current_version_changed": "#/components/schemas/CurrentVersionChangedEvent", "document.responsible_assigned": "#/components/schemas/ResponsibleAssignedEvent", "document.responsible_changed": "#/components/schemas/ResponsibleChangedEvent", "document.responsible_removed": "#/components/schemas/ResponsibleRemovedEvent" } } },
+      "DocumentHistorySuccess": { "type": "object", "additionalProperties": false, "required": ["success", "data", "meta", "message"], "properties": { "success": { "type": "boolean", "enum": [true] }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/DocumentEvent" } }, "meta": { "type": "object", "additionalProperties": false, "required": ["next_cursor"], "properties": { "next_cursor": { "type": ["string", "null"] } } }, "message": { "type": "string" } } },
       "Capabilities": { "type": "object", "additionalProperties": false, "required": ["can_download", "can_upload_version", "can_mark_version_current"], "properties": { "can_download": { "type": "boolean" }, "can_upload_version": { "type": "boolean" }, "can_mark_version_current": { "type": "boolean" } } },
       "DocumentDetail": { "type": "object", "additionalProperties": false, "required": ["id", "name", "description", "category", "responsible_unit", "responsible", "responsibility_revision", "status", "author_id", "institution_id", "node_id", "created_at", "updated_at", "author", "location", "current_version", "version_count", "capabilities"], "properties": { "id": { "type": "string", "format": "uuid" }, "name": { "type": "string" }, "description": { "type": ["string", "null"] }, "category": { "type": ["string", "null"] }, "responsible_unit": { "type": ["string", "null"] }, "responsible": { "$ref": "#/components/schemas/ResponsibleSummary" }, "responsibility_revision": { "type": "integer", "minimum": 0 }, "status": { "type": "boolean", "enum": [true] }, "author_id": { "type": ["string", "null"], "format": "uuid" }, "institution_id": { "type": "string", "format": "uuid" }, "node_id": { "type": "string", "format": "uuid" }, "created_at": { "type": ["string", "null"], "format": "date-time" }, "updated_at": { "type": ["string", "null"], "format": "date-time" }, "author": { "$ref": "#/components/schemas/AuthorSummary" }, "location": { "$ref": "#/components/schemas/LocationSummary" }, "current_version": { "oneOf": [{ "$ref": "#/components/schemas/DocumentVersion" }, { "type": "null" }] }, "version_count": { "type": "integer", "minimum": 0 }, "capabilities": { "$ref": "#/components/schemas/Capabilities" } } },
       "DocumentDetailSuccess": { "type": "object", "additionalProperties": false, "required": ["success", "data", "message"], "properties": { "success": { "type": "boolean", "enum": [true] }, "data": { "$ref": "#/components/schemas/DocumentDetail" }, "message": { "type": "string" } } },
@@ -155,6 +190,8 @@
       ,"ResponsibilityConflict": { "description": "expected_revision is stale; no automatic retry occurs.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "success": false, "error": { "code": "DOCUMENT_RESPONSIBILITY_CONFLICT", "message": "The document responsibility has changed." } } } } }
       ,"ResponsibilityValidationFailed": { "description": "Responsibility payload or search query is invalid.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "success": false, "error": { "code": "VALIDATION_FAILED", "message": "The document responsibility request is invalid.", "fields": { "expected_revision": ["The expected revision field is required."] } } } } } }
       ,"ResponsibilityFailed": { "description": "The atomic responsibility update failed without exposing internal details.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "success": false, "error": { "code": "DOCUMENT_RESPONSIBILITY_FAILED", "message": "The document responsibility could not be updated." } } } } }
+      ,"TraceabilityForbidden": { "description": "The actor lacks traceability.view or the authenticated account is inactive.", "content": { "application/json": { "example": { "message": "Forbidden." } } } }
+      ,"HistoryValidationFailed": { "description": "History pagination parameters are invalid.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "success": false, "error": { "code": "VALIDATION_FAILED", "message": "The document history request is invalid.", "fields": { "limit": ["The limit field must not be greater than 100."] } } } } } }
     }
   }
 }
