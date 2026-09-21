@@ -36,6 +36,7 @@ class DocumentVersion extends Model
         'file_size' => 'integer',
         'active' => 'boolean',
         'is_current' => 'boolean',
+        'current_marker' => 'integer',
     ];
 
     public function document()

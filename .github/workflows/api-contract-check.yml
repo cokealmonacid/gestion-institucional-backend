@@ -1,0 +1,47 @@
+name: Check API contracts
+
+on:
+  pull_request:
+    paths:
+      - 'openapi/**'
+      - 'app/**'
+      - 'routes/**'
+      - 'tests/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'composer.json'
+      - 'composer.lock'
+  push:
+    branches: [develop]
+    paths:
+      - 'openapi/**'
+      - 'app/**'
+      - 'routes/**'
+      - 'tests/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'composer.json'
+      - 'composer.lock'
+
+permissions:
+  contents: read
+
+jobs:
+  contract-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: composer install --no-interaction --prefer-dist --no-progress
+      - run: npm ci
+      - name: Set up application key
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+      - run: npm run api:contract:check

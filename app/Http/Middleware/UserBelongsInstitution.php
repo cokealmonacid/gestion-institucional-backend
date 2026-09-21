@@ -14,10 +14,9 @@ class UserBelongsInstitution
     {
         if (auth()->user()->institution_id != $request->institution_id) {
             return response()->json([
-                'message' => 'Forbidden.'
+                'message' => 'Forbidden.',
             ], 403);
         }
-
 
         return $next($request);
     }

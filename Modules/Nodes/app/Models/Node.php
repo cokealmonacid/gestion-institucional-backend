@@ -53,15 +53,7 @@ class Node extends Model
     protected static function booted(): void
     {
         static::creating(function (Node $node): void {
-            if (! $node->id) {
-                $node->id = $node->newUniqueId();
-            }
-
-            if (! $node->path) {
-                $node->path = $node->parent_id === null
-                    ? $node->id
-                    : Node::query()->findOrFail($node->parent_id)->path.'/'.$node->id;
-            }
+            $node->prepareForCreation();
         });
 
         static::saving(function (Node $node): void {
@@ -76,6 +68,40 @@ class Node extends Model
                 $node->parent_scope = $node->parent_id === null ? 'R' : 'P:'.$node->parent_id;
             }
         });
+    }
+
+    public function prepareForCreation(): void
+    {
+        if (! $this->id) {
+            $this->id = $this->newUniqueId();
+        }
+
+        $name = NodeName::normalize($this->name);
+        $this->name = $name['display'];
+        $this->normalized_name = $name['normalized'];
+        $this->name_fingerprint = $name['fingerprint'];
+
+        $parent = $this->parent_id === null
+            ? null
+            : self::query()->findOrFail($this->parent_id);
+
+        if ($parent === null) {
+            $this->parent_scope = 'R';
+            $this->path = $this->id;
+            $this->depth = 0;
+        } else {
+            $this->institution_id = $parent->institution_id;
+            $this->parent_scope = 'P:'.$parent->id;
+            $this->path = $parent->path.'/'.$this->id;
+            $this->depth = $parent->depth + 1;
+        }
+
+        if ($this->order === null) {
+            $this->order = ((int) self::query()
+                ->where('institution_id', $this->institution_id)
+                ->where('parent_scope', $this->parent_scope)
+                ->max('order')) + 1;
+        }
     }
 
     public function institution()

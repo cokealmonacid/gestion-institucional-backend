@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Contracts;
 
+use App\Enums\InstitutionAbility;
 use Tests\TestCase;
 
 class AuthenticationOpenApiTest extends TestCase
@@ -20,7 +21,7 @@ class AuthenticationOpenApiTest extends TestCase
         $contract = $this->contract();
 
         $this->assertSame('3.1.0', $contract['openapi']);
-        $this->assertSame('1.0.0', $contract['info']['version']);
+        $this->assertSame('2.0.0', $contract['info']['version']);
         $this->assertArrayNotHasKey('servers', $contract);
         $this->assertSame([
             '/api/v1/auth/login',
@@ -71,6 +72,31 @@ class AuthenticationOpenApiTest extends TestCase
         $this->assertSame(
             ['admin', 'editor', 'reader'],
             $contract['components']['schemas']['User']['properties']['roles']['items']['enum'],
+        );
+    }
+
+    public function test_user_requires_the_closed_canonical_abilities_projection(): void
+    {
+        $user = $this->contract()['components']['schemas']['User'];
+        $abilities = $user['properties']['abilities'];
+
+        $this->assertFalse($user['additionalProperties']);
+        $this->assertContains('abilities', $user['required']);
+        $this->assertSame('array', $abilities['type']);
+        $this->assertTrue($abilities['uniqueItems']);
+        $this->assertSame('string', $abilities['items']['type']);
+        $this->assertSame(array_column(InstitutionAbility::cases(), 'value'), $abilities['items']['enum']);
+        $this->assertSame(
+            [
+                InstitutionAbility::View->value,
+                InstitutionAbility::ManageDocuments->value,
+                InstitutionAbility::ManageVersions->value,
+                InstitutionAbility::ManageTags->value,
+                InstitutionAbility::TagDocuments->value,
+                InstitutionAbility::ManageComments->value,
+                InstitutionAbility::ViewTraceability->value,
+            ],
+            $user['examples'][0]['abilities'],
         );
     }
 }

@@ -1,0 +1,197 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Acervo Document Lifecycle API",
+    "version": "2.1.0",
+    "description": "Backend-authoritative contract for logical document detail, document traceability, its responsible user with optimistic concurrency, active file versions, authenticated downloads, version upload, and current-version selection. Version 2.1 adds a backward-compatible cursor-paginated document history operation."
+  },
+  "paths": {
+    "/api/v1/documents/{document_id}": {
+      "get": {
+        "operationId": "getDocumentLifecycleDetail",
+        "summary": "Get document lifecycle detail",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/DocumentId" }],
+        "responses": {
+          "200": {
+            "description": "Document lifecycle detail retrieved.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DocumentDetailSuccess" }, "example": { "success": true, "data": { "id": "11111111-1111-4111-8111-111111111111", "name": "Institutional policy", "description": "Current policy.", "category": "Policy", "responsible_unit": "General Secretariat", "responsible": { "id": "66666666-6666-4666-8666-666666666666", "name": "Responsible User", "active": true }, "responsibility_revision": 2, "status": true, "author_id": "22222222-2222-4222-8222-222222222222", "institution_id": "55555555-5555-4555-8555-555555555555", "node_id": "33333333-3333-4333-8333-333333333333", "created_at": "2026-08-17T12:00:00.000000Z", "updated_at": "2026-08-17T12:00:00.000000Z", "author": { "id": "22222222-2222-4222-8222-222222222222", "name": "Editor User" }, "location": { "id": "33333333-3333-4333-8333-333333333333", "name": "Policies", "path": "33333333-3333-4333-8333-333333333333" }, "current_version": null, "version_count": 0, "capabilities": { "can_download": false, "can_upload_version": true, "can_mark_version_current": true } }, "message": "Document lifecycle detail retrieved successfully." } } }
+          },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/InactiveUser" },
+          "404": { "$ref": "#/components/responses/DocumentNotAvailable" }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/history": {
+      "get": {
+        "operationId": "listDocumentHistory",
+        "summary": "List document history",
+        "description": "Returns persisted document events newest first. Equal timestamps are ordered deterministically. Internal event origin and source identity are never exposed.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/DocumentId" },
+          { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 } },
+          { "name": "cursor", "in": "query", "required": false, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Document history retrieved.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DocumentHistorySuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/TraceabilityForbidden" },
+          "404": { "$ref": "#/components/responses/DocumentNotAvailable" },
+          "422": { "$ref": "#/components/responses/HistoryValidationFailed" }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/responsible-options": {
+      "get": {
+        "operationId": "searchDocumentResponsibleOptions", "summary": "Search assignable responsible users", "description": "Admin and editor only. Returns at most ten active, non-deleted users from the document tenant, ordered by name and identifier. Foreign and missing documents are indistinguishable.", "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/DocumentId" }, { "name": "q", "in": "query", "required": true, "schema": { "type": "string", "minLength": 2, "maxLength": 100 } }],
+        "responses": { "200": { "description": "Assignable users retrieved.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResponsibleOptionsSuccess" }, "example": { "success": true, "data": { "users": [{ "id": "66666666-6666-4666-8666-666666666666", "name": "Responsible User", "email": "responsible@example.test" }] }, "message": "Responsible user options retrieved successfully." } } } }, "401": { "$ref": "#/components/responses/Unauthenticated" }, "403": { "$ref": "#/components/responses/ResponsibilityForbidden" }, "404": { "$ref": "#/components/responses/DocumentNotAvailable" }, "422": { "$ref": "#/components/responses/ResponsibilityValidationFailed" } }
+      }
+    },
+    "/api/v1/documents/{document_id}/responsible": {
+      "patch": {
+        "operationId": "updateDocumentResponsible", "summary": "Assign, change, or remove the responsible user", "description": "Admin and editor only. The expected revision is compared while the tenant-scoped document is locked. Effective changes increment it once and are historized atomically; equal assignments are idempotent. A null identifier removes the assignment. Missing, foreign, inactive, and deleted targets are indistinguishable.", "security": [{ "bearerAuth": [] }], "parameters": [{ "$ref": "#/components/parameters/DocumentId" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateResponsibilityRequest" }, "example": { "responsible_user_id": "66666666-6666-4666-8666-666666666666", "expected_revision": 2 } } } },
+        "responses": { "200": { "description": "Responsibility updated or already equal.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResponsibilitySuccess" }, "examples": { "active": { "value": { "success": true, "data": { "responsible": { "id": "66666666-6666-4666-8666-666666666666", "name": "Responsible User", "active": true }, "responsibility_revision": 3 }, "message": "Document responsibility updated successfully." } }, "removed": { "value": { "success": true, "data": { "responsible": null, "responsibility_revision": 4 }, "message": "Document responsibility updated successfully." } }, "inactivePersisted": { "value": { "success": true, "data": { "responsible": { "id": "77777777-7777-4777-8777-777777777777", "name": "Former User", "active": false }, "responsibility_revision": 2 }, "message": "Document responsibility updated successfully." } } } } } }, "401": { "$ref": "#/components/responses/Unauthenticated" }, "403": { "$ref": "#/components/responses/ResponsibilityForbidden" }, "404": { "$ref": "#/components/responses/ResponsibilityNotAvailable" }, "409": { "$ref": "#/components/responses/ResponsibilityConflict" }, "422": { "$ref": "#/components/responses/ResponsibilityValidationFailed" }, "500": { "$ref": "#/components/responses/ResponsibilityFailed" } }
+      }
+    },
+    "/api/v1/documents/{document_id}/versions": {
+      "get": {
+        "operationId": "listDocumentVersions",
+        "summary": "List active document versions",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/DocumentId" }],
+        "responses": {
+          "200": { "description": "Active versions retrieved in descending version order.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VersionCollectionSuccess" }, "example": { "success": true, "data": [{ "id": "44444444-4444-4444-4444-444444444444", "version_number": 1, "filename": "policy.pdf", "mime_type": "application/pdf", "file_size": 1200, "active": true, "is_current": true, "author": { "id": "22222222-2222-2222-2222-222222222222", "name": "Editor User" }, "created_at": "2026-08-17T12:00:00.000000Z", "updated_at": "2026-08-17T12:00:00.000000Z" }], "message": "Document versions retrieved successfully." } } } },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/InactiveUser" },
+          "404": { "$ref": "#/components/responses/DocumentNotAvailable" }
+        }
+      },
+      "post": {
+        "operationId": "createDocumentVersion",
+        "summary": "Upload the first or a new document version",
+        "description": "Admin and editor only. The first upload creates version 1. Each subsequent upload uses the next number and becomes current. Maximum file size is 25 MiB (26,214,400 bytes).",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/DocumentId" }],
+        "requestBody": {
+          "required": true,
+          "content": { "multipart/form-data": { "schema": { "type": "object", "additionalProperties": false, "required": ["file"], "properties": { "file": { "type": "string", "format": "binary", "maxLength": 26214400, "description": "PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT, JPG, JPEG, or PNG; at most 25 MiB." } } } } }
+        },
+        "responses": {
+          "201": { "description": "Document version created and made current.", "headers": { "Location": { "description": "Location of the created document version resource.", "schema": { "type": "string" } } }, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VersionSuccess" }, "example": { "success": true, "data": { "id": "44444444-4444-4444-4444-444444444444", "version_number": 1, "filename": "policy.pdf", "mime_type": "application/pdf", "file_size": 1200, "active": true, "is_current": true, "author": { "id": "22222222-2222-2222-2222-222222222222", "name": "Editor User" }, "created_at": "2026-08-17T12:00:00.000000Z", "updated_at": "2026-08-17T12:00:00.000000Z" }, "message": "Document version created successfully." } } } },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/MutationForbidden" },
+          "404": { "$ref": "#/components/responses/DocumentNotAvailable" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" },
+          "500": { "$ref": "#/components/responses/CreationOrStorageFailed" }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/download": {
+      "get": {
+        "operationId": "downloadCurrentDocumentVersion",
+        "summary": "Download the active current version",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/DocumentId" }],
+        "responses": {
+          "200": { "description": "Private file download emitted. The audit row records authorization and response emission, not completed transfer.", "headers": { "Content-Disposition": { "schema": { "type": "string" } }, "Content-Type": { "schema": { "type": "string" } } }, "content": { "application/octet-stream": { "schema": { "type": "string", "format": "binary" } } } },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/InactiveUser" },
+          "404": { "$ref": "#/components/responses/DownloadNotAvailable" },
+          "500": { "$ref": "#/components/responses/StorageFailed" }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/versions/{version_id}/download": {
+      "get": {
+        "operationId": "downloadDocumentVersion",
+        "summary": "Download an active historical or current version",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/DocumentId" }, { "$ref": "#/components/parameters/VersionId" }],
+        "responses": {
+          "200": { "description": "Private file download emitted. The audit row records authorization and response emission, not completed transfer.", "headers": { "Content-Disposition": { "schema": { "type": "string" } }, "Content-Type": { "schema": { "type": "string" } } }, "content": { "application/octet-stream": { "schema": { "type": "string", "format": "binary" } } } },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/InactiveUser" },
+          "404": { "$ref": "#/components/responses/DownloadNotAvailable" },
+          "500": { "$ref": "#/components/responses/StorageFailed" }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/versions/{version_id}/current": {
+      "patch": {
+        "operationId": "setCurrentDocumentVersion",
+        "summary": "Mark an active version as current",
+        "description": "Admin and editor only. Exactly one active version becomes current; a document with no versions may legitimately have no current version.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/DocumentId" }, { "$ref": "#/components/parameters/VersionId" }],
+        "responses": {
+          "200": { "description": "Version marked current.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VersionSuccess" }, "example": { "success": true, "data": { "id": "44444444-4444-4444-4444-444444444444", "version_number": 1, "filename": "policy.pdf", "mime_type": "application/pdf", "file_size": 1200, "active": true, "is_current": true, "author": null, "created_at": "2026-08-17T12:00:00.000000Z", "updated_at": "2026-08-17T12:00:00.000000Z" }, "message": "Document version marked as current successfully." } } } },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/MutationForbidden" },
+          "404": { "$ref": "#/components/responses/VersionOrDocumentNotAvailable" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": { "bearerAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "Sanctum" } },
+    "parameters": {
+      "DocumentId": { "name": "document_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+      "VersionId": { "name": "version_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+    },
+    "schemas": {
+      "AuthorSummary": { "type": ["object", "null"], "additionalProperties": false, "required": ["id", "name"], "properties": { "id": { "type": "string", "format": "uuid" }, "name": { "type": "string" } } },
+      "ResponsibleSummary": { "type": ["object", "null"], "additionalProperties": false, "required": ["id", "name", "active"], "properties": { "id": { "type": "string", "format": "uuid" }, "name": { "type": "string" }, "active": { "type": "boolean", "description": "False for an inactive or soft-deleted user; those states are not publicly distinguished." } } },
+      "ResponsibleOption": { "type": "object", "additionalProperties": false, "required": ["id", "name", "email"], "properties": { "id": { "type": "string", "format": "uuid" }, "name": { "type": "string" }, "email": { "type": "string", "format": "email" } } },
+      "UpdateResponsibilityRequest": { "type": "object", "additionalProperties": false, "required": ["responsible_user_id", "expected_revision"], "properties": { "responsible_user_id": { "type": ["string", "null"], "format": "uuid" }, "expected_revision": { "type": "integer", "minimum": 0 } } },
+      "ResponsibilityData": { "type": "object", "additionalProperties": false, "required": ["responsible", "responsibility_revision"], "properties": { "responsible": { "$ref": "#/components/schemas/ResponsibleSummary" }, "responsibility_revision": { "type": "integer", "minimum": 0 } } },
+      "ResponsibilitySuccess": { "type": "object", "additionalProperties": false, "required": ["success", "data", "message"], "properties": { "success": { "type": "boolean", "enum": [true] }, "data": { "$ref": "#/components/schemas/ResponsibilityData" }, "message": { "type": "string" } } },
+      "ResponsibleOptionsSuccess": { "type": "object", "additionalProperties": false, "required": ["success", "data", "message"], "properties": { "success": { "type": "boolean", "enum": [true] }, "data": { "type": "object", "additionalProperties": false, "required": ["users"], "properties": { "users": { "type": "array", "maxItems": 10, "items": { "$ref": "#/components/schemas/ResponsibleOption" } } } }, "message": { "type": "string" } } },
+      "InactiveAccountError": { "type": "object", "additionalProperties": false, "required": ["success", "message"], "properties": { "success": { "type": "boolean", "enum": [false] }, "message": { "type": "string" } } },
+      "LocationSummary": { "type": "object", "additionalProperties": false, "required": ["id", "name", "path"], "properties": { "id": { "type": "string", "format": "uuid" }, "name": { "type": "string" }, "path": { "type": "string" } } },
+      "DocumentVersion": { "type": "object", "additionalProperties": false, "required": ["id", "version_number", "filename", "mime_type", "file_size", "active", "is_current", "author", "created_at", "updated_at"], "properties": { "id": { "type": "string", "format": "uuid" }, "version_number": { "type": "integer", "minimum": 1 }, "filename": { "type": "string" }, "mime_type": { "type": "string" }, "file_size": { "type": "integer", "minimum": 1, "maximum": 26214400 }, "active": { "type": "boolean", "enum": [true] }, "is_current": { "type": "boolean" }, "author": { "$ref": "#/components/schemas/AuthorSummary" }, "created_at": { "type": ["string", "null"], "format": "date-time" }, "updated_at": { "type": ["string", "null"], "format": "date-time" } } },
+      "DocumentEventActor": { "type": ["object", "null"], "additionalProperties": false, "required": ["id", "name", "active"], "properties": { "id": { "type": "string", "format": "uuid" }, "name": { "type": ["string", "null"], "description": "For a recorded event, the name captured when the event occurred. For a legacy event, the current public name of the surviving same-institution actor, when available. Missing, hard-deleted, invalid or foreign actors are represented by actor: null." }, "active": { "type": "boolean", "description": "Current public activity state; false also covers soft deletion." } } },
+      "DocumentEventVersion": { "type": ["object", "null"], "additionalProperties": false, "required": ["id", "version_number", "filename"], "properties": { "id": { "type": "string", "format": "uuid" }, "version_number": { "type": "integer", "minimum": 1 }, "filename": { "type": "string" } } },
+      "DocumentCreatedDetail": { "type": "object", "additionalProperties": false, "properties": {} },
+      "VersionUploadedDetail": { "type": "object", "additionalProperties": false, "required": ["became_current"], "properties": { "became_current": { "oneOf": [{ "type": "boolean", "enum": [true] }, { "type": "null" }], "description": "True for newly recorded uploads. Null for legacy uploads whose automatic-current effect is not independently proven." } } },
+      "CurrentVersionChangedDetail": { "type": "object", "additionalProperties": false, "required": ["previous_version", "new_version"], "properties": { "previous_version": { "$ref": "#/components/schemas/DocumentEventVersion" }, "new_version": { "$ref": "#/components/schemas/DocumentEventVersion" } } },
+      "ResponsibilityChangedDetail": { "type": "object", "additionalProperties": false, "required": ["previous_responsible_name", "new_responsible_name"], "properties": { "previous_responsible_name": { "type": ["string", "null"] }, "new_responsible_name": { "type": ["string", "null"] } } },
+      "DocumentEventBase": { "type": "object", "additionalProperties": false, "required": ["id", "type", "occurred_at", "actor", "version", "detail"], "properties": { "id": { "type": "string", "format": "uuid" }, "type": { "type": "string" }, "occurred_at": { "type": "string", "format": "date-time" }, "actor": { "$ref": "#/components/schemas/DocumentEventActor" }, "version": { "$ref": "#/components/schemas/DocumentEventVersion" }, "detail": {} } },
+      "DocumentCreatedEvent": { "allOf": [{ "$ref": "#/components/schemas/DocumentEventBase" }, { "type": "object", "properties": { "type": { "enum": ["document.created"] }, "detail": { "$ref": "#/components/schemas/DocumentCreatedDetail" } } }] },
+      "VersionUploadedEvent": { "allOf": [{ "$ref": "#/components/schemas/DocumentEventBase" }, { "type": "object", "properties": { "type": { "enum": ["document.version_uploaded"] }, "detail": { "$ref": "#/components/schemas/VersionUploadedDetail" } } }] },
+      "CurrentVersionChangedEvent": { "allOf": [{ "$ref": "#/components/schemas/DocumentEventBase" }, { "type": "object", "properties": { "type": { "enum": ["document.current_version_changed"] }, "detail": { "$ref": "#/components/schemas/CurrentVersionChangedDetail" } } }] },
+      "ResponsibleAssignedEvent": { "allOf": [{ "$ref": "#/components/schemas/DocumentEventBase" }, { "type": "object", "properties": { "type": { "enum": ["document.responsible_assigned"] }, "detail": { "$ref": "#/components/schemas/ResponsibilityChangedDetail" } } }] },
+      "ResponsibleChangedEvent": { "allOf": [{ "$ref": "#/components/schemas/DocumentEventBase" }, { "type": "object", "properties": { "type": { "enum": ["document.responsible_changed"] }, "detail": { "$ref": "#/components/schemas/ResponsibilityChangedDetail" } } }] },
+      "ResponsibleRemovedEvent": { "allOf": [{ "$ref": "#/components/schemas/DocumentEventBase" }, { "type": "object", "properties": { "type": { "enum": ["document.responsible_removed"] }, "detail": { "$ref": "#/components/schemas/ResponsibilityChangedDetail" } } }] },
+      "DocumentEvent": { "oneOf": [{ "$ref": "#/components/schemas/DocumentCreatedEvent" }, { "$ref": "#/components/schemas/VersionUploadedEvent" }, { "$ref": "#/components/schemas/CurrentVersionChangedEvent" }, { "$ref": "#/components/schemas/ResponsibleAssignedEvent" }, { "$ref": "#/components/schemas/ResponsibleChangedEvent" }, { "$ref": "#/components/schemas/ResponsibleRemovedEvent" }], "discriminator": { "propertyName": "type", "mapping": { "document.created": "#/components/schemas/DocumentCreatedEvent", "document.version_uploaded": "#/components/schemas/VersionUploadedEvent", "document.current_version_changed": "#/components/schemas/CurrentVersionChangedEvent", "document.responsible_assigned": "#/components/schemas/ResponsibleAssignedEvent", "document.responsible_changed": "#/components/schemas/ResponsibleChangedEvent", "document.responsible_removed": "#/components/schemas/ResponsibleRemovedEvent" } } },
+      "DocumentHistorySuccess": { "type": "object", "additionalProperties": false, "required": ["success", "data", "meta", "message"], "properties": { "success": { "type": "boolean", "enum": [true] }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/DocumentEvent" } }, "meta": { "type": "object", "additionalProperties": false, "required": ["next_cursor"], "properties": { "next_cursor": { "type": ["string", "null"] } } }, "message": { "type": "string" } } },
+      "Capabilities": { "type": "object", "additionalProperties": false, "required": ["can_download", "can_upload_version", "can_mark_version_current"], "properties": { "can_download": { "type": "boolean" }, "can_upload_version": { "type": "boolean" }, "can_mark_version_current": { "type": "boolean" } } },
+      "DocumentDetail": { "type": "object", "additionalProperties": false, "required": ["id", "name", "description", "category", "responsible_unit", "responsible", "responsibility_revision", "status", "author_id", "institution_id", "node_id", "created_at", "updated_at", "author", "location", "current_version", "version_count", "capabilities"], "properties": { "id": { "type": "string", "format": "uuid" }, "name": { "type": "string" }, "description": { "type": ["string", "null"] }, "category": { "type": ["string", "null"] }, "responsible_unit": { "type": ["string", "null"] }, "responsible": { "$ref": "#/components/schemas/ResponsibleSummary" }, "responsibility_revision": { "type": "integer", "minimum": 0 }, "status": { "type": "boolean", "enum": [true] }, "author_id": { "type": ["string", "null"], "format": "uuid" }, "institution_id": { "type": "string", "format": "uuid" }, "node_id": { "type": "string", "format": "uuid" }, "created_at": { "type": ["string", "null"], "format": "date-time" }, "updated_at": { "type": ["string", "null"], "format": "date-time" }, "author": { "$ref": "#/components/schemas/AuthorSummary" }, "location": { "$ref": "#/components/schemas/LocationSummary" }, "current_version": { "oneOf": [{ "$ref": "#/components/schemas/DocumentVersion" }, { "type": "null" }] }, "version_count": { "type": "integer", "minimum": 0 }, "capabilities": { "$ref": "#/components/schemas/Capabilities" } } },
+      "DocumentDetailSuccess": { "type": "object", "additionalProperties": false, "required": ["success", "data", "message"], "properties": { "success": { "type": "boolean", "enum": [true] }, "data": { "$ref": "#/components/schemas/DocumentDetail" }, "message": { "type": "string" } } },
+      "VersionSuccess": { "type": "object", "additionalProperties": false, "required": ["success", "data", "message"], "properties": { "success": { "type": "boolean", "enum": [true] }, "data": { "$ref": "#/components/schemas/DocumentVersion" }, "message": { "type": "string" } } },
+      "VersionCollectionSuccess": { "type": "object", "additionalProperties": false, "required": ["success", "data", "message"], "properties": { "success": { "type": "boolean", "enum": [true] }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/DocumentVersion" } }, "message": { "type": "string" } } },
+      "Error": { "type": "object", "additionalProperties": false, "required": ["success", "error"], "properties": { "success": { "type": "boolean", "enum": [false] }, "error": { "type": "object", "additionalProperties": false, "required": ["code", "message"], "properties": { "code": { "type": "string" }, "message": { "type": "string" }, "fields": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "string" } } } } } } }
+    },
+    "responses": {
+      "Unauthenticated": { "description": "Authentication required.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "success": false, "error": { "code": "AUTH_UNAUTHENTICATED", "message": "Authentication is required." } } } } },
+      "InactiveUser": { "description": "The authenticated account is inactive.", "content": { "application/json": { "example": { "success": false, "message": "This account is inactive." } } } },
+      "MutationForbidden": { "description": "The role cannot mutate versions.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "success": false, "error": { "code": "DOCUMENT_VERSION_MUTATION_FORBIDDEN", "message": "You are not allowed to modify document versions." } } } } },
+      "DocumentNotAvailable": { "description": "Document missing, inactive, foreign, or outside an accessible canonical node path.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "success": false, "error": { "code": "DOCUMENT_NOT_AVAILABLE", "message": "The document is not available." } } } } },
+      "VersionOrDocumentNotAvailable": { "description": "Document or active version unavailable.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "success": false, "error": { "code": "DOCUMENT_VERSION_NOT_AVAILABLE", "message": "The document version is not available." } } } } },
+      "DownloadNotAvailable": { "description": "Document, active version, or physical file unavailable.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "success": false, "error": { "code": "DOCUMENT_FILE_NOT_AVAILABLE", "message": "The document file is not available." } } } } },
+      "ValidationFailed": { "description": "Multipart request invalid.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "success": false, "error": { "code": "VALIDATION_FAILED", "message": "The document version request is invalid.", "fields": { "file": ["The file field is required."] } } } } } },
+      "StorageFailed": { "description": "Storage access or required download emission failed in a controlled way.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "success": false, "error": { "code": "DOCUMENT_STORAGE_FAILED", "message": "The document storage service is unavailable." } } } } },
+      "CreationOrStorageFailed": { "description": "Storage or database persistence failed in a controlled way.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "examples": { "storage": { "value": { "success": false, "error": { "code": "DOCUMENT_STORAGE_FAILED", "message": "The document file could not be stored." } } }, "persistence": { "value": { "success": false, "error": { "code": "DOCUMENT_VERSION_CREATION_FAILED", "message": "The document version could not be created." } } } } } } }
+      ,"ResponsibilityForbidden": { "description": "The actor lacks documents.manage or the authenticated account is inactive.", "content": { "application/json": { "schema": { "oneOf": [{ "$ref": "#/components/schemas/Error" }, { "$ref": "#/components/schemas/InactiveAccountError" }] }, "examples": { "forbidden": { "value": { "success": false, "error": { "code": "DOCUMENT_RESPONSIBILITY_FORBIDDEN", "message": "You are not allowed to manage document responsibility." } } }, "inactive": { "value": { "success": false, "message": "This account is inactive." } } } } } }
+      ,"ResponsibilityNotAvailable": { "description": "Document unavailable, or target user missing, foreign, inactive, or deleted; target causes are intentionally indistinguishable.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "success": false, "error": { "code": "DOCUMENT_RESPONSIBLE_NOT_AVAILABLE", "message": "The selected responsible user is not available." } } } } }
+      ,"ResponsibilityConflict": { "description": "expected_revision is stale; no automatic retry occurs.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "success": false, "error": { "code": "DOCUMENT_RESPONSIBILITY_CONFLICT", "message": "The document responsibility has changed." } } } } }
+      ,"ResponsibilityValidationFailed": { "description": "Responsibility payload or search query is invalid.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "success": false, "error": { "code": "VALIDATION_FAILED", "message": "The document responsibility request is invalid.", "fields": { "expected_revision": ["The expected revision field is required."] } } } } } }
+      ,"ResponsibilityFailed": { "description": "The atomic responsibility update failed without exposing internal details.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "success": false, "error": { "code": "DOCUMENT_RESPONSIBILITY_FAILED", "message": "The document responsibility could not be updated." } } } } }
+      ,"TraceabilityForbidden": { "description": "The actor lacks traceability.view or the authenticated account is inactive.", "content": { "application/json": { "example": { "message": "Forbidden." } } } }
+      ,"HistoryValidationFailed": { "description": "History pagination parameters are invalid.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "success": false, "error": { "code": "VALIDATION_FAILED", "message": "The document history request is invalid.", "fields": { "limit": ["The limit field must not be greater than 100."] } } } } } }
+    }
+  }
+}

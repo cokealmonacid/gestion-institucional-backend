@@ -1,0 +1,22 @@
+info:
+  name: Search documents
+  type: http
+  seq: 44
+
+http:
+  method: GET
+  url: "{{API}}/institution/documents/search?q={{SEARCH_TERM}}"
+  auth:
+    type: bearer
+    token: "{{TOKEN}}"
+
+runtime:
+  variables:
+    - name: SEARCH_TERM
+      value: policy
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

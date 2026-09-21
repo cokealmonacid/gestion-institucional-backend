@@ -3,6 +3,7 @@
 namespace Modules\Nodes\Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Modules\Institution\Models\Institution;
 use Modules\Nodes\Models\Node;
 
 class NodesFactory extends Factory
@@ -12,6 +13,13 @@ class NodesFactory extends Factory
      */
     protected $model = Node::class;
 
+    public function configure(): static
+    {
+        return $this->afterMaking(function (Node $node): void {
+            $node->prepareForCreation();
+        });
+    }
+
     /**
      * Define the model's default state.
      */
@@ -19,11 +27,9 @@ class NodesFactory extends Factory
     {
         return [
             'id' => fake()->uuid(),
-            'name' => fake()->word(),
-            'path' => fn (array $attributes) => $attributes['id'],
-            'depth' => 0,
-            'order' => fake()->numberBetween(1, 1000),
+            'name' => fake()->unique()->word(),
             'active' => fake()->boolean(),
+            'institution_id' => Institution::factory(),
         ];
     }
 }

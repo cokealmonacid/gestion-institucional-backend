@@ -15,10 +15,13 @@ config:
       bypassProxy: ""
 
 request:
+  auth:
+    type: bearer
+    token: ""
   variables:
     - name: API
       value: http://127.0.0.1:8000/api/v1
-  bundled: false
+bundled: false
 extensions:
   bruno:
     ignore:

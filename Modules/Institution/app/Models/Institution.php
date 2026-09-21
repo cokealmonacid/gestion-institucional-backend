@@ -4,7 +4,7 @@ namespace Modules\Institution\Models;
 
 use App\Models\User;
 use Modules\Documents\Models\Document;
-use Modules\Documents\Models\Tag;
+use Modules\Institution\Models\Tag;
 use Modules\Nodes\Models\Node;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;

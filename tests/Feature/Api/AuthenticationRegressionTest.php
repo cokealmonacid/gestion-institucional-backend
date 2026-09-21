@@ -30,7 +30,6 @@ class AuthenticationRegressionTest extends TestCase
             'user password update' => ['PATCH', '/api/v1/user/update-password'],
             'nodes module' => ['GET', '/api/v1/nodes'],
             'institution module' => ['GET', '/api/v1/institution/tree-directory'],
-            'documents module' => ['GET', '/api/v1/documents/example-document'],
         ];
     }
 

@@ -2,10 +2,15 @@
 
 namespace Tests\Feature\Api;
 
+use App\Enums\RoleType;
+use App\Models\Rol;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Modules\Documents\Models\Document;
+use Modules\Documents\Models\DocumentVersion;
 use Modules\Institution\Models\Institution;
 use Modules\Nodes\Models\Node;
 use Tests\TestCase;
@@ -170,8 +175,11 @@ class DocumentExplorerReadContractTest extends TestCase
             'description',
             'id',
             'institution_id',
+            'lifecycle',
             'name',
             'node_id',
+            'responsibility_revision',
+            'responsible',
             'responsible_unit',
             'status',
             'updated_at',
@@ -181,6 +189,163 @@ class DocumentExplorerReadContractTest extends TestCase
         $this->assertNull($document['author_id']);
         $this->assertIsString($document['created_at']);
         $this->assertIsString($document['updated_at']);
+        $this->assertSame([
+            'capabilities',
+            'has_current_version',
+            'version_count',
+        ], $this->sortedKeys($document['lifecycle']));
+        $this->assertSame([
+            'can_download',
+            'can_upload_version',
+        ], $this->sortedKeys($document['lifecycle']['capabilities']));
+    }
+
+    public function test_documents_project_absent_active_inactive_and_deleted_responsibles_for_readers(): void
+    {
+        [$institution, $reader] = $this->institutionUser();
+        $reader->roles()->attach(Rol::firstOrCreate(['type' => RoleType::Reader]));
+        $node = $this->node($institution, 'Selected', '1');
+        $absent = $this->document($institution, $node, 'Absent');
+        $activeUser = User::factory()->for($institution)->create(['name' => 'Active Responsible', 'email' => 'active@example.test']);
+        $inactiveUser = User::factory()->for($institution)->inactive()->create(['name' => 'Inactive Responsible', 'email' => 'inactive@example.test']);
+        $deletedUser = User::factory()->for($institution)->create(['name' => 'Deleted Responsible', 'email' => 'deleted@example.test']);
+        $active = $this->document($institution, $node, 'Active');
+        $inactive = $this->document($institution, $node, 'Inactive');
+        $deleted = $this->document($institution, $node, 'Deleted');
+        $active->update(['responsible_user_id' => $activeUser->id, 'responsibility_revision' => 2]);
+        $inactive->update(['responsible_user_id' => $inactiveUser->id, 'responsibility_revision' => 3]);
+        $deleted->update(['responsible_user_id' => $deletedUser->id, 'responsibility_revision' => 4]);
+        $deletedUser->delete();
+        Sanctum::actingAs($reader);
+
+        $response = $this->getJson("/api/v1/institution/tree-directory/{$node->id}/documents")
+            ->assertOk()
+            ->assertJsonPath('data.0.lifecycle.capabilities.can_upload_version', false);
+        $documents = collect($response->json('data'))->keyBy('id');
+
+        $this->assertNull($documents[$absent->id]['responsible']);
+        $this->assertSame(0, $documents[$absent->id]['responsibility_revision']);
+        $this->assertSame(['id' => $activeUser->id, 'name' => 'Active Responsible', 'active' => true], $documents[$active->id]['responsible']);
+        $this->assertSame(2, $documents[$active->id]['responsibility_revision']);
+        $this->assertSame(['id' => $inactiveUser->id, 'name' => 'Inactive Responsible', 'active' => false], $documents[$inactive->id]['responsible']);
+        $this->assertSame(3, $documents[$inactive->id]['responsibility_revision']);
+        $this->assertSame(['id' => $deletedUser->id, 'name' => 'Deleted Responsible', 'active' => false], $documents[$deleted->id]['responsible']);
+        $this->assertSame(4, $documents[$deleted->id]['responsibility_revision']);
+        $this->assertStringNotContainsString('@example.test', $response->getContent());
+    }
+
+    public function test_document_lifecycle_summary_is_authoritative_for_persisted_versions_and_role(): void
+    {
+        Storage::fake('local');
+        config(['filesystems.default' => 'local']);
+        [$institution, $editor] = $this->institutionUser();
+        $editor->roles()->attach(Rol::firstOrCreate(['type' => RoleType::Editor]));
+        $node = $this->node($institution, 'Selected', '1');
+        $empty = $this->document($institution, $node, 'Empty');
+        $available = $this->document($institution, $node, 'Available');
+        $missing = $this->document($institution, $node, 'Missing');
+        $unusable = $this->document($institution, $node, 'Unusable');
+        $this->version($available, $editor, 1, true, true, 'private/available.pdf');
+        $this->version($available, $editor, 2, true, false, 'private/history.pdf');
+        $this->version($available, $editor, 3, false, false, 'private/inactive.pdf');
+        $this->version($missing, $editor, 1, true, true, 'private/missing.pdf');
+        $this->version($unusable, $editor, 1, true, true, '   ');
+        Sanctum::actingAs($editor);
+
+        Storage::shouldReceive('disk')->never();
+
+        $response = $this->getJson("/api/v1/institution/tree-directory/{$node->id}/documents")
+            ->assertOk()
+            ->assertJsonMissingPath('data.0.lifecycle.current_version');
+        $this->assertStringNotContainsString('private/', $response->getContent());
+        $documents = collect($response->json('data'))
+            ->keyBy('id');
+
+        $this->assertSame([
+            'version_count' => 0,
+            'has_current_version' => false,
+            'capabilities' => ['can_download' => false, 'can_upload_version' => true],
+        ], $documents[$empty->id]['lifecycle']);
+        $this->assertSame([
+            'version_count' => 2,
+            'has_current_version' => true,
+            'capabilities' => ['can_download' => true, 'can_upload_version' => true],
+        ], $documents[$available->id]['lifecycle']);
+        $this->assertSame([
+            'version_count' => 1,
+            'has_current_version' => true,
+            'capabilities' => ['can_download' => true, 'can_upload_version' => true],
+        ], $documents[$missing->id]['lifecycle']);
+        $this->assertSame([
+            'version_count' => 1,
+            'has_current_version' => true,
+            'capabilities' => ['can_download' => false, 'can_upload_version' => true],
+        ], $documents[$unusable->id]['lifecycle']);
+
+        $reader = User::factory()->for($institution)->create();
+        $reader->roles()->attach(Rol::firstOrCreate(['type' => RoleType::Reader]));
+        Sanctum::actingAs($reader);
+        $this->getJson("/api/v1/institution/tree-directory/{$node->id}/documents")
+            ->assertOk()
+            ->assertJsonPath('data.0.lifecycle.capabilities.can_upload_version', false);
+    }
+
+    public function test_document_lifecycle_summary_uses_a_constant_number_of_version_queries(): void
+    {
+        Storage::fake('local');
+        config(['filesystems.default' => 'local']);
+        [$institution, $user] = $this->institutionUser();
+        Sanctum::actingAs($user);
+        Storage::shouldReceive('disk')->never();
+        $queries = [];
+        DB::listen(function ($query) use (&$queries): void {
+            if (str_contains(strtolower($query->sql), 'document_versions')) {
+                $queries[] = $query->sql;
+            }
+        });
+
+        foreach ([1, 6, 12] as $documentCount) {
+            $node = $this->node($institution, "Selected {$documentCount}", (string) $documentCount);
+            foreach (range(1, $documentCount) as $number) {
+                $document = $this->document($institution, $node, "Document {$documentCount}-{$number}");
+                $this->version($document, $user, 1, true, true, "private/{$documentCount}-{$number}.pdf");
+            }
+
+            $queries = [];
+            $this->getJson("/api/v1/institution/tree-directory/{$node->id}/documents")
+                ->assertOk()
+                ->assertJsonCount($documentCount, 'data');
+
+            $this->assertCount(2, $queries);
+        }
+    }
+
+    public function test_responsible_projection_uses_one_user_query_as_document_count_grows(): void
+    {
+        [$institution, $user] = $this->institutionUser();
+        Sanctum::actingAs($user);
+        $queries = [];
+        DB::listen(function ($query) use (&$queries): void {
+            if (str_contains(strtolower($query->sql), 'from "users"')) {
+                $queries[] = $query->sql;
+            }
+        });
+
+        foreach ([1, 6, 12] as $documentCount) {
+            $node = $this->node($institution, "Responsible {$documentCount}", (string) $documentCount);
+            foreach (range(1, $documentCount) as $number) {
+                $responsible = User::factory()->for($institution)->create();
+                $document = $this->document($institution, $node, "Document {$documentCount}-{$number}");
+                $document->update(['responsible_user_id' => $responsible->id, 'responsibility_revision' => 1]);
+            }
+
+            $queries = [];
+            $this->getJson("/api/v1/institution/tree-directory/{$node->id}/documents")
+                ->assertOk()
+                ->assertJsonCount($documentCount, 'data');
+
+            $this->assertCount(1, $queries);
+        }
     }
 
     public function test_top_level_nodes_are_regular_selectable_nodes_with_children_and_documents(): void
@@ -305,6 +470,29 @@ class DocumentExplorerReadContractTest extends TestCase
         $document->save();
 
         return $document;
+    }
+
+    private function version(
+        Document $document,
+        User $author,
+        int $number,
+        bool $active,
+        bool $current,
+        string $path,
+    ): DocumentVersion {
+        return DocumentVersion::create([
+            'version_number' => $number,
+            'url' => $path,
+            'filename' => basename($path),
+            'mime_type' => 'application/pdf',
+            'file_size' => 3,
+            'author_id' => $author->id,
+            'document_id' => $document->id,
+            'institution_id' => $document->institution_id,
+            'node_id' => $document->node_id,
+            'active' => $active,
+            'is_current' => $current,
+        ]);
     }
 
     /** @return list<string> */

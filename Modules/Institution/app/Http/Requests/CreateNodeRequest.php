@@ -2,7 +2,7 @@
 
 namespace Modules\Institution\Http\Requests;
 
-use App\Enums\RoleType;
+use App\Enums\InstitutionAbility;
 use App\Http\Responses\ApiResponse;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
@@ -13,9 +13,7 @@ class CreateNodeRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->roles()
-            ->whereIn('type', [RoleType::Admin->value, RoleType::Editor->value])
-            ->exists() ?? false;
+        return $this->user()?->can(InstitutionAbility::ManageNodes->value) ?? false;
     }
 
     protected function prepareForValidation(): void

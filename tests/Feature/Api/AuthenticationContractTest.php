@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Api;
 
+use App\Enums\InstitutionAbility;
 use App\Enums\RoleType;
 use App\Models\Rol;
 use App\Models\User;
@@ -85,6 +86,28 @@ class AuthenticationContractTest extends TestCase
             ->assertJsonStructure(['data' => ['token']]);
     }
 
+    public function test_login_rejects_an_inactive_account(): void
+    {
+        $institution = Institution::factory()->create();
+        $user = User::factory()->inactive()->for($institution)->create([
+            'email' => 'inactive@example.test',
+            'password' => Hash::make('correct-password'),
+        ]);
+
+        $this->postJson('/api/v1/auth/login', [
+            'email' => $user->email,
+            'password' => 'correct-password',
+        ])->assertForbidden()->assertExactJson([
+            'success' => false,
+            'error' => [
+                'code' => 'AUTH_ACCOUNT_INACTIVE',
+                'message' => 'This account is inactive.',
+            ],
+        ]);
+
+        $this->assertDatabaseCount('personal_access_tokens', 0);
+    }
+
     public function test_login_requires_an_existing_institution_before_creating_a_token(): void
     {
         $user = User::factory()->create([
@@ -134,6 +157,7 @@ class AuthenticationContractTest extends TestCase
                         'name' => 'Acervo Test',
                     ],
                     'roles' => ['admin', 'reader'],
+                    'abilities' => array_column(InstitutionAbility::cases(), 'value'),
                 ],
             ],
             'message' => 'Login successful.',
@@ -162,6 +186,15 @@ class AuthenticationContractTest extends TestCase
                             'name' => 'Acervo Test',
                         ],
                         'roles' => ['editor'],
+                        'abilities' => [
+                            InstitutionAbility::View->value,
+                            InstitutionAbility::ManageDocuments->value,
+                            InstitutionAbility::ManageVersions->value,
+                            InstitutionAbility::ManageTags->value,
+                            InstitutionAbility::TagDocuments->value,
+                            InstitutionAbility::ManageComments->value,
+                            InstitutionAbility::ViewTraceability->value,
+                        ],
                     ],
                 ],
                 'message' => 'Profile retrieved successfully.',

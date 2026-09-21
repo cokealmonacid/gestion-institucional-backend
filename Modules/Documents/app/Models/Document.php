@@ -22,6 +22,8 @@ class Document extends Model
         'description',
         'category',
         'responsible_unit',
+        'responsible_user_id',
+        'responsibility_revision',
         'status',
         'author_id',
         'institution_id',
@@ -30,11 +32,27 @@ class Document extends Model
 
     protected $casts = [
         'status' => 'boolean',
+        'responsibility_revision' => 'integer',
     ];
 
     public function author()
     {
         return $this->belongsTo(User::class, 'author_id');
+    }
+
+    public function responsibleUser()
+    {
+        return $this->belongsTo(User::class, 'responsible_user_id')->withTrashed();
+    }
+
+    public function responsibilityHistories()
+    {
+        return $this->hasMany(DocumentResponsibleHistory::class, 'document_id');
+    }
+
+    public function events()
+    {
+        return $this->hasMany(DocumentEvent::class);
     }
 
     public function institution()
@@ -57,6 +75,13 @@ class Document extends Model
     public function versions()
     {
         return $this->hasMany(DocumentVersion::class, 'document_id');
+    }
+
+    public function currentActiveVersion()
+    {
+        return $this->hasOne(DocumentVersion::class, 'document_id')
+            ->where('active', true)
+            ->where('is_current', true);
     }
 
     public function downloads()

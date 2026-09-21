@@ -5,9 +5,10 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\BaseController;
 use App\Http\Resources\UserResource;
 use App\Http\Responses\ApiResponse;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
-use Validator;
+use Illuminate\Support\Facades\Validator;
 
 class UsersController extends BaseController
 {
@@ -66,5 +67,30 @@ class UsersController extends BaseController
         $user->save();
 
         return $this->sendResponse([], 'Password has been udpated successfully.');
+    }
+
+    public function search(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'q' => 'required|string|min:2|max:100',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->sendError('Validation failed.', ['error' => $validator->errors()], 422);
+        }
+
+        $q = $request->query('q');
+
+        $users = User::query()
+            ->where('institution_id', $request->user()->institution_id)
+            ->where('active', true)
+            ->where(function ($query) use ($q) {
+                $query->where('name', 'like', "%{$q}%")
+                    ->orWhere('email', 'like', "%{$q}%");
+            })
+            ->limit(10)
+            ->get(['id', 'name', 'email']);
+
+        return ApiResponse::success(['users' => $users], 'Users retrieved successfully.');
     }
 }

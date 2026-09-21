@@ -2,7 +2,7 @@
 
 namespace Modules\Institution\Actions;
 
-use App\Enums\RoleType;
+use App\Enums\InstitutionAbility;
 use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -139,7 +139,7 @@ class CreateNodeAction
 
     public function authorize(User $actor): void
     {
-        if (! $actor->roles()->whereIn('type', [RoleType::Admin->value, RoleType::Editor->value])->exists()) {
+        if (! $actor->can(InstitutionAbility::ManageNodes->value)) {
             throw new NodeCreationException('NODE_CREATE_FORBIDDEN', 'You are not allowed to create nodes.', 403);
         }
     }

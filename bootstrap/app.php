@@ -1,11 +1,13 @@
 <?php
 
+use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Responses\ApiResponse;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -15,6 +17,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->alias([
+            'active' => EnsureUserIsActive::class,
+        ]);
+
         $middleware->redirectGuestsTo(function (Request $request) {
             if ($request->is('api/*')) {
                 return null;
@@ -45,6 +51,18 @@ return Application::configure(basePath: dirname(__DIR__))
             ) || (
                 $request->isMethod('POST')
                 && $request->is('api/v1/institution/tree-directory/*/documents')
+            ) || (
+                $request->isMethod('GET')
+                && preg_match('#^api/v1/documents/[^/]+(?:/download|/history|/versions|/versions/[^/]+/download)?$#', $request->path())
+            ) || (
+                $request->isMethod('POST')
+                && preg_match('#^api/v1/documents/[^/]+/versions$#', $request->path())
+            ) || (
+                $request->isMethod('PATCH')
+                && preg_match('#^api/v1/documents/[^/]+/versions/[^/]+/current$#', $request->path())
+            ) || (
+                in_array($request->method(), ['GET', 'PATCH'], true)
+                && preg_match('#^api/v1/documents/[^/]+/(?:responsible-options|responsible)$#', $request->path())
             );
 
             if ($usesAuthenticationContract) {
@@ -57,6 +75,12 @@ return Application::configure(basePath: dirname(__DIR__))
 
             if ($request->is('api/*')) {
                 return response()->json(['success' => false, 'message' => 'Unauthenticated.'], 401);
+            }
+        });
+
+        $exceptions->render(function (AccessDeniedHttpException $e, Request $request) {
+            if ($request->is('api/*')) {
+                return response()->json(['message' => 'Forbidden.'], 403);
             }
         });
     })->create();

@@ -20,7 +20,8 @@ class DocumentExplorerOpenApiTest extends TestCase
         $contract = $this->contract();
 
         $this->assertSame('3.1.0', $contract['openapi']);
-        $this->assertSame('2.1.0', $contract['info']['version']);
+        $this->assertSame('5.0.0', $contract['info']['version']);
+        $this->assertStringContainsString('Only the admin role is allowed', $contract['paths']['/api/v1/institution/tree-directory']['post']['description']);
         $this->assertArrayNotHasKey('servers', $contract);
         $this->assertSame([
             '/api/v1/institution/tree-directory',
@@ -111,12 +112,15 @@ class DocumentExplorerOpenApiTest extends TestCase
             'description',
             'category',
             'responsible_unit',
+            'responsible',
+            'responsibility_revision',
             'status',
             'author_id',
             'institution_id',
             'node_id',
             'created_at',
             'updated_at',
+            'lifecycle',
         ], $document['required']);
         $this->assertSame($document['required'], array_keys($document['properties']));
         $this->assertSame('boolean', $document['properties']['status']['type']);
@@ -124,6 +128,28 @@ class DocumentExplorerOpenApiTest extends TestCase
         $this->assertSame(['string', 'null'], $document['properties']['author_id']['type']);
         $this->assertSame('string', $document['properties']['node_id']['type']);
         $this->assertSame('uuid', $document['properties']['node_id']['format']);
+        $this->assertSame(['$ref' => '#/components/schemas/ResponsibleSummary'], $document['properties']['responsible']);
+        $this->assertSame('integer', $document['properties']['responsibility_revision']['type']);
+        $this->assertSame(0, $document['properties']['responsibility_revision']['minimum']);
+
+        $responsible = $this->contract()['components']['schemas']['ResponsibleSummary'];
+        $this->assertFalse($responsible['additionalProperties']);
+        $this->assertSame(['object', 'null'], $responsible['type']);
+        $this->assertSame(['id', 'name', 'active'], $responsible['required']);
+        $this->assertSame($responsible['required'], array_keys($responsible['properties']));
+        $this->assertSame('uuid', $responsible['properties']['id']['format']);
+        $this->assertSame('boolean', $responsible['properties']['active']['type']);
+
+        $summary = $this->contract()['components']['schemas']['DocumentLifecycleSummary'];
+        $this->assertFalse($summary['additionalProperties']);
+        $this->assertSame(['version_count', 'has_current_version', 'capabilities'], $summary['required']);
+        $this->assertSame($summary['required'], array_keys($summary['properties']));
+        $this->assertSame(0, $summary['properties']['version_count']['minimum']);
+
+        $capabilities = $this->contract()['components']['schemas']['DocumentLifecycleSummaryCapabilities'];
+        $this->assertFalse($capabilities['additionalProperties']);
+        $this->assertSame(['can_download', 'can_upload_version'], $capabilities['required']);
+        $this->assertSame($capabilities['required'], array_keys($capabilities['properties']));
     }
 
     public function test_every_operation_has_a_complete_success_example(): void
@@ -138,6 +164,20 @@ class DocumentExplorerOpenApiTest extends TestCase
             $this->assertTrue($example['success']);
             $this->assertIsString($example['message']);
         }
+    }
+
+    public function test_document_examples_include_responsibility_for_listing_and_creation(): void
+    {
+        $contract = $this->contract();
+        $listing = $contract['paths']['/api/v1/institution/tree-directory/{node_id}/documents']['get']['responses']['200']['content']['application/json']['example']['data'][0];
+        $creation = $contract['paths']['/api/v1/institution/tree-directory/{node_id}/documents']['post']['responses']['201']['content']['application/json']['example']['data'];
+
+        $this->assertSame(['id', 'name', 'active'], array_keys($listing['responsible']));
+        $this->assertSame(2, $listing['responsibility_revision']);
+        $this->assertNull($creation['responsible']);
+        $this->assertSame(0, $creation['responsibility_revision']);
+        $this->assertArrayHasKey('responsible_unit', $listing);
+        $this->assertArrayHasKey('responsible_unit', $creation);
     }
 
     public function test_create_request_requires_only_name_and_nullable_parent_id(): void

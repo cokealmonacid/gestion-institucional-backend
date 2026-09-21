@@ -2,34 +2,66 @@
 
 namespace Modules\Institution\Http\Controllers\API;
 
-use App\Http\Controllers\BaseController;
-use Illuminate\Validation\Rule;
-use Illuminate\Http\Request;
-use App\Models\RoleUser;
 use App\Enums\RoleType;
-use App\Models\User;
+use App\Http\Controllers\BaseController;
 use App\Models\Rol;
-use Validator;
+use App\Models\RoleUser;
+use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
+use Modules\Institution\Http\Resources\UserResource;
 
 class UsersController extends BaseController
 {
-    public function store(Request $request) 
+    public function index(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'institution_id' => ['required', 'uuid'],
+            'per_page' => ['sometimes', 'integer', 'min:1'],
+        ]);
+
+        if ($validator->fails()) {
+            return $this->sendError('Validation failed.', ['error' => $validator->errors()], 422);
+        }
+
+        if (! $this->institutionMatchesActor($request)) {
+            return $this->institutionalUserNotFound();
+        }
+
+        $users = User::where('institution_id', $request->user()->institution_id)
+            ->with('roles')
+            ->paginate($request->input('per_page', 15));
+
+        $users->getCollection()->transform(
+            fn (User $user) => (new UserResource($user))->resolve($request)
+        );
+
+        return $this->sendResponse($users, 'Users retrieved successfully.');
+    }
+
+    public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'email' => 'bail|required|string|email|unique:users,email',
             'password' => 'required|min:8',
             'password_confirmation' => 'required|same:password',
-            'institution_id' => 'required|exists:institutions,id',
+            'institution_id' => ['required', 'uuid'],
             'rol' => ['required', Rule::enum(RoleType::class)],
         ]);
 
         if ($validator->fails()) {
-            return $this->sendError('Validation failed.', ['error'=> $validator->errors()], 422);
+            return $this->sendError('Validation failed.', ['error' => $validator->errors()], 422);
+        }
+
+        if (! $this->institutionMatchesActor($request)) {
+            return $this->institutionalUserNotFound();
         }
 
         try {
             $input = $request->all();
+            $input['institution_id'] = $request->user()->institution_id;
             $rol = Rol::whereType($request->rol)->first();
             $input['password'] = bcrypt($input['password']);
 
@@ -38,7 +70,7 @@ class UsersController extends BaseController
 
             RoleUser::create([
                 'user_id' => $user->id,
-                'role_id' => $rol->id
+                'role_id' => $rol->id,
             ]);
 
             return $this->sendResponse([], 'Account registered successfully.');
@@ -47,38 +79,45 @@ class UsersController extends BaseController
         }
     }
 
-    public function update(Request $request) 
+    public function update(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'email' => 'required|string|email|exists:users,email',
+            'email' => 'required|string|email',
             'name' => 'sometimes|required|string|max:255',
-            'password' => 'sometimes|required|min:8',
-            'password_confirmation' => 'sometimes|required|same:password',
-            'institution_id' => [
-                'required',
-                'exists:institutions,id',
-                function ($attribute, $value, $fail) use ($request) {
-                    $user = User::whereEmail($request->email)->first();
-                    if ($user && $user->institution_id != $value) {
-                        $fail('User does not belong to this institution.');
-                    }
-                },
-            ],
+            'active' => 'sometimes|required|boolean',
+            'role' => ['sometimes', 'required', Rule::enum(RoleType::class)],
+            'institution_id' => ['required', 'uuid'],
         ]);
 
         if ($validator->fails()) {
-            return $this->sendError('Validation failed.', ['error'=> $validator->errors()], 422);
+            return $this->sendError('Validation failed.', ['error' => $validator->errors()], 422);
+        }
+
+        if (! $this->institutionMatchesActor($request)) {
+            return $this->institutionalUserNotFound();
+        }
+
+        $user = $this->institutionalUserByEmail($request);
+
+        if (! $user) {
+            return $this->institutionalUserNotFound();
         }
 
         try {
-            $user = User::whereEmail($request->email)->first();
-            $input = $request->all();
-
-            if (isset($input['password'])) {
-                $input['password'] = bcrypt($input['password']);
-            }
+            $input = $request->except(['role', 'email', 'institution_id']);
 
             $user->update($input);
+
+            if ($request->filled('role')) {
+                $rol = Rol::whereType($request->role)->first();
+
+                RoleUser::where('user_id', $user->id)->delete();
+
+                RoleUser::firstOrCreate([
+                    'user_id' => $user->id,
+                    'role_id' => $rol->id,
+                ]);
+            }
 
             return $this->sendResponse([], 'Account updated successfully.');
         } catch (\Exception $e) {
@@ -86,44 +125,54 @@ class UsersController extends BaseController
         }
     }
 
-    public function updateRole(Request $request)
+    public function destroy(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'email' => 'required|string|email|exists:users,email',
-            'role' => ['required', Rule::enum(RoleType::class), 'different:old_role'],
-            'old_role' => ['required', Rule::enum(RoleType::class)],
-            'institution_id' => [
-                'required',
-                'exists:institutions,id',
-                function ($attribute, $value, $fail) use ($request) {
-                    $user = User::whereEmail($request->email)->first();
-                    if ($user && $user->institution_id != $value) {
-                        $fail('User does not belong to this institution.');
-                    }
-                },
-            ],
+            'email' => 'required|string|email',
+            'institution_id' => ['required', 'uuid'],
         ]);
 
         if ($validator->fails()) {
-            return $this->sendError('Validation failed.', ['error'=> $validator->errors()], 422);
+            return $this->sendError('Validation failed.', ['error' => $validator->errors()], 422);
+        }
+
+        if (! $this->institutionMatchesActor($request)) {
+            return $this->institutionalUserNotFound();
+        }
+
+        $user = $this->institutionalUserByEmail($request);
+
+        if (! $user) {
+            return $this->institutionalUserNotFound();
+        }
+
+        if ($request->email === $request->user()->email) {
+            return $this->sendError('You cannot delete your own account.', [], 422);
         }
 
         try {
-            $user = User::whereEmail($request->email)->first();
-            $rol = Rol::whereType($request->role)->first();
+            $user->delete();
 
-            RoleUser::where('user_id', $user->id)
-                ->where('role_id', Rol::whereType($request->old_role)->first()->id)
-                ->delete();
-
-            RoleUser::firstOrCreate([
-                'user_id' => $user->id,
-                'role_id' => $rol->id,
-            ]);
-
-            return $this->sendResponse([], 'Role updated successfully.');
+            return $this->sendResponse([], 'Account deleted successfully.');
         } catch (\Exception $e) {
             return $this->sendError('Something went wrong.', [], 500);
         }
+    }
+
+    private function institutionMatchesActor(Request $request): bool
+    {
+        return (string) $request->input('institution_id') === (string) $request->user()->institution_id;
+    }
+
+    private function institutionalUserByEmail(Request $request): ?User
+    {
+        return User::where('institution_id', $request->user()->institution_id)
+            ->where('email', $request->input('email'))
+            ->first();
+    }
+
+    private function institutionalUserNotFound()
+    {
+        return $this->sendError('Institution user not found.', [], 404);
     }
 }
