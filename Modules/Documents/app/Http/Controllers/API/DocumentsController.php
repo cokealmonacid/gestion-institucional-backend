@@ -29,6 +29,11 @@ use Modules\Nodes\Models\Node;
 
 class DocumentsController extends BaseController
 {
+    private function storageDisk(): string
+    {
+        return config('documents.storage_disk') ?: config('filesystems.default');
+    }
+
     private function institutionDocumentQuery(Request $request): Builder
     {
         return Document::where('institution_id', $request->user()->institution_id);
@@ -43,7 +48,7 @@ class DocumentsController extends BaseController
     private function downloadVersion(Request $request, Document $document, DocumentVersion $version)
     {
         try {
-            $disk = Storage::disk(config('filesystems.default'));
+            $disk = Storage::disk($this->storageDisk());
             $exists = $version->url && $disk->exists($version->url);
         } catch (\Throwable) {
             return ApiResponse::error('DOCUMENT_STORAGE_FAILED', 'The document storage service is unavailable.', 500);
