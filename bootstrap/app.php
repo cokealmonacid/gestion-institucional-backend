@@ -53,7 +53,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 && $request->is('api/v1/institution/tree-directory/*/documents')
             ) || (
                 $request->isMethod('GET')
-                && preg_match('#^api/v1/documents/[^/]+(?:/download|/versions|/versions/[^/]+/download)?$#', $request->path())
+                && preg_match('#^api/v1/documents/[^/]+(?:/download|/history|/versions|/versions/[^/]+/download)?$#', $request->path())
             ) || (
                 $request->isMethod('POST')
                 && preg_match('#^api/v1/documents/[^/]+/versions$#', $request->path())

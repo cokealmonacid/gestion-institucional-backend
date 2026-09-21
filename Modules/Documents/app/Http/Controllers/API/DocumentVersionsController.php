@@ -10,10 +10,12 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Modules\Documents\Enums\DocumentEventType;
 use Modules\Documents\Http\Resources\DocumentVersionResource;
 use Modules\Documents\Models\Document;
 use Modules\Documents\Models\DocumentDownload;
 use Modules\Documents\Models\DocumentVersion;
+use Modules\Documents\Services\DocumentEventRecorder;
 use Modules\Documents\Services\DocumentLifecycleAccess;
 
 class DocumentVersionsController extends BaseController
@@ -94,7 +96,7 @@ class DocumentVersionsController extends BaseController
         );
     }
 
-    public function store(Request $request, $document_id, DocumentLifecycleAccess $access)
+    public function store(Request $request, $document_id, DocumentLifecycleAccess $access, DocumentEventRecorder $events)
     {
         $document = $access->findDocument($request->user(), $document_id);
 
@@ -180,7 +182,7 @@ class DocumentVersionsController extends BaseController
         }
 
         try {
-            $version = DB::transaction(function () use ($request, $document, $file, $versionId, $filename, $stored) {
+            $version = DB::transaction(function () use ($request, $document, $file, $versionId, $filename, $stored, $events) {
                 $lockedDocument = $this->lockDocument($document);
                 if (! $lockedDocument) {
                     return null;
@@ -209,6 +211,11 @@ class DocumentVersionsController extends BaseController
                     'is_current' => true,
                 ]);
                 $version->save();
+
+                $events->record($lockedDocument, DocumentEventType::VersionUploaded, $request->user(), [
+                    'version' => DocumentEventRecorder::versionSnapshot($version),
+                    'became_current' => true,
+                ], 'document_version', $version->id, $version, $version->created_at);
 
                 return $version;
             });
@@ -255,7 +262,7 @@ class DocumentVersionsController extends BaseController
         );
     }
 
-    public function destroy(Request $request, $document_id, $version_id)
+    public function destroy(Request $request, $document_id, $version_id, DocumentEventRecorder $events)
     {
         $document = $this->findDocument($request, $document_id);
 
@@ -269,9 +276,26 @@ class DocumentVersionsController extends BaseController
             return $this->sendError('Document version not found.', [], 404);
         }
 
-        $version->active = false;
-        $version->is_current = false;
-        $version->save();
+        $version = DB::transaction(function () use ($request, $document, $version, $events) {
+            $lockedVersion = $this->documentVersionQuery($document)->lockForUpdate()->findOrFail($version->id);
+            $wasCurrent = (bool) $lockedVersion->is_current;
+            $previous = $wasCurrent ? DocumentEventRecorder::versionSnapshot($lockedVersion) : null;
+
+            $lockedVersion->active = false;
+            $lockedVersion->is_current = false;
+            $lockedVersion->save();
+
+            if ($wasCurrent) {
+                $eventId = (string) Str::uuid();
+                $events->record($document, DocumentEventType::CurrentVersionChanged, $request->user(), [
+                    'version' => null,
+                    'previous_version' => $previous,
+                    'new_version' => null,
+                ], 'current_version_change', $eventId);
+            }
+
+            return $lockedVersion;
+        });
 
         return $this->sendResponse($version, 'Document version deactivated successfully.');
     }
@@ -296,8 +320,13 @@ class DocumentVersionsController extends BaseController
         return $this->sendResponse($version, 'Document version activated successfully.');
     }
 
-    public function current(Request $request, $document_id, $version_id, DocumentLifecycleAccess $access)
-    {
+    public function current(
+        Request $request,
+        $document_id,
+        $version_id,
+        DocumentLifecycleAccess $access,
+        DocumentEventRecorder $events,
+    ) {
         $document = $access->findDocument($request->user(), $document_id);
 
         if (! $document) {
@@ -316,7 +345,16 @@ class DocumentVersionsController extends BaseController
             return ApiResponse::error('DOCUMENT_VERSION_NOT_AVAILABLE', 'The document version is not available.', 404);
         }
 
-        $version = DB::transaction(function () use ($document, $version) {
+        if ($version->is_current) {
+            $version->load('author:id,name');
+
+            return ApiResponse::success(
+                (new DocumentVersionResource($version))->resolve($request),
+                'Document version marked as current successfully.',
+            );
+        }
+
+        $version = DB::transaction(function () use ($request, $document, $version, $events) {
             $lockedDocument = $this->lockDocument($document);
             if (! $lockedDocument) {
                 return null;
@@ -330,12 +368,30 @@ class DocumentVersionsController extends BaseController
                 return null;
             }
 
+            if ($lockedVersion->is_current) {
+                return $lockedVersion;
+            }
+
+            $previousVersion = $this->documentVersionQuery($lockedDocument)
+                ->where('active', true)
+                ->where('is_current', true)
+                ->first();
+
             $this->documentVersionQuery($lockedDocument)->update([
                 'is_current' => false,
             ]);
 
             $lockedVersion->is_current = true;
             $lockedVersion->save();
+
+            $eventId = (string) Str::uuid();
+            $events->record($lockedDocument, DocumentEventType::CurrentVersionChanged, $request->user(), [
+                'version' => DocumentEventRecorder::versionSnapshot($lockedVersion),
+                'previous_version' => $previousVersion
+                    ? DocumentEventRecorder::versionSnapshot($previousVersion)
+                    : null,
+                'new_version' => DocumentEventRecorder::versionSnapshot($lockedVersion),
+            ], 'current_version_change', $eventId, $lockedVersion);
 
             return $lockedVersion;
         });

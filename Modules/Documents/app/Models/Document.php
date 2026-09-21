@@ -50,6 +50,11 @@ class Document extends Model
         return $this->hasMany(DocumentResponsibleHistory::class, 'document_id');
     }
 
+    public function events()
+    {
+        return $this->hasMany(DocumentEvent::class);
+    }
+
     public function institution()
     {
         return $this->belongsTo(Institution::class, 'institution_id');

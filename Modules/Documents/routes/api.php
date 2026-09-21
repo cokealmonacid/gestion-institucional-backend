@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Modules\Documents\Http\Controllers\API\DocumentHistoryController;
 use Modules\Documents\Http\Controllers\API\DocumentsController;
 use Modules\Documents\Http\Controllers\API\DocumentTagsController;
 use Modules\Documents\Http\Controllers\API\DocumentVersionCommentsController;
@@ -26,6 +27,9 @@ Route::middleware(['auth:sanctum', 'active', 'can:institution.view'])->prefix('v
         Route::get('/documents/{document_id}/versions/{version_id}/comments', 'history')->middleware('can:traceability.view');
         Route::patch('/documents/{document_id}/versions/{version_id}/comment', 'update')->middleware('can:comments.manage');
     });
+
+    Route::get('/documents/{document_id}/history', [DocumentHistoryController::class, 'index'])
+        ->middleware('can:traceability.view');
 
     Route::controller(DocumentVersionsController::class)->group(function () {
         Route::get('/documents/{document_id}/versions', 'index');
