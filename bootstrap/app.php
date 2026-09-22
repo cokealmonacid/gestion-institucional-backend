@@ -62,6 +62,9 @@ return Application::configure(basePath: dirname(__DIR__))
                 && preg_match('#^api/v1/documents/[^/]+/versions/[^/]+/current$#', $request->path())
             ) || (
                 in_array($request->method(), ['GET', 'PATCH'], true)
+                && preg_match('#^api/v1/documents/[^/]+/versions(?:/notes|/[^/]+/note(?:/history)?)$#', $request->path())
+            ) || (
+                in_array($request->method(), ['GET', 'PATCH'], true)
                 && preg_match('#^api/v1/documents/[^/]+/(?:responsible-options|responsible)$#', $request->path())
             );
 

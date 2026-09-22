@@ -22,9 +22,6 @@
     { "method": "GET", "path": "/api/v1/documents/{document_id}/versions/{version_id}", "reason": "Legacy version detail and future lifecycle Location target." },
     { "method": "DELETE", "path": "/api/v1/documents/{document_id}/versions/{version_id}", "reason": "Legacy version deactivation endpoint." },
     { "method": "PATCH", "path": "/api/v1/documents/{document_id}/versions/{version_id}/activate", "reason": "Legacy version activation endpoint." },
-    { "method": "GET", "path": "/api/v1/documents/{document_id}/versions/comments", "reason": "Legacy version comments endpoint." },
-    { "method": "GET", "path": "/api/v1/documents/{document_id}/versions/{version_id}/comments", "reason": "Legacy version comment history endpoint." },
-    { "method": "PATCH", "path": "/api/v1/documents/{document_id}/versions/{version_id}/comment", "reason": "Legacy version comment update endpoint." },
     { "method": "POST", "path": "/api/v1/institution/document/{document_id}/tags", "reason": "Legacy document-tag assignment outside institution-tags 2.0.0." },
     { "method": "PATCH", "path": "/api/v1/institution/document/{document_id}/tags", "reason": "Legacy document-tag update outside institution-tags 2.0.0." },
     { "method": "DELETE", "path": "/api/v1/institution/document/{document_id}/tags", "reason": "Legacy document-tag removal outside institution-tags 2.0.0." }

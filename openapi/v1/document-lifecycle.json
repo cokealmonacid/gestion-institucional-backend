@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Acervo Document Lifecycle API",
-    "version": "2.1.0",
-    "description": "Backend-authoritative contract for logical document detail, document traceability, its responsible user with optimistic concurrency, active file versions, authenticated downloads, version upload, and current-version selection. Version 2.1 adds a backward-compatible cursor-paginated document history operation."
+    "version": "2.2.0",
+    "description": "Backend-authoritative contract for logical document detail, document traceability, institutional notes on document versions, responsible users, active file versions, authenticated downloads, version upload, and current-version selection. Version 2.2 adds one mutable institutional note per version, its immutable cursor-paginated transition history, and content-free note events in general traceability."
   },
   "paths": {
     "/api/v1/documents/{document_id}": {
@@ -134,6 +134,60 @@
           "404": { "$ref": "#/components/responses/VersionOrDocumentNotAvailable" }
         }
       }
+    },
+    "/api/v1/documents/{document_id}/versions/notes": {
+      "get": {
+        "operationId": "listDocumentVersionNotes",
+        "summary": "List current institutional version notes",
+        "description": "Returns active and inactive versions of a tenant-scoped document. Each version has zero or one current institutional note. Inactive documents and versions remain readable.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/DocumentId" }],
+        "responses": {
+          "200": { "description": "Version notes retrieved.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VersionNoteCollectionSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/TraceabilityForbidden" },
+          "404": { "$ref": "#/components/responses/VersionNoteDocumentNotAvailable" }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/versions/{version_id}/note/history": {
+      "get": {
+        "operationId": "listDocumentVersionNoteHistory",
+        "summary": "List immutable version-note transitions",
+        "description": "Returns note creation, replacement, and clearing transitions newest first. Equal timestamps are ordered by identifier. Inactive documents and versions remain readable.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/DocumentId" },
+          { "$ref": "#/components/parameters/VersionId" },
+          { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 } },
+          { "name": "cursor", "in": "query", "required": false, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Version-note history retrieved.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VersionNoteHistorySuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/TraceabilityForbidden" },
+          "404": { "$ref": "#/components/responses/VersionNoteOrDocumentNotAvailable" },
+          "422": { "$ref": "#/components/responses/VersionNoteValidationFailed" }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/versions/{version_id}/note": {
+      "patch": {
+        "operationId": "updateDocumentVersionNote",
+        "summary": "Set, replace, or clear an institutional version note",
+        "description": "Admin and editor only. Leading and trailing whitespace is removed. A null note clears it. The active document and version are locked and the transition plus a content-free document event are persisted atomically.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/DocumentId" }, { "$ref": "#/components/parameters/VersionId" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateVersionNoteRequest" }, "examples": { "set": { "value": { "note": "Reviewed by the legal unit." } }, "clear": { "value": { "note": null } } } } } },
+        "responses": {
+          "200": { "description": "Version note updated or cleared.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VersionNoteMutationSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/VersionNoteForbidden" },
+          "404": { "$ref": "#/components/responses/VersionNoteOrDocumentNotAvailable" },
+          "409": { "$ref": "#/components/responses/VersionNoteConflict" },
+          "422": { "$ref": "#/components/responses/VersionNoteValidationFailed" }
+        }
+      }
     }
   },
   "components": {
@@ -159,6 +213,7 @@
       "VersionUploadedDetail": { "type": "object", "additionalProperties": false, "required": ["became_current"], "properties": { "became_current": { "oneOf": [{ "type": "boolean", "enum": [true] }, { "type": "null" }], "description": "True for newly recorded uploads. Null for legacy uploads whose automatic-current effect is not independently proven." } } },
       "CurrentVersionChangedDetail": { "type": "object", "additionalProperties": false, "required": ["previous_version", "new_version"], "properties": { "previous_version": { "$ref": "#/components/schemas/DocumentEventVersion" }, "new_version": { "$ref": "#/components/schemas/DocumentEventVersion" } } },
       "ResponsibilityChangedDetail": { "type": "object", "additionalProperties": false, "required": ["previous_responsible_name", "new_responsible_name"], "properties": { "previous_responsible_name": { "type": ["string", "null"] }, "new_responsible_name": { "type": ["string", "null"] } } },
+      "VersionNoteChangedDetail": { "type": "object", "additionalProperties": false, "properties": {} },
       "DocumentEventBase": { "type": "object", "additionalProperties": false, "required": ["id", "type", "occurred_at", "actor", "version", "detail"], "properties": { "id": { "type": "string", "format": "uuid" }, "type": { "type": "string" }, "occurred_at": { "type": "string", "format": "date-time" }, "actor": { "$ref": "#/components/schemas/DocumentEventActor" }, "version": { "$ref": "#/components/schemas/DocumentEventVersion" }, "detail": {} } },
       "DocumentCreatedEvent": { "allOf": [{ "$ref": "#/components/schemas/DocumentEventBase" }, { "type": "object", "properties": { "type": { "enum": ["document.created"] }, "detail": { "$ref": "#/components/schemas/DocumentCreatedDetail" } } }] },
       "VersionUploadedEvent": { "allOf": [{ "$ref": "#/components/schemas/DocumentEventBase" }, { "type": "object", "properties": { "type": { "enum": ["document.version_uploaded"] }, "detail": { "$ref": "#/components/schemas/VersionUploadedDetail" } } }] },
@@ -166,13 +221,24 @@
       "ResponsibleAssignedEvent": { "allOf": [{ "$ref": "#/components/schemas/DocumentEventBase" }, { "type": "object", "properties": { "type": { "enum": ["document.responsible_assigned"] }, "detail": { "$ref": "#/components/schemas/ResponsibilityChangedDetail" } } }] },
       "ResponsibleChangedEvent": { "allOf": [{ "$ref": "#/components/schemas/DocumentEventBase" }, { "type": "object", "properties": { "type": { "enum": ["document.responsible_changed"] }, "detail": { "$ref": "#/components/schemas/ResponsibilityChangedDetail" } } }] },
       "ResponsibleRemovedEvent": { "allOf": [{ "$ref": "#/components/schemas/DocumentEventBase" }, { "type": "object", "properties": { "type": { "enum": ["document.responsible_removed"] }, "detail": { "$ref": "#/components/schemas/ResponsibilityChangedDetail" } } }] },
-      "DocumentEvent": { "oneOf": [{ "$ref": "#/components/schemas/DocumentCreatedEvent" }, { "$ref": "#/components/schemas/VersionUploadedEvent" }, { "$ref": "#/components/schemas/CurrentVersionChangedEvent" }, { "$ref": "#/components/schemas/ResponsibleAssignedEvent" }, { "$ref": "#/components/schemas/ResponsibleChangedEvent" }, { "$ref": "#/components/schemas/ResponsibleRemovedEvent" }], "discriminator": { "propertyName": "type", "mapping": { "document.created": "#/components/schemas/DocumentCreatedEvent", "document.version_uploaded": "#/components/schemas/VersionUploadedEvent", "document.current_version_changed": "#/components/schemas/CurrentVersionChangedEvent", "document.responsible_assigned": "#/components/schemas/ResponsibleAssignedEvent", "document.responsible_changed": "#/components/schemas/ResponsibleChangedEvent", "document.responsible_removed": "#/components/schemas/ResponsibleRemovedEvent" } } },
+      "VersionNoteUpdatedEvent": { "allOf": [{ "$ref": "#/components/schemas/DocumentEventBase" }, { "type": "object", "properties": { "type": { "enum": ["document.version_note_updated"] }, "detail": { "$ref": "#/components/schemas/VersionNoteChangedDetail" } } }] },
+      "VersionNoteClearedEvent": { "allOf": [{ "$ref": "#/components/schemas/DocumentEventBase" }, { "type": "object", "properties": { "type": { "enum": ["document.version_note_cleared"] }, "detail": { "$ref": "#/components/schemas/VersionNoteChangedDetail" } } }] },
+      "DocumentEvent": { "oneOf": [{ "$ref": "#/components/schemas/DocumentCreatedEvent" }, { "$ref": "#/components/schemas/VersionUploadedEvent" }, { "$ref": "#/components/schemas/CurrentVersionChangedEvent" }, { "$ref": "#/components/schemas/ResponsibleAssignedEvent" }, { "$ref": "#/components/schemas/ResponsibleChangedEvent" }, { "$ref": "#/components/schemas/ResponsibleRemovedEvent" }, { "$ref": "#/components/schemas/VersionNoteUpdatedEvent" }, { "$ref": "#/components/schemas/VersionNoteClearedEvent" }], "discriminator": { "propertyName": "type", "mapping": { "document.created": "#/components/schemas/DocumentCreatedEvent", "document.version_uploaded": "#/components/schemas/VersionUploadedEvent", "document.current_version_changed": "#/components/schemas/CurrentVersionChangedEvent", "document.responsible_assigned": "#/components/schemas/ResponsibleAssignedEvent", "document.responsible_changed": "#/components/schemas/ResponsibleChangedEvent", "document.responsible_removed": "#/components/schemas/ResponsibleRemovedEvent", "document.version_note_updated": "#/components/schemas/VersionNoteUpdatedEvent", "document.version_note_cleared": "#/components/schemas/VersionNoteClearedEvent" } } },
       "DocumentHistorySuccess": { "type": "object", "additionalProperties": false, "required": ["success", "data", "meta", "message"], "properties": { "success": { "type": "boolean", "enum": [true] }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/DocumentEvent" } }, "meta": { "type": "object", "additionalProperties": false, "required": ["next_cursor"], "properties": { "next_cursor": { "type": ["string", "null"] } } }, "message": { "type": "string" } } },
       "Capabilities": { "type": "object", "additionalProperties": false, "required": ["can_download", "can_upload_version", "can_mark_version_current"], "properties": { "can_download": { "type": "boolean" }, "can_upload_version": { "type": "boolean" }, "can_mark_version_current": { "type": "boolean" } } },
       "DocumentDetail": { "type": "object", "additionalProperties": false, "required": ["id", "name", "description", "category", "responsible_unit", "responsible", "responsibility_revision", "status", "author_id", "institution_id", "node_id", "created_at", "updated_at", "author", "location", "current_version", "version_count", "capabilities"], "properties": { "id": { "type": "string", "format": "uuid" }, "name": { "type": "string" }, "description": { "type": ["string", "null"] }, "category": { "type": ["string", "null"] }, "responsible_unit": { "type": ["string", "null"] }, "responsible": { "$ref": "#/components/schemas/ResponsibleSummary" }, "responsibility_revision": { "type": "integer", "minimum": 0 }, "status": { "type": "boolean", "enum": [true] }, "author_id": { "type": ["string", "null"], "format": "uuid" }, "institution_id": { "type": "string", "format": "uuid" }, "node_id": { "type": "string", "format": "uuid" }, "created_at": { "type": ["string", "null"], "format": "date-time" }, "updated_at": { "type": ["string", "null"], "format": "date-time" }, "author": { "$ref": "#/components/schemas/AuthorSummary" }, "location": { "$ref": "#/components/schemas/LocationSummary" }, "current_version": { "oneOf": [{ "$ref": "#/components/schemas/DocumentVersion" }, { "type": "null" }] }, "version_count": { "type": "integer", "minimum": 0 }, "capabilities": { "$ref": "#/components/schemas/Capabilities" } } },
       "DocumentDetailSuccess": { "type": "object", "additionalProperties": false, "required": ["success", "data", "message"], "properties": { "success": { "type": "boolean", "enum": [true] }, "data": { "$ref": "#/components/schemas/DocumentDetail" }, "message": { "type": "string" } } },
       "VersionSuccess": { "type": "object", "additionalProperties": false, "required": ["success", "data", "message"], "properties": { "success": { "type": "boolean", "enum": [true] }, "data": { "$ref": "#/components/schemas/DocumentVersion" }, "message": { "type": "string" } } },
       "VersionCollectionSuccess": { "type": "object", "additionalProperties": false, "required": ["success", "data", "message"], "properties": { "success": { "type": "boolean", "enum": [true] }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/DocumentVersion" } }, "message": { "type": "string" } } },
+      "VersionNoteActor": { "type": "object", "additionalProperties": false, "required": ["id", "name", "active"], "properties": { "id": { "type": ["string", "null"], "format": "uuid" }, "name": { "type": ["string", "null"], "description": "Actor name captured when the transition occurred." }, "active": { "type": "boolean" } } },
+      "VersionNoteVersion": { "type": "object", "additionalProperties": false, "required": ["id", "version_number", "filename", "active", "is_current"], "properties": { "id": { "type": "string", "format": "uuid" }, "version_number": { "type": "integer", "minimum": 1 }, "filename": { "type": "string" }, "active": { "type": "boolean" }, "is_current": { "type": "boolean" } } },
+      "VersionNote": { "type": "object", "additionalProperties": false, "required": ["version", "note", "last_changed_at", "actor"], "properties": { "version": { "$ref": "#/components/schemas/VersionNoteVersion" }, "note": { "type": ["string", "null"], "maxLength": 2000 }, "last_changed_at": { "type": ["string", "null"], "format": "date-time" }, "actor": { "oneOf": [{ "$ref": "#/components/schemas/VersionNoteActor" }, { "type": "null" }] } } },
+      "VersionNoteTransition": { "type": "object", "additionalProperties": false, "required": ["id", "previous_note", "new_note", "actor", "occurred_at"], "properties": { "id": { "type": "string", "format": "uuid" }, "previous_note": { "type": ["string", "null"], "maxLength": 2000 }, "new_note": { "type": ["string", "null"], "maxLength": 2000 }, "actor": { "$ref": "#/components/schemas/VersionNoteActor" }, "occurred_at": { "type": "string", "format": "date-time" } } },
+      "UpdateVersionNoteRequest": { "type": "object", "additionalProperties": false, "required": ["note"], "properties": { "note": { "type": ["string", "null"], "minLength": 1, "maxLength": 2000, "description": "Null clears the note. Non-null text is trimmed and cannot be blank." } } },
+      "VersionNoteCollectionSuccess": { "type": "object", "additionalProperties": false, "required": ["success", "data", "message"], "properties": { "success": { "type": "boolean", "enum": [true] }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/VersionNote" } }, "message": { "type": "string" } } },
+      "VersionNoteHistorySuccess": { "type": "object", "additionalProperties": false, "required": ["success", "data", "meta", "message"], "properties": { "success": { "type": "boolean", "enum": [true] }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/VersionNoteTransition" } }, "meta": { "type": "object", "additionalProperties": false, "required": ["next_cursor"], "properties": { "next_cursor": { "type": ["string", "null"] } } }, "message": { "type": "string" } } },
+      "VersionNoteMutationData": { "type": "object", "additionalProperties": false, "required": ["note", "transition"], "properties": { "note": { "$ref": "#/components/schemas/VersionNote" }, "transition": { "$ref": "#/components/schemas/VersionNoteTransition" } } },
+      "VersionNoteMutationSuccess": { "type": "object", "additionalProperties": false, "required": ["success", "data", "message"], "properties": { "success": { "type": "boolean", "enum": [true] }, "data": { "$ref": "#/components/schemas/VersionNoteMutationData" }, "message": { "type": "string" } } },
       "Error": { "type": "object", "additionalProperties": false, "required": ["success", "error"], "properties": { "success": { "type": "boolean", "enum": [false] }, "error": { "type": "object", "additionalProperties": false, "required": ["code", "message"], "properties": { "code": { "type": "string" }, "message": { "type": "string" }, "fields": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "string" } } } } } } }
     },
     "responses": {
@@ -192,6 +258,11 @@
       ,"ResponsibilityFailed": { "description": "The atomic responsibility update failed without exposing internal details.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "success": false, "error": { "code": "DOCUMENT_RESPONSIBILITY_FAILED", "message": "The document responsibility could not be updated." } } } } }
       ,"TraceabilityForbidden": { "description": "The actor lacks traceability.view or the authenticated account is inactive.", "content": { "application/json": { "example": { "message": "Forbidden." } } } }
       ,"HistoryValidationFailed": { "description": "History pagination parameters are invalid.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "success": false, "error": { "code": "VALIDATION_FAILED", "message": "The document history request is invalid.", "fields": { "limit": ["The limit field must not be greater than 100."] } } } } } }
+      ,"VersionNoteDocumentNotAvailable": { "description": "The document is missing or belongs to another institution.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "success": false, "error": { "code": "DOCUMENT_NOT_AVAILABLE", "message": "El documento no está disponible." } } } } }
+      ,"VersionNoteOrDocumentNotAvailable": { "description": "The document or paired version is missing or belongs to another institution.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "success": false, "error": { "code": "DOCUMENT_VERSION_NOT_AVAILABLE", "message": "La versión no está disponible." } } } } }
+      ,"VersionNoteForbidden": { "description": "The actor lacks comments.manage or the account is inactive.", "content": { "application/json": { "schema": { "oneOf": [{ "$ref": "#/components/schemas/Error" }, { "$ref": "#/components/schemas/InactiveAccountError" }] }, "example": { "success": false, "error": { "code": "DOCUMENT_VERSION_NOTE_FORBIDDEN", "message": "No tienes permiso para modificar notas de versiones." } } } } }
+      ,"VersionNoteConflict": { "description": "The document or version is read-only, or the normalized note is unchanged.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+      ,"VersionNoteValidationFailed": { "description": "The note payload or history pagination is invalid.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
     }
   }
 }
