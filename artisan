@@ -6,6 +6,11 @@ use Symfony\Component\Console\Input\ArgvInput;
 
 define('LARAVEL_START', microtime(true));
 
+if (($argv[1] ?? null) === 'test') {
+    require __DIR__.'/tests/bootstrap.php';
+    assertSafeTestEnvironment(__DIR__, true);
+}
+
 // Register the Composer autoloader...
 require __DIR__.'/vendor/autoload.php';
 
