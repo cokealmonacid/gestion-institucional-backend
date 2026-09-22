@@ -20,7 +20,7 @@ class InstitutionUsersOpenApiTest extends TestCase
         $contract = $this->contract();
 
         $this->assertSame('3.1.0', $contract['openapi']);
-        $this->assertSame('2.0.0', $contract['info']['version']);
+        $this->assertSame('2.1.0', $contract['info']['version']);
         $this->assertArrayNotHasKey('servers', $contract);
         $this->assertSame([
             '/api/v1/institution/users',
@@ -40,12 +40,15 @@ class InstitutionUsersOpenApiTest extends TestCase
 
         foreach ([
             $contract['paths']['/api/v1/institution/users']['post'],
-            $contract['paths']['/api/v1/institution/users']['patch'],
             $contract['paths']['/api/v1/institution/users']['delete'],
         ] as $operation) {
             $this->assertSame([200, 401, 403, 404, 422], array_keys($operation['responses']));
             $this->assertSame([['bearerAuth' => []]], $operation['security']);
         }
+
+        $patch = $contract['paths']['/api/v1/institution/users']['patch'];
+        $this->assertSame([200, 401, 403, 404, 409, 422], array_keys($patch['responses']));
+        $this->assertSame([['bearerAuth' => []]], $patch['security']);
 
         $this->assertSame([
             'type' => 'http',

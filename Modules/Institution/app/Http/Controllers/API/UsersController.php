@@ -8,8 +8,10 @@ use App\Models\Rol;
 use App\Models\RoleUser;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Modules\Institution\Models\Institution;
 use Modules\Institution\Http\Resources\UserResource;
 
 class UsersController extends BaseController
@@ -104,19 +106,46 @@ class UsersController extends BaseController
         }
 
         try {
-            $input = $request->except(['role', 'email', 'institution_id']);
+            $updated = DB::transaction(function () use ($request, $user): bool {
+                // Serializes self-demotions within one institution so two admins cannot
+                // both observe the other as an administrator and remove that access.
+                Institution::query()
+                    ->whereKey($request->user()->institution_id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
 
-            $user->update($input);
+                $target = User::query()
+                    ->whereKey($user->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
 
-            if ($request->filled('role')) {
-                $rol = Rol::whereType($request->role)->first();
+                if ($this->isBlockedSelfAdminDemotion($request, $target)) {
+                    return false;
+                }
 
-                RoleUser::where('user_id', $user->id)->delete();
+                $input = $request->except(['role', 'email', 'institution_id']);
+                $target->update($input);
 
-                RoleUser::firstOrCreate([
-                    'user_id' => $user->id,
-                    'role_id' => $rol->id,
-                ]);
+                if ($request->filled('role')) {
+                    $rol = Rol::whereType($request->role)->firstOrFail();
+
+                    RoleUser::where('user_id', $target->id)->delete();
+
+                    RoleUser::firstOrCreate([
+                        'user_id' => $target->id,
+                        'role_id' => $rol->id,
+                    ]);
+                }
+
+                return true;
+            });
+
+            if (! $updated) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'The institution must retain another administrator.',
+                    'code' => 'INSTITUTION_REQUIRES_ANOTHER_ADMIN',
+                ], 409);
             }
 
             return $this->sendResponse([], 'Account updated successfully.');
@@ -169,6 +198,25 @@ class UsersController extends BaseController
         return User::where('institution_id', $request->user()->institution_id)
             ->where('email', $request->input('email'))
             ->first();
+    }
+
+    private function isBlockedSelfAdminDemotion(Request $request, User $target): bool
+    {
+        if (
+            $target->id !== $request->user()->id
+            || $request->input('role') === RoleType::Admin->value
+            || ! $target->roles()->where('type', RoleType::Admin)->exists()
+        ) {
+            return false;
+        }
+
+        // Inactive accounts intentionally count: the business rule requires another
+        // admin account, not necessarily another admin currently able to sign in.
+        return ! User::query()
+            ->where('institution_id', $target->institution_id)
+            ->where($target->getKeyName(), '!=', $target->getKey())
+            ->whereHas('roles', fn ($query) => $query->where('type', RoleType::Admin))
+            ->exists();
     }
 
     private function institutionalUserNotFound()

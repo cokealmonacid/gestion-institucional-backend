@@ -8,7 +8,7 @@ The backend repository is the authority for Acervo API contracts. The canonical 
 - [`v1/document-explorer.json`](v1/document-explorer.json), contract version `5.0.0`;
 - [`v1/document-lifecycle.json`](v1/document-lifecycle.json), contract version `2.2.0`;
 - [`v1/institution-documents.json`](v1/institution-documents.json), contract version `1.1.0`;
-- [`v1/institution-users.json`](v1/institution-users.json), contract version `2.0.0`;
+- [`v1/institution-users.json`](v1/institution-users.json), contract version `2.1.0`;
 - [`v1/institution-tags.json`](v1/institution-tags.json), contract version `2.0.0`;
 - [`v1/user-search.json`](v1/user-search.json), contract version `2.0.0`.
 
@@ -24,7 +24,7 @@ The document-explorer contract includes four read operations, admin-only canonic
 
 `openapi/v1/document-lifecycle.json` is the backend-authoritative contract for document lifecycle detail, cursor-paginated document traceability, institutional version notes and their immutable transition history, responsible-user selection and optimistic assignment, active version listing, first and subsequent private-file uploads, current and historical downloads, and selecting an active historical version as current. Version 2.2.0 adds version notes and content-free note events and retires the undocumented comment aliases. Histories use keyset pagination. Document events are guarded against update and direct deletion through normal `DocumentEvent` model-instance operations; query-builder or direct SQL writes, privileged database access, and document/institution cascade deletion are outside that application-level guarantee. Version uploads accept at most 25 MiB; PHP and the serving HTTP stack must allow at least 25 MiB plus multipart overhead. The download audit row records authorization and response emission, not completed transfer.
 
-The institution-users contract is admin-only and limited to listing every user in the authenticated admin's institution, registering a user there, updating a user's profile, role and active status, and deleting a user. Institutional context is always derived from the authenticated admin. The compatibility `institution_id` must match that context; foreign and nonexistent institutional users are indistinguishable.
+The institution-users contract is admin-only and limited to listing every user in the authenticated admin's institution, registering a user there, updating a user's profile, role and active status, and deleting a user. An admin may demote themself only when another non-deleted admin account exists in the institution; inactive admin accounts count. Institutional context is always derived from the authenticated admin. The compatibility `institution_id` must match that context; foreign and nonexistent institutional users are indistinguishable.
 
 The institution-tags contract allows every institutional role to list tags and restricts tag creation and deletion to admins and editors. Document-tag assignment routes remain runtime-only compatibility endpoints.
 
