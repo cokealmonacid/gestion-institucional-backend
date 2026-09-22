@@ -1,11 +1,11 @@
 info:
-  name: document version comment history
+  name: document version note history
   type: http
   seq: 26
 
 http:
   method: GET
-  url: "{{API}}/documents/{{document_id}}/versions/{{version_id}}/comments"
+  url: "{{API}}/documents/{{document_id}}/versions/{{version_id}}/note/history"
   auth:
     type: bearer
     token: "{{token}}"

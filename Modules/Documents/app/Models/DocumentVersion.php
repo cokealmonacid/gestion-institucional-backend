@@ -71,6 +71,9 @@ class DocumentVersion extends Model
 
     public function latestCommentHistory()
     {
-        return $this->hasOne(DocumentVersionCommentHistory::class, 'document_version_id')->latestOfMany('created_at');
+        return $this->hasOne(DocumentVersionCommentHistory::class, 'document_version_id')->ofMany([
+            'created_at' => 'max',
+            'id' => 'max',
+        ]);
     }
 }

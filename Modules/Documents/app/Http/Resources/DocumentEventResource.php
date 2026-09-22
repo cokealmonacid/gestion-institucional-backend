@@ -68,6 +68,8 @@ class DocumentEventResource extends JsonResource
                 'previous_version' => $this->publicVersion($detail['previous_version'] ?? null),
                 'new_version' => $this->publicVersion($detail['new_version'] ?? ($detail['version'] ?? null)),
             ],
+            DocumentEventType::VersionNoteUpdated,
+            DocumentEventType::VersionNoteCleared => (object) [],
             DocumentEventType::ResponsibleAssigned,
             DocumentEventType::ResponsibleChanged,
             DocumentEventType::ResponsibleRemoved => [

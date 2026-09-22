@@ -11,11 +11,11 @@ class DocumentLifecycleOpenApiTest extends TestCase
         return json_decode((string) file_get_contents(base_path('openapi/v1/document-lifecycle.json')), true, 512, JSON_THROW_ON_ERROR);
     }
 
-    public function test_contract_publishes_exactly_the_nine_lifecycle_operations(): void
+    public function test_contract_publishes_exactly_the_twelve_lifecycle_operations(): void
     {
         $contract = $this->contract();
         $this->assertSame('3.1.0', $contract['openapi']);
-        $this->assertSame('2.1.0', $contract['info']['version']);
+        $this->assertSame('2.2.0', $contract['info']['version']);
 
         $operations = [];
         foreach ($contract['paths'] as $path) {
@@ -30,6 +30,8 @@ class DocumentLifecycleOpenApiTest extends TestCase
             'updateDocumentResponsible', 'listDocumentVersions',
             'createDocumentVersion', 'downloadCurrentDocumentVersion',
             'downloadDocumentVersion', 'setCurrentDocumentVersion',
+            'listDocumentVersionNotes', 'listDocumentVersionNoteHistory',
+            'updateDocumentVersionNote',
         ], $operations);
     }
 
@@ -51,14 +53,39 @@ class DocumentLifecycleOpenApiTest extends TestCase
         $this->assertSame([
             'document.created', 'document.version_uploaded', 'document.current_version_changed',
             'document.responsible_assigned', 'document.responsible_changed', 'document.responsible_removed',
+            'document.version_note_updated', 'document.version_note_cleared',
         ], array_keys($event['discriminator']['mapping']));
-        $this->assertCount(6, $event['oneOf']);
+        $this->assertCount(8, $event['oneOf']);
         $this->assertSame([true], $contract['components']['schemas']['VersionUploadedDetail']['properties']['became_current']['oneOf'][0]['enum']);
         $this->assertContains('new_version', $contract['components']['schemas']['CurrentVersionChangedDetail']['required']);
         $encoded = json_encode($event, JSON_THROW_ON_ERROR);
         foreach (['origin', 'source_type', 'source_id', 'institution_id', 'node_id', 'email', 'url'] as $privateField) {
             $this->assertStringNotContainsString($privateField, $encoded);
         }
+    }
+
+    public function test_version_notes_are_closed_paginated_and_content_private(): void
+    {
+        $contract = $this->contract();
+        $history = $contract['paths']['/api/v1/documents/{document_id}/versions/{version_id}/note/history']['get'];
+        $parameters = collect($history['parameters'])->keyBy(fn (array $parameter) => $parameter['name'] ?? 'path');
+
+        $this->assertSame(20, $parameters['limit']['schema']['default']);
+        $this->assertSame(100, $parameters['limit']['schema']['maximum']);
+        $this->assertSame([200, 401, 403, 404, 422], array_keys($history['responses']));
+
+        $request = $contract['components']['schemas']['UpdateVersionNoteRequest'];
+        $this->assertFalse($request['additionalProperties']);
+        $this->assertSame(['note'], $request['required']);
+        $this->assertSame(2000, $request['properties']['note']['maxLength']);
+
+        foreach (['VersionNote', 'VersionNoteActor', 'VersionNoteTransition', 'VersionNoteHistorySuccess'] as $schema) {
+            $this->assertFalse($contract['components']['schemas'][$schema]['additionalProperties']);
+        }
+        $actor = json_encode($contract['components']['schemas']['VersionNoteActor'], JSON_THROW_ON_ERROR);
+        $this->assertStringNotContainsString('email', $actor);
+        $eventDetail = $contract['components']['schemas']['VersionNoteChangedDetail'];
+        $this->assertSame([], $eventDetail['properties']);
     }
 
     public function test_contract_documents_multipart_binary_public_shapes_and_errors(): void

@@ -120,7 +120,7 @@ class InstitutionAuthorizationMatrixTest extends TestCase
         }
     }
 
-    public function test_document_tag_and_comment_mutations_follow_the_common_role_policy(): void
+    public function test_document_tag_and_note_mutations_follow_the_common_role_policy(): void
     {
         foreach ([RoleType::Reader, RoleType::Editor, RoleType::Admin] as $role) {
             $institution = Institution::factory()->create();
@@ -135,8 +135,8 @@ class InstitutionAuthorizationMatrixTest extends TestCase
                 'institution_id' => $institution->id,
                 'tag_id' => $tag->id,
             ]);
-            $commentResponse = $this->patchJson("/api/v1/documents/{$document->id}/versions/{$version->id}/comment", [
-                'comment' => 'Reviewed',
+            $noteResponse = $this->patchJson("/api/v1/documents/{$document->id}/versions/{$version->id}/note", [
+                'note' => 'Reviewed',
             ]);
 
             if ($role === RoleType::Reader) {
@@ -147,7 +147,7 @@ class InstitutionAuthorizationMatrixTest extends TestCase
                 $this->deleteJson("/api/v1/institution/document/{$document->id}/tags", [
                     'tag_id' => $tag->id,
                 ])->assertForbidden();
-                $commentResponse->assertForbidden();
+                $noteResponse->assertForbidden();
                 $this->assertDatabaseMissing('document_tags', ['document_id' => $document->id]);
                 $this->assertNull($version->fresh()->comment);
 
@@ -163,13 +163,13 @@ class InstitutionAuthorizationMatrixTest extends TestCase
             $this->deleteJson("/api/v1/institution/document/{$document->id}/tags", [
                 'tag_id' => $replacementTag->id,
             ])->assertOk();
-            $commentResponse->assertOk();
+            $noteResponse->assertOk();
             $this->assertDatabaseMissing('document_tags', ['document_id' => $document->id]);
             $this->assertSame('Reviewed', $version->fresh()->comment);
         }
     }
 
-    public function test_cross_tenant_document_tag_and_comment_resources_are_unavailable(): void
+    public function test_cross_tenant_document_tag_and_note_resources_are_unavailable(): void
     {
         $institution = Institution::factory()->create();
         $editor = $this->user($institution, RoleType::Editor);
@@ -189,8 +189,8 @@ class InstitutionAuthorizationMatrixTest extends TestCase
             'institution_id' => $institution->id,
             'tag_id' => $foreignTag->id,
         ])->assertNotFound();
-        $this->patchJson("/api/v1/documents/{$foreignDocument->id}/versions/{$foreignVersion->id}/comment", [
-            'comment' => 'Foreign',
+        $this->patchJson("/api/v1/documents/{$foreignDocument->id}/versions/{$foreignVersion->id}/note", [
+            'note' => 'Foreign',
         ])->assertNotFound();
 
         $this->assertDatabaseHas('document_tags', [
@@ -201,7 +201,7 @@ class InstitutionAuthorizationMatrixTest extends TestCase
         $this->assertNull($foreignVersion->fresh()->comment);
     }
 
-    public function test_comment_traceability_reads_remain_available_to_every_role(): void
+    public function test_note_traceability_reads_remain_available_to_every_role(): void
     {
         foreach (RoleType::cases() as $role) {
             $institution = Institution::factory()->create();
@@ -210,8 +210,8 @@ class InstitutionAuthorizationMatrixTest extends TestCase
             $version = $this->version($document, $actor);
             Sanctum::actingAs($actor);
 
-            $this->getJson("/api/v1/documents/{$document->id}/versions/comments")->assertOk();
-            $this->getJson("/api/v1/documents/{$document->id}/versions/{$version->id}/comments")->assertOk();
+            $this->getJson("/api/v1/documents/{$document->id}/versions/notes")->assertOk();
+            $this->getJson("/api/v1/documents/{$document->id}/versions/{$version->id}/note/history")->assertOk();
         }
     }
 

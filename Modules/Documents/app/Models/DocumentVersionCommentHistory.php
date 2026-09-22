@@ -18,6 +18,7 @@ class DocumentVersionCommentHistory extends Model
         'document_id',
         'document_version_id',
         'user_id',
+        'actor_name',
         'previous_comment',
         'new_comment',
     ];
@@ -34,6 +35,6 @@ class DocumentVersionCommentHistory extends Model
 
     public function user()
     {
-        return $this->belongsTo(User::class, 'user_id');
+        return $this->belongsTo(User::class, 'user_id')->withTrashed();
     }
 }

@@ -1,15 +1,15 @@
 info:
-  name: update document version comment
+  name: update document version note
   type: http
   seq: 27
 
 http:
   method: PATCH
-  url: "{{API}}/documents/{{document_id}}/versions/{{version_id}}/comment"
+  url: "{{API}}/documents/{{document_id}}/versions/{{version_id}}/note"
   body:
     type: json
     data:
-      comment: Comentario actualizado desde Bruno
+      note: Nota institucional actualizada desde Bruno
   auth:
     type: bearer
     token: "{{token}}"
