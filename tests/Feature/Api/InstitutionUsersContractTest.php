@@ -249,6 +249,50 @@ class InstitutionUsersContractTest extends TestCase
         $this->assertFalse($peer->fresh()->roles()->where('type', RoleType::Editor)->exists());
     }
 
+    public function test_an_admin_cannot_demote_themself_when_they_are_the_only_admin(): void
+    {
+        [$institution, $admin] = $this->institutionUser(admin: true);
+        Rol::create(['type' => RoleType::Editor]);
+
+        Sanctum::actingAs($admin);
+
+        $this->patchJson('/api/v1/institution/users', [
+            'institution_id' => $institution->id,
+            'email' => $admin->email,
+            'role' => RoleType::Editor->value,
+        ])
+            ->assertConflict()
+            ->assertExactJson([
+                'success' => false,
+                'message' => 'The institution must retain another administrator.',
+                'code' => 'INSTITUTION_REQUIRES_ANOTHER_ADMIN',
+            ]);
+
+        $this->assertTrue($admin->fresh()->roles()->where('type', RoleType::Admin)->exists());
+    }
+
+    public function test_an_admin_can_demote_themself_when_another_admin_exists_even_if_inactive(): void
+    {
+        [$institution, $admin] = $this->institutionUser(admin: true);
+        $otherAdmin = User::factory()->inactive()->for($institution)->create();
+        $otherAdmin->roles()->attach(Rol::firstOrCreate(['type' => RoleType::Admin]));
+        Rol::create(['type' => RoleType::Reader]);
+
+        Sanctum::actingAs($admin);
+
+        $this->patchJson('/api/v1/institution/users', [
+            'institution_id' => $institution->id,
+            'email' => $admin->email,
+            'role' => RoleType::Reader->value,
+        ])
+            ->assertOk()
+            ->assertExactJson(['success' => true, 'data' => [], 'message' => 'Account updated successfully.']);
+
+        $this->assertTrue($admin->fresh()->roles()->where('type', RoleType::Reader)->exists());
+        $this->assertFalse($admin->fresh()->roles()->where('type', RoleType::Admin)->exists());
+        $this->assertTrue($otherAdmin->fresh()->roles()->where('type', RoleType::Admin)->exists());
+    }
+
     public function test_update_changes_the_targeted_users_active_status(): void
     {
         [$institution, $admin] = $this->institutionUser(admin: true);
