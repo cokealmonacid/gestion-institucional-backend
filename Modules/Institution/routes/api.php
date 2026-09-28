@@ -20,6 +20,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'active', 'can:institution.view
     Route::get('/institution/tree-directory/{node_id}', 'show');
     Route::post('/institution/tree-directory', 'storeCanonical');
     Route::post('/institution/tree-directory/{node_id}', 'store');
+    Route::patch('/institution/tree-directory/{node_id}/name', 'rename');
     Route::delete('/institution/tree-directory/{node_id}', 'destroy')->middleware('can:nodes.manage');
     Route::patch('/institution/tree-directory/{node_id}/activate', 'activate')->middleware('can:nodes.manage');
 });

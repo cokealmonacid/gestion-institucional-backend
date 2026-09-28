@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Acervo Institutional Document Explorer API",
-    "version": "5.0.0",
-    "description": "Contract for navigating the virtual institution root, reading real nodes and their direct documents with authoritative lifecycle summaries, creating container nodes, and creating logical documents in real nodes. Node order is numeric and node paths are materialized UUID paths."
+    "version": "5.1.0",
+    "description": "Contract for navigating the virtual institution root, reading, creating, and renaming real nodes, and creating logical documents in real nodes. Node order is numeric and node paths are materialized UUID paths."
   },
   "tags": [
     {
@@ -144,6 +144,31 @@
           },
           "401": { "$ref": "#/components/responses/Unauthenticated" },
           "404": { "$ref": "#/components/responses/NodeNotFound" }
+        }
+      }
+    },
+    "/api/v1/institution/tree-directory/{node_id}/name": {
+      "patch": {
+        "operationId": "renameInstitutionNode",
+        "summary": "Rename a container node",
+        "description": "Admin only. Renames an active node whose complete ancestor path is active. The exclusive payload is trimmed and NFC-normalized. A case-only change is real. Equality after trim and NFC is an idempotent success without a write. Active and inactive siblings reserve case-insensitively equal names. Identity, institution, parent, path, depth, order, lifecycle state, descendants, and documents are preserved.",
+        "tags": ["Document explorer"],
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/NodeId" }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RenameNodeRequest" }, "example": { "name": "Contratos vigentes" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "Node renamed or already canonically equal.",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NodeRenamedSuccess" }, "example": { "success": true, "data": { "id": "33333333-3333-3333-3333-333333333333", "name": "Contratos vigentes", "path": "11111111-1111-1111-1111-111111111111/33333333-3333-3333-3333-333333333333", "depth": 1, "order": 2, "active": 1, "institution_id": "22222222-2222-2222-2222-222222222222", "parent_id": "11111111-1111-1111-1111-111111111111", "created_at": "2026-08-11T12:00:00.000000Z", "updated_at": "2026-08-12T12:00:00.000000Z", "has_children": false }, "message": "Tree directory node renamed successfully." } } }
+          },
+          "401": { "$ref": "#/components/responses/CanonicalUnauthenticated" },
+          "403": { "$ref": "#/components/responses/NodeRenameForbidden" },
+          "404": { "$ref": "#/components/responses/NodeNotAvailable" },
+          "409": { "$ref": "#/components/responses/DuplicateNodeName" },
+          "422": { "$ref": "#/components/responses/NodeRenameValidationFailed" }
         }
       }
     },
@@ -350,6 +375,14 @@
           }
         }
       },
+      "RenameNodeRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1, "maxLength": 255, "description": "Trimmed and NFC-normalized display name. Slash, backslash, and control characters are prohibited. Case is preserved and a case-only change is real." }
+        }
+      },
       "CreateDocumentRequest": {
         "type": "object",
         "additionalProperties": false,
@@ -450,6 +483,16 @@
           "message": { "type": "string", "enum": ["Tree directory node retrieved successfully."] }
         }
       },
+      "NodeRenamedSuccess": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "data", "message"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [true] },
+          "data": { "$ref": "#/components/schemas/Node" },
+          "message": { "type": "string", "enum": ["Tree directory node renamed successfully."] }
+        }
+      },
       "NodeCreatedSuccess": {
         "type": "object",
         "additionalProperties": false,
@@ -543,6 +586,14 @@
           }
         }
       },
+      "NodeRenameForbidden": {
+        "description": "The authenticated user is not an admin.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CanonicalError" }, "example": { "success": false, "error": { "code": "NODE_RENAME_FORBIDDEN", "message": "You are not allowed to rename nodes." } } } }
+      },
+      "NodeNotAvailable": {
+        "description": "The node is missing, foreign, inactive, or below an inactive ancestor.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CanonicalError" }, "example": { "success": false, "error": { "code": "NODE_NOT_AVAILABLE", "message": "The node is not available." } } } }
+      },
       "ParentNodeNotFound": {
         "description": "The parent is missing, inactive, inaccessible, or belongs to another institution.",
         "content": {
@@ -583,6 +634,10 @@
             }
           }
         }
+      },
+      "NodeRenameValidationFailed": {
+        "description": "The exclusive rename payload or node name is invalid. Stable codes are VALIDATION_FAILED and NODE_NAME_INVALID.",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CanonicalError" }, "example": { "success": false, "error": { "code": "NODE_NAME_INVALID", "message": "The node rename request is invalid.", "fields": { "name": ["The node name contains prohibited characters."] } } } } }
       },
       "DocumentCreateForbidden": {
         "description": "The authenticated user is not an admin or editor.",

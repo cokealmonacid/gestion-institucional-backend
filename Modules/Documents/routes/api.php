@@ -17,6 +17,7 @@ Route::middleware(['auth:sanctum', 'active', 'can:institution.view'])->prefix('v
         Route::get('/documents/{document_id}/responsible-options', 'responsibleOptions');
         Route::patch('/documents/{document_id}/responsible', 'updateResponsible');
         Route::patch('/documents/{document_id}', 'update')->middleware('can:documents.manage');
+        Route::patch('/documents/{document_id}/name', 'rename');
         Route::delete('/documents/{document_id}', 'destroy')->middleware('can:documents.manage');
         Route::patch('/documents/{document_id}/activate', 'activate')->middleware('can:documents.manage');
         Route::get('/documents/{document_id}/download', 'download');

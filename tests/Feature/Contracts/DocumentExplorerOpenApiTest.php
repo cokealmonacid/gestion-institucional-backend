@@ -20,18 +20,20 @@ class DocumentExplorerOpenApiTest extends TestCase
         $contract = $this->contract();
 
         $this->assertSame('3.1.0', $contract['openapi']);
-        $this->assertSame('5.0.0', $contract['info']['version']);
+        $this->assertSame('5.1.0', $contract['info']['version']);
         $this->assertStringContainsString('Only the admin role is allowed', $contract['paths']['/api/v1/institution/tree-directory']['post']['description']);
         $this->assertArrayNotHasKey('servers', $contract);
         $this->assertSame([
             '/api/v1/institution/tree-directory',
             '/api/v1/institution/tree-directory/{node_id}',
+            '/api/v1/institution/tree-directory/{node_id}/name',
             '/api/v1/institution/tree-directory/{node_id}/children',
             '/api/v1/institution/tree-directory/{node_id}/documents',
         ], array_keys($contract['paths']));
 
         $this->assertSame(['get', 'post'], array_keys($contract['paths']['/api/v1/institution/tree-directory']));
         $this->assertSame(['get'], array_keys($contract['paths']['/api/v1/institution/tree-directory/{node_id}']));
+        $this->assertSame(['patch'], array_keys($contract['paths']['/api/v1/institution/tree-directory/{node_id}/name']));
         $this->assertSame(['get'], array_keys($contract['paths']['/api/v1/institution/tree-directory/{node_id}/children']));
         $this->assertSame(['get', 'post'], array_keys($contract['paths']['/api/v1/institution/tree-directory/{node_id}/documents']));
     }
@@ -157,12 +159,34 @@ class DocumentExplorerOpenApiTest extends TestCase
         $contract = $this->contract();
 
         foreach ($contract['paths'] as $path) {
-            $operation = $path['get'];
-            $example = $operation['responses']['200']['content']['application/json']['example'];
+            foreach ($path as $operation) {
+                $successStatus = array_key_exists('200', $operation['responses']) ? '200' : '201';
+                $response = $operation['responses'][$successStatus]['content']['application/json'];
+                $example = $response['example'] ?? array_values($response['examples'])[0]['value'];
 
-            $this->assertSame(['success', 'data', 'message'], array_keys($example));
-            $this->assertTrue($example['success']);
-            $this->assertIsString($example['message']);
+                $this->assertSame(['success', 'data', 'message'], array_keys($example));
+                $this->assertTrue($example['success']);
+                $this->assertIsString($example['message']);
+            }
+        }
+    }
+
+    public function test_node_rename_is_closed_idempotent_and_documents_stable_errors(): void
+    {
+        $contract = $this->contract();
+        $operation = $contract['paths']['/api/v1/institution/tree-directory/{node_id}/name']['patch'];
+        $request = $contract['components']['schemas']['RenameNodeRequest'];
+
+        $this->assertSame('renameInstitutionNode', $operation['operationId']);
+        $this->assertSame([200, 401, 403, 404, 409, 422], array_keys($operation['responses']));
+        $this->assertFalse($request['additionalProperties']);
+        $this->assertSame(['name'], $request['required']);
+        $this->assertSame(1, $request['properties']['name']['minLength']);
+        $this->assertSame(255, $request['properties']['name']['maxLength']);
+        $this->assertStringContainsString('case-only change is real', $request['properties']['name']['description']);
+        $this->assertStringContainsString('without a write', $operation['description']);
+        foreach (['Identity', 'parent', 'path', 'descendants', 'documents'] as $preserved) {
+            $this->assertStringContainsString($preserved, $operation['description']);
         }
     }
 

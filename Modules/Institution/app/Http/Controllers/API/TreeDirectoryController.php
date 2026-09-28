@@ -8,8 +8,11 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Modules\Institution\Actions\CreateNodeAction;
+use Modules\Institution\Actions\RenameNodeAction;
 use Modules\Institution\Exceptions\NodeCreationException;
+use Modules\Institution\Exceptions\NodeRenameException;
 use Modules\Institution\Http\Requests\CreateNodeRequest;
+use Modules\Institution\Http\Requests\RenameNodeRequest;
 use Modules\Nodes\Http\Resources\NodeResource;
 use Modules\Nodes\Models\Node;
 use Modules\Nodes\Support\NodeName;
@@ -146,6 +149,30 @@ class TreeDirectoryController extends BaseController
         $node->offsetUnset('has_children');
 
         return $this->sendResponse($node, 'Tree directory node created successfully.');
+    }
+
+    public function rename(RenameNodeRequest $request, $node_id, RenameNodeAction $action)
+    {
+        try {
+            $node = $action->execute($request->user(), $node_id, $request->validated('name'));
+        } catch (NodeRenameException $exception) {
+            return ApiResponse::error(
+                $exception->errorCode,
+                $exception->getMessage(),
+                $exception->status,
+                $exception->fields,
+            );
+        }
+
+        $institutionId = $request->user()->institution_id;
+        $node->loadExists(['children as has_children' => function ($query) use ($institutionId) {
+            $query->where('institution_id', $institutionId)->where('active', true);
+        }]);
+
+        return ApiResponse::success(
+            (new NodeResource($node))->resolve($request),
+            'Tree directory node renamed successfully.',
+        );
     }
 
     public function destroy(Request $request, $node_id)

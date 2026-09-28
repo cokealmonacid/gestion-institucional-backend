@@ -11,11 +11,11 @@ class DocumentLifecycleOpenApiTest extends TestCase
         return json_decode((string) file_get_contents(base_path('openapi/v1/document-lifecycle.json')), true, 512, JSON_THROW_ON_ERROR);
     }
 
-    public function test_contract_publishes_exactly_the_twelve_lifecycle_operations(): void
+    public function test_contract_publishes_exactly_the_thirteen_lifecycle_operations(): void
     {
         $contract = $this->contract();
         $this->assertSame('3.1.0', $contract['openapi']);
-        $this->assertSame('2.2.0', $contract['info']['version']);
+        $this->assertSame('2.3.0', $contract['info']['version']);
 
         $operations = [];
         foreach ($contract['paths'] as $path) {
@@ -26,7 +26,7 @@ class DocumentLifecycleOpenApiTest extends TestCase
         }
 
         $this->assertSame([
-            'getDocumentLifecycleDetail', 'listDocumentHistory', 'searchDocumentResponsibleOptions',
+            'getDocumentLifecycleDetail', 'renameDocument', 'listDocumentHistory', 'searchDocumentResponsibleOptions',
             'updateDocumentResponsible', 'listDocumentVersions',
             'createDocumentVersion', 'downloadCurrentDocumentVersion',
             'downloadDocumentVersion', 'setCurrentDocumentVersion',
@@ -51,17 +51,37 @@ class DocumentLifecycleOpenApiTest extends TestCase
         }
         $event = $contract['components']['schemas']['DocumentEvent'];
         $this->assertSame([
-            'document.created', 'document.version_uploaded', 'document.current_version_changed',
+            'document.created', 'document.renamed', 'document.version_uploaded',
+            'document.current_version_changed',
             'document.responsible_assigned', 'document.responsible_changed', 'document.responsible_removed',
             'document.version_note_updated', 'document.version_note_cleared',
         ], array_keys($event['discriminator']['mapping']));
-        $this->assertCount(8, $event['oneOf']);
+        $this->assertCount(9, $event['oneOf']);
         $this->assertSame([true], $contract['components']['schemas']['VersionUploadedDetail']['properties']['became_current']['oneOf'][0]['enum']);
         $this->assertContains('new_version', $contract['components']['schemas']['CurrentVersionChangedDetail']['required']);
         $encoded = json_encode($event, JSON_THROW_ON_ERROR);
         foreach (['origin', 'source_type', 'source_id', 'institution_id', 'node_id', 'email', 'url'] as $privateField) {
             $this->assertStringNotContainsString($privateField, $encoded);
         }
+    }
+
+    public function test_document_rename_contract_is_closed_atomic_and_preserves_document_content(): void
+    {
+        $contract = $this->contract();
+        $operation = $contract['paths']['/api/v1/documents/{document_id}/name']['patch'];
+        $request = $contract['components']['schemas']['RenameDocumentRequest'];
+
+        $this->assertSame('renameDocument', $operation['operationId']);
+        $this->assertSame([200, 401, 403, 404, 422, 500], array_keys($operation['responses']));
+        $this->assertFalse($request['additionalProperties']);
+        $this->assertSame(['name'], $request['required']);
+        $this->assertSame(255, $request['properties']['name']['maxLength']);
+        foreach (['case-only change is real', 'without a write or event', 'Duplicate document names remain allowed', 'versions', 'filenames', 'stored files'] as $statement) {
+            $this->assertStringContainsString($statement, $operation['description']);
+        }
+        $detail = $contract['components']['schemas']['DocumentRenamedDetail'];
+        $this->assertFalse($detail['additionalProperties']);
+        $this->assertSame(['previous_name', 'new_name'], $detail['required']);
     }
 
     public function test_version_notes_are_closed_paginated_and_content_private(): void
