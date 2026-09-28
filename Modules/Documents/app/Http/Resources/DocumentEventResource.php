@@ -60,6 +60,10 @@ class DocumentEventResource extends JsonResource
     {
         return match ($this->type) {
             DocumentEventType::Created => (object) [],
+            DocumentEventType::Renamed => [
+                'previous_name' => is_string($detail['previous_name'] ?? null) ? $detail['previous_name'] : null,
+                'new_name' => is_string($detail['new_name'] ?? null) ? $detail['new_name'] : null,
+            ],
             DocumentEventType::VersionUploaded => [
                 'became_current' => is_bool($detail['became_current'] ?? null)
                     ? $detail['became_current'] : null,

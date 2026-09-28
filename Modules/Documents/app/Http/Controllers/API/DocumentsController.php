@@ -12,10 +12,14 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Modules\Documents\Actions\CreateDocumentAction;
+use Modules\Documents\Actions\RenameDocumentAction;
+use Modules\Documents\Actions\UpdateDocumentAction;
 use Modules\Documents\Actions\UpdateDocumentResponsibilityAction;
 use Modules\Documents\Exceptions\DocumentCreationException;
+use Modules\Documents\Exceptions\DocumentRenameException;
 use Modules\Documents\Exceptions\DocumentResponsibilityException;
 use Modules\Documents\Http\Requests\CreateDocumentRequest;
+use Modules\Documents\Http\Requests\RenameDocumentRequest;
 use Modules\Documents\Http\Resources\DocumentLifecycleResource;
 use Modules\Documents\Http\Resources\DocumentResource;
 use Modules\Documents\Http\Resources\InstitutionDocumentResource;
@@ -24,6 +28,7 @@ use Modules\Documents\Models\DocumentDownload;
 use Modules\Documents\Models\DocumentVersion;
 use Modules\Documents\Services\DocumentEventRecorder;
 use Modules\Documents\Services\DocumentLifecycleAccess;
+use Modules\Documents\Support\DocumentName;
 use Modules\Documents\Support\DocumentResponsibleProjection;
 use Modules\Nodes\Models\Node;
 
@@ -283,16 +288,53 @@ class DocumentsController extends BaseController
         ], 'Document responsibility updated successfully.');
     }
 
-    public function update(Request $request, $document_id)
-    {
-        $document = $this->institutionDocumentQuery($request)->find($document_id);
-
-        if (! $document) {
-            return $this->sendError('Document not found.', [], 404);
+    public function rename(
+        RenameDocumentRequest $request,
+        $document_id,
+        RenameDocumentAction $action,
+        DocumentEventRecorder $events,
+        DocumentLifecycleAccess $access,
+    ) {
+        try {
+            $document = $action->execute(
+                $request->user(),
+                $document_id,
+                $request->validated('name'),
+                $events,
+            );
+        } catch (DocumentRenameException $exception) {
+            return ApiResponse::error(
+                $exception->errorCode,
+                $exception->getMessage(),
+                $exception->status,
+                $exception->fields,
+            );
+        } catch (\Throwable) {
+            return ApiResponse::error('DOCUMENT_RENAME_FAILED', 'The document could not be renamed.', 500);
         }
 
+        $request->attributes->set('document_lifecycle_can_mutate', $access->canMutate($request->user()));
+
+        return ApiResponse::success(
+            (new DocumentResource($this->loadDocumentResource($document)))->resolve($request),
+            'Document renamed successfully.',
+        );
+    }
+
+    public function update(
+        Request $request,
+        $document_id,
+        UpdateDocumentAction $action,
+        DocumentEventRecorder $events,
+    ) {
         $validator = Validator::make($request->all(), [
-            'name' => ['sometimes', 'required', 'string', 'max:255'],
+            'name' => ['sometimes', 'required', function (string $attribute, mixed $value, \Closure $fail): void {
+                try {
+                    DocumentName::canonicalize($value);
+                } catch (\InvalidArgumentException $exception) {
+                    $fail($exception->getMessage());
+                }
+            }],
             'description' => ['sometimes', 'nullable', 'string'],
             'category' => ['sometimes', 'nullable', 'string', 'max:255'],
             'responsible_unit' => ['sometimes', 'nullable', 'string', 'max:255'],
@@ -306,15 +348,31 @@ class DocumentsController extends BaseController
             return $this->sendError('Validation Error.', $validator->errors(), 422);
         }
 
-        $document->fill($request->only([
-            'name',
-            'description',
-            'category',
-            'responsible_unit',
-        ]));
-        $document->save();
+        try {
+            $document = $action->execute($request->user(), $document_id, $request->only([
+                'name',
+                'description',
+                'category',
+                'responsible_unit',
+            ]), $events);
+        } catch (DocumentRenameException $exception) {
+            return ApiResponse::error(
+                $exception->errorCode,
+                $exception->getMessage(),
+                $exception->status,
+                $exception->fields,
+            );
+        }
 
         return $this->sendResponse($document, 'Document updated successfully.');
+    }
+
+    private function loadDocumentResource(Document $document): Document
+    {
+        return $document->load([
+            'responsibleUser:id,name,active,deleted_at,institution_id',
+            'currentActiveVersion.author:id,name',
+        ])->loadCount(['versions as active_versions_count' => fn ($query) => $query->where('active', true)]);
     }
 
     public function destroy(Request $request, $document_id)
