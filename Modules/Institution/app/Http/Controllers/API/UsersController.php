@@ -11,8 +11,12 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
-use Modules\Institution\Models\Institution;
+use Modules\Documents\Services\DocumentEventRecorder;
+use Modules\Documents\Services\DocumentResponsibilityWriter;
+use Modules\Institution\Exceptions\RoleChangeException;
 use Modules\Institution\Http\Resources\UserResource;
+use Modules\Institution\Models\Institution;
+use Modules\Institution\Services\RoleChangeImpact;
 
 class UsersController extends BaseController
 {
@@ -88,6 +92,8 @@ class UsersController extends BaseController
             'name' => 'sometimes|required|string|max:255',
             'active' => 'sometimes|required|boolean',
             'role' => ['sometimes', 'required', Rule::enum(RoleType::class)],
+            'role_impact_token' => ['sometimes', 'required', 'string', 'max:255'],
+            'confirm_responsibility_removal' => ['sometimes', 'required', 'boolean'],
             'institution_id' => ['required', 'uuid'],
         ]);
 
@@ -123,7 +129,32 @@ class UsersController extends BaseController
                     return false;
                 }
 
-                $input = $request->except(['role', 'email', 'institution_id']);
+                $requestedRole = $request->filled('role') ? RoleType::from($request->string('role')->toString()) : null;
+                $impact = app(RoleChangeImpact::class);
+                $documents = collect();
+
+                if ($requestedRole !== null && $impact->losesEligibility($target, $requestedRole)) {
+                    $documents = $impact->affectedDocuments($target, lock: true);
+                    $token = $request->input('role_impact_token');
+                    if ($request->boolean('confirm_responsibility_removal') !== true || ! is_string($token)) {
+                        throw new RoleChangeException(
+                            'ROLE_CHANGE_IMPACT_CONFIRMATION_REQUIRED',
+                            'Review and confirm the responsibility impact before changing this role.',
+                            409,
+                        );
+                    }
+                    if (! $impact->tokenMatches($target, $requestedRole, $documents, $token)) {
+                        throw new RoleChangeException(
+                            'ROLE_CHANGE_IMPACT_STALE',
+                            'The responsibility impact has changed. Review it again before confirming.',
+                            409,
+                        );
+                    }
+                }
+
+                $input = $request->except([
+                    'role', 'email', 'institution_id', 'role_impact_token', 'confirm_responsibility_removal',
+                ]);
                 $target->update($input);
 
                 if ($request->filled('role')) {
@@ -135,6 +166,20 @@ class UsersController extends BaseController
                         'user_id' => $target->id,
                         'role_id' => $rol->id,
                     ]);
+                }
+
+                if ($documents->isNotEmpty()) {
+                    $events = app(DocumentEventRecorder::class);
+                    $writer = app(DocumentResponsibilityWriter::class);
+                    foreach ($documents as $document) {
+                        $writer->write(
+                            $document,
+                            null,
+                            $request->user(),
+                            $events,
+                            DocumentResponsibilityWriter::ROLE_CHANGE_REASON,
+                        );
+                    }
                 }
 
                 return true;
@@ -149,9 +194,40 @@ class UsersController extends BaseController
             }
 
             return $this->sendResponse([], 'Account updated successfully.');
+        } catch (RoleChangeException $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+                'code' => $e->errorCode,
+            ], $e->status);
         } catch (\Exception $e) {
             return $this->sendError('Something went wrong.', [], 500);
         }
+    }
+
+    public function roleImpact(Request $request, RoleChangeImpact $impact)
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => ['required', 'string', 'email'],
+            'role' => ['required', Rule::enum(RoleType::class)],
+            'institution_id' => ['required', 'uuid'],
+        ]);
+
+        if ($validator->fails()) {
+            return $this->sendError('Validation failed.', ['error' => $validator->errors()], 422);
+        }
+        if (! $this->institutionMatchesActor($request)) {
+            return $this->institutionalUserNotFound();
+        }
+        $user = $this->institutionalUserByEmail($request);
+        if (! $user) {
+            return $this->institutionalUserNotFound();
+        }
+
+        return $this->sendResponse(
+            $impact->inspect($user, RoleType::from($request->string('role')->toString())),
+            'Role change impact retrieved successfully.',
+        );
     }
 
     public function destroy(Request $request)

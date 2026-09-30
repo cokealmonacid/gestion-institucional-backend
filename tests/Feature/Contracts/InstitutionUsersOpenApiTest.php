@@ -20,13 +20,15 @@ class InstitutionUsersOpenApiTest extends TestCase
         $contract = $this->contract();
 
         $this->assertSame('3.1.0', $contract['openapi']);
-        $this->assertSame('2.1.0', $contract['info']['version']);
+        $this->assertSame('3.0.0', $contract['info']['version']);
         $this->assertArrayNotHasKey('servers', $contract);
         $this->assertSame([
             '/api/v1/institution/users',
+            '/api/v1/institution/users/role-impact',
         ], array_keys($contract['paths']));
 
         $this->assertSame(['get', 'post', 'patch', 'delete'], array_keys($contract['paths']['/api/v1/institution/users']));
+        $this->assertSame(['post'], array_keys($contract['paths']['/api/v1/institution/users/role-impact']));
     }
 
     public function test_contract_documents_the_effective_status_codes_and_security(): void
@@ -49,6 +51,9 @@ class InstitutionUsersOpenApiTest extends TestCase
         $patch = $contract['paths']['/api/v1/institution/users']['patch'];
         $this->assertSame([200, 401, 403, 404, 409, 422], array_keys($patch['responses']));
         $this->assertSame([['bearerAuth' => []]], $patch['security']);
+        $impact = $contract['paths']['/api/v1/institution/users/role-impact']['post'];
+        $this->assertSame([200, 401, 403, 404, 422], array_keys($impact['responses']));
+        $this->assertSame([['bearerAuth' => []]], $impact['security']);
 
         $this->assertSame([
             'type' => 'http',
@@ -95,6 +100,7 @@ class InstitutionUsersOpenApiTest extends TestCase
             $contract['paths']['/api/v1/institution/users']['post'],
             $contract['paths']['/api/v1/institution/users']['patch'],
             $contract['paths']['/api/v1/institution/users']['delete'],
+            $contract['paths']['/api/v1/institution/users/role-impact']['post'],
         ] as $operation) {
             $example = $operation['responses']['200']['content']['application/json']['example'];
 
@@ -102,5 +108,22 @@ class InstitutionUsersOpenApiTest extends TestCase
             $this->assertTrue($example['success']);
             $this->assertIsString($example['message']);
         }
+    }
+
+    public function test_role_change_impact_and_confirmation_are_closed_and_state_bound(): void
+    {
+        $contract = $this->contract();
+        $impact = $contract['components']['schemas']['RoleImpactData'];
+        $update = $contract['components']['schemas']['UpdateUserRequest'];
+
+        $this->assertFalse($impact['additionalProperties']);
+        $this->assertSame(
+            ['affected_documents_count', 'confirmation_required', 'impact_token'],
+            $impact['required'],
+        );
+        $this->assertFalse($update['additionalProperties']);
+        $this->assertArrayHasKey('role_impact_token', $update['properties']);
+        $this->assertSame([true], $update['properties']['confirm_responsibility_removal']['enum']);
+        $this->assertStringContainsString('active and inactive', $contract['paths']['/api/v1/institution/users/role-impact']['post']['description']);
     }
 }

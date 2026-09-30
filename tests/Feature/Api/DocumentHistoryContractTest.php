@@ -40,6 +40,9 @@ class DocumentHistoryContractTest extends TestCase
         $this->patchJson("/api/v1/documents/{$documentId}/versions/{$firstId}/current")->assertOk();
         $responsibleA = User::factory()->for($institution)->create(['name' => 'Ana']);
         $responsibleB = User::factory()->for($institution)->create(['name' => 'Bea']);
+        $editor = Rol::firstOrCreate(['type' => RoleType::Editor]);
+        $responsibleA->roles()->attach($editor);
+        $responsibleB->roles()->attach($editor);
         $responsibilityUri = "/api/v1/documents/{$documentId}/responsible";
         $this->patchJson($responsibilityUri, ['responsible_user_id' => $responsibleA->id, 'expected_revision' => 0])->assertOk();
         $this->patchJson($responsibilityUri, ['responsible_user_id' => $responsibleB->id, 'expected_revision' => 1])->assertOk();
@@ -73,7 +76,7 @@ class DocumentHistoryContractTest extends TestCase
             'document.current_version_changed' => ['new_version', 'previous_version'],
             'document.responsible_assigned' => ['new_responsible_name', 'previous_responsible_name'],
             'document.responsible_changed' => ['new_responsible_name', 'previous_responsible_name'],
-            'document.responsible_removed' => ['new_responsible_name', 'previous_responsible_name'],
+            'document.responsible_removed' => ['new_responsible_name', 'previous_responsible_name', 'reason'],
         ];
         foreach ($history->data as $event) {
             $this->assertSame(['actor', 'detail', 'id', 'occurred_at', 'type', 'version'], $this->sortedKeys($event));
@@ -301,6 +304,7 @@ class DocumentHistoryContractTest extends TestCase
     {
         [$institution, $actor, , $document] = $this->context(RoleType::Admin, true);
         $responsible = User::factory()->for($institution)->create();
+        $responsible->roles()->attach(Rol::firstOrCreate(['type' => RoleType::Editor]));
         Sanctum::actingAs($actor);
         DB::unprepared("CREATE TRIGGER fail_document_event BEFORE INSERT ON document_events BEGIN SELECT RAISE(ABORT, 'forced failure'); END");
 

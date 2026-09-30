@@ -40,6 +40,7 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'active', 'can:users.manage'])-
 
 Route::prefix('v1')->middleware(['auth:sanctum', 'active', 'can:users.manage'])->controller(UsersController::class)->group(function () {
     Route::post('/institution/users', 'store');
+    Route::post('/institution/users/role-impact', 'roleImpact');
     Route::patch('/institution/users', 'update');
     Route::delete('/institution/users', 'destroy');
 });
