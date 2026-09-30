@@ -6,9 +6,13 @@ use App\Enums\RoleType;
 use App\Models\Rol;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
+use Modules\Documents\Models\Document;
+use Modules\Documents\Models\DocumentEvent;
 use Modules\Institution\Models\Institution;
+use Modules\Nodes\Models\Node;
 use Tests\TestCase;
 
 class InstitutionUsersContractTest extends TestCase
@@ -20,6 +24,7 @@ class InstitutionUsersContractTest extends TestCase
         foreach ([
             fn () => $this->getJson('/api/v1/institution/users'),
             fn () => $this->postJson('/api/v1/institution/users', []),
+            fn () => $this->postJson('/api/v1/institution/users/role-impact', []),
             fn () => $this->patchJson('/api/v1/institution/users', []),
             fn () => $this->deleteJson('/api/v1/institution/users', []),
         ] as $call) {
@@ -40,6 +45,11 @@ class InstitutionUsersContractTest extends TestCase
             foreach ([
                 fn () => $this->getJson("/api/v1/institution/users?institution_id={$institution->id}"),
                 fn () => $this->postJson('/api/v1/institution/users', ['institution_id' => $institution->id]),
+                fn () => $this->postJson('/api/v1/institution/users/role-impact', [
+                    'institution_id' => $institution->id,
+                    'email' => $target->email,
+                    'role' => 'reader',
+                ]),
                 fn () => $this->patchJson('/api/v1/institution/users', [
                     'institution_id' => $institution->id,
                     'email' => $target->email,
@@ -237,16 +247,127 @@ class InstitutionUsersContractTest extends TestCase
 
         Sanctum::actingAs($admin);
 
+        $impact = $this->postJson('/api/v1/institution/users/role-impact', [
+            'institution_id' => $institution->id,
+            'email' => $peer->email,
+            'role' => 'reader',
+        ])->assertOk()->assertJsonPath('data.affected_documents_count', 0)
+            ->assertJsonPath('data.confirmation_required', true)->json('data');
+
         $this->patchJson('/api/v1/institution/users', [
             'institution_id' => $institution->id,
             'email' => $peer->email,
             'role' => 'reader',
+            'confirm_responsibility_removal' => true,
+            'role_impact_token' => $impact['impact_token'],
         ])
             ->assertOk()
             ->assertExactJson(['success' => true, 'data' => [], 'message' => 'Account updated successfully.']);
 
         $this->assertTrue($peer->fresh()->roles()->where('type', RoleType::Reader)->exists());
         $this->assertFalse($peer->fresh()->roles()->where('type', RoleType::Editor)->exists());
+    }
+
+    public function test_role_impact_counts_active_and_inactive_documents_and_confirmation_removes_atomically(): void
+    {
+        [$institution, $admin] = $this->institutionUser(admin: true);
+        $editor = User::factory()->for($institution)->create(['name' => 'Editor']);
+        $editor->roles()->attach(Rol::firstOrCreate(['type' => RoleType::Editor]));
+        Rol::firstOrCreate(['type' => RoleType::Reader]);
+        $node = Node::factory()->for($institution)->create(['active' => true]);
+        $active = $this->responsibleDocument($institution, $node, $admin, $editor, true);
+        $inactive = $this->responsibleDocument($institution, $node, $admin, $editor, false);
+        Sanctum::actingAs($admin);
+
+        $payload = ['institution_id' => $institution->id, 'email' => $editor->email, 'role' => 'reader'];
+        $impact = $this->postJson('/api/v1/institution/users/role-impact', $payload)
+            ->assertOk()->assertJsonPath('data.affected_documents_count', 2)
+            ->assertJsonPath('data.confirmation_required', true)->json('data');
+
+        $this->patchJson('/api/v1/institution/users', $payload)
+            ->assertConflict()->assertJsonPath('code', 'ROLE_CHANGE_IMPACT_CONFIRMATION_REQUIRED');
+        $this->assertSame(2, Document::where('responsible_user_id', $editor->id)->count());
+
+        $this->patchJson('/api/v1/institution/users', $payload + [
+            'confirm_responsibility_removal' => true,
+            'role_impact_token' => $impact['impact_token'],
+        ])->assertOk();
+
+        $this->assertTrue($editor->fresh()->roles()->where('type', RoleType::Reader)->exists());
+        foreach ([$active, $inactive] as $document) {
+            $document->refresh();
+            $this->assertNull($document->responsible_user_id);
+            $this->assertSame(1, $document->responsibility_revision);
+            $this->assertDatabaseHas('document_responsible_histories', [
+                'document_id' => $document->id,
+                'previous_responsible_user_id' => $editor->id,
+                'new_responsible_user_id' => null,
+                'actor_user_id' => $admin->id,
+                'revision' => 1,
+            ]);
+            $event = DocumentEvent::where('document_id', $document->id)->sole();
+            $this->assertSame('document.responsible_removed', $event->type->value);
+            $this->assertSame('role_change', $event->detail['reason']);
+        }
+        $this->getJson("/api/v1/documents/{$active->id}/history")
+            ->assertOk()
+            ->assertJsonPath('data.0.type', 'document.responsible_removed')
+            ->assertJsonPath('data.0.actor.id', $admin->id)
+            ->assertJsonPath('data.0.detail.previous_responsible_name', 'Editor')
+            ->assertJsonPath('data.0.detail.reason', 'role_change')
+            ->assertJsonStructure(['data' => [['occurred_at']]]);
+    }
+
+    public function test_stale_impact_is_rejected_and_eligible_role_change_needs_no_confirmation(): void
+    {
+        [$institution, $admin] = $this->institutionUser(admin: true);
+        $editor = User::factory()->for($institution)->create();
+        $editor->roles()->attach(Rol::firstOrCreate(['type' => RoleType::Editor]));
+        $node = Node::factory()->for($institution)->create(['active' => true]);
+        $document = $this->responsibleDocument($institution, $node, $admin, $editor, true);
+        Sanctum::actingAs($admin);
+        $payload = ['institution_id' => $institution->id, 'email' => $editor->email, 'role' => 'reader'];
+        $token = $this->postJson('/api/v1/institution/users/role-impact', $payload)->assertOk()->json('data.impact_token');
+        $document->update(['responsibility_revision' => 2]);
+
+        $this->patchJson('/api/v1/institution/users', $payload + [
+            'confirm_responsibility_removal' => true,
+            'role_impact_token' => $token,
+        ])->assertConflict()->assertJsonPath('code', 'ROLE_CHANGE_IMPACT_STALE');
+        $this->assertTrue($editor->fresh()->roles()->where('type', RoleType::Editor)->exists());
+        $this->assertSame($editor->id, $document->fresh()->responsible_user_id);
+
+        $this->patchJson('/api/v1/institution/users', [
+            'institution_id' => $institution->id,
+            'email' => $editor->email,
+            'role' => 'admin',
+        ])->assertOk();
+        $this->assertSame($editor->id, $document->fresh()->responsible_user_id);
+    }
+
+    public function test_event_failure_rolls_back_role_and_every_responsibility_removal(): void
+    {
+        [$institution, $admin] = $this->institutionUser(admin: true);
+        $editor = User::factory()->for($institution)->create();
+        $editor->roles()->attach(Rol::firstOrCreate(['type' => RoleType::Editor]));
+        $node = Node::factory()->for($institution)->create(['active' => true]);
+        $first = $this->responsibleDocument($institution, $node, $admin, $editor, true);
+        $second = $this->responsibleDocument($institution, $node, $admin, $editor, false);
+        Sanctum::actingAs($admin);
+        $payload = ['institution_id' => $institution->id, 'email' => $editor->email, 'role' => 'reader'];
+        $token = $this->postJson('/api/v1/institution/users/role-impact', $payload)->assertOk()->json('data.impact_token');
+        DB::unprepared("CREATE TRIGGER fail_second_role_event BEFORE INSERT ON document_events WHEN NEW.document_id = '{$second->id}' BEGIN SELECT RAISE(ABORT, 'forced failure'); END");
+
+        $this->patchJson('/api/v1/institution/users', $payload + [
+            'confirm_responsibility_removal' => true,
+            'role_impact_token' => $token,
+        ])->assertStatus(500);
+
+        $this->assertTrue($editor->fresh()->roles()->where('type', RoleType::Editor)->exists());
+        $this->assertSame($editor->id, $first->fresh()->responsible_user_id);
+        $this->assertSame($editor->id, $second->fresh()->responsible_user_id);
+        $this->assertDatabaseCount('document_responsible_histories', 0);
+        $this->assertDatabaseCount('document_events', 0);
     }
 
     public function test_an_admin_cannot_demote_themself_when_they_are_the_only_admin(): void
@@ -280,10 +401,17 @@ class InstitutionUsersContractTest extends TestCase
 
         Sanctum::actingAs($admin);
 
-        $this->patchJson('/api/v1/institution/users', [
+        $payload = [
             'institution_id' => $institution->id,
             'email' => $admin->email,
             'role' => RoleType::Reader->value,
+        ];
+        $impact = $this->postJson('/api/v1/institution/users/role-impact', $payload)
+            ->assertOk()->json('data');
+
+        $this->patchJson('/api/v1/institution/users', $payload + [
+            'confirm_responsibility_removal' => true,
+            'role_impact_token' => $impact['impact_token'],
         ])
             ->assertOk()
             ->assertExactJson(['success' => true, 'data' => [], 'message' => 'Account updated successfully.']);
@@ -424,5 +552,23 @@ class InstitutionUsersContractTest extends TestCase
         }
 
         return [$institution, $user];
+    }
+
+    private function responsibleDocument(
+        Institution $institution,
+        Node $node,
+        User $author,
+        User $responsible,
+        bool $active,
+    ): Document {
+        return Document::create([
+            'name' => fake()->unique()->sentence(3),
+            'status' => $active,
+            'author_id' => $author->id,
+            'institution_id' => $institution->id,
+            'node_id' => $node->id,
+            'responsible_user_id' => $responsible->id,
+            'responsibility_revision' => 0,
+        ]);
     }
 }

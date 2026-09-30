@@ -21,8 +21,8 @@ class DocumentResponsibilityContractTest extends TestCase
     {
         foreach ([RoleType::Admin, RoleType::Editor] as $role) {
             [$institution, $actor, $document] = $this->context($role);
-            $first = User::factory()->for($institution)->create(['name' => 'First Responsible']);
-            $second = User::factory()->for($institution)->create(['name' => 'Second Responsible']);
+            $first = $this->eligibleUser($institution, RoleType::Editor, ['name' => 'First Responsible']);
+            $second = $this->eligibleUser($institution, RoleType::Admin, ['name' => 'Second Responsible']);
             Sanctum::actingAs($actor);
 
             $this->patchJson("/api/v1/documents/{$document->id}/responsible", [
@@ -75,7 +75,7 @@ class DocumentResponsibilityContractTest extends TestCase
     public function test_idempotency_and_optimistic_concurrency_are_enforced(): void
     {
         [$institution, $actor, $document] = $this->context(RoleType::Editor);
-        $responsible = User::factory()->for($institution)->create();
+        $responsible = $this->eligibleUser($institution);
         Sanctum::actingAs($actor);
         $uri = "/api/v1/documents/{$document->id}/responsible";
 
@@ -152,7 +152,7 @@ class DocumentResponsibilityContractTest extends TestCase
             'name' => 'Foreign Responsible',
             'email' => 'foreign-responsible@example.test',
         ]);
-        $local = User::factory()->for($institution)->create(['name' => 'Local Responsible']);
+        $local = $this->eligibleUser($institution, attributes: ['name' => 'Local Responsible']);
         $document->update(['responsible_user_id' => $foreign->id, 'responsibility_revision' => 7]);
         Sanctum::actingAs($actor);
 
@@ -196,7 +196,8 @@ class DocumentResponsibilityContractTest extends TestCase
     {
         [$institution, $actor, $document] = $this->context(RoleType::Editor);
         foreach (range(1, 12) as $number) {
-            User::factory()->for($institution)->create(['name' => sprintf('Match %02d', $number), 'email' => "match{$number}@example.test"]);
+            $user = User::factory()->for($institution)->create(['name' => sprintf('Match %02d', $number), 'email' => "match{$number}@example.test"]);
+            $user->roles()->attach(Rol::firstOrCreate(['type' => $number === 12 ? RoleType::Reader : RoleType::Editor]));
         }
         User::factory()->for($institution)->inactive()->create(['name' => 'Match inactive']);
         $deleted = User::factory()->for($institution)->create(['name' => 'Match deleted']);
@@ -206,17 +207,80 @@ class DocumentResponsibilityContractTest extends TestCase
 
         $data = $this->getJson("/api/v1/documents/{$document->id}/responsible-options?q=MATCH")
             ->assertOk()->assertJsonCount(10, 'data.users')->json('data.users');
-        $this->assertSame(['id', 'name', 'email'], array_keys($data[0]));
+        $this->assertSame(['id', 'name', 'email', 'roles', 'eligible'], array_keys($data[0]));
         $this->assertSame(collect($data)->pluck('name')->sort()->values()->all(), collect($data)->pluck('name')->all());
 
         $this->getJson("/api/v1/documents/{$document->id}/responsible-options?q=match12@example.test")
-            ->assertOk()->assertJsonCount(1, 'data.users');
+            ->assertOk()->assertJsonCount(1, 'data.users')
+            ->assertJsonPath('data.users.0.roles', ['reader'])
+            ->assertJsonPath('data.users.0.eligible', false);
+    }
+
+    public function test_reader_and_roleless_candidates_are_visible_but_cannot_be_assigned(): void
+    {
+        [$institution, $actor, $document] = $this->context(RoleType::Editor);
+        $reader = User::factory()->for($institution)->create(['name' => 'Visible Reader']);
+        $reader->roles()->attach(Rol::firstOrCreate(['type' => RoleType::Reader]));
+        $roleless = User::factory()->for($institution)->create(['name' => 'Visible Roleless']);
+        Sanctum::actingAs($actor);
+
+        $users = collect($this->getJson("/api/v1/documents/{$document->id}/responsible-options?q=Visible")
+            ->assertOk()->json('data.users'))->keyBy('id');
+        $this->assertSame(['reader'], $users[$reader->id]['roles']);
+        $this->assertFalse($users[$reader->id]['eligible']);
+        $this->assertSame([], $users[$roleless->id]['roles']);
+        $this->assertFalse($users[$roleless->id]['eligible']);
+
+        foreach ([$reader, $roleless] as $candidate) {
+            $this->patchJson("/api/v1/documents/{$document->id}/responsible", [
+                'responsible_user_id' => $candidate->id,
+                'expected_revision' => 0,
+            ])->assertNotFound()->assertJsonPath('error.code', 'DOCUMENT_RESPONSIBLE_NOT_AVAILABLE');
+        }
+        $this->assertNull($document->fresh()->responsible_user_id);
+    }
+
+    public function test_eligibility_uses_all_actual_roles_without_changing_role_management(): void
+    {
+        [$institution, $actor, $document] = $this->context(RoleType::Editor);
+        $candidate = User::factory()->for($institution)->create(['name' => 'Dual Role Candidate']);
+        $candidate->roles()->attach([
+            Rol::firstOrCreate(['type' => RoleType::Reader])->id,
+            Rol::firstOrCreate(['type' => RoleType::Editor])->id,
+        ]);
+        Sanctum::actingAs($actor);
+
+        $this->getJson("/api/v1/documents/{$document->id}/responsible-options?q=Dual")
+            ->assertOk()
+            ->assertJsonPath('data.users.0.roles', ['editor', 'reader'])
+            ->assertJsonPath('data.users.0.eligible', true);
+        $this->patchJson("/api/v1/documents/{$document->id}/responsible", [
+            'responsible_user_id' => $candidate->id,
+            'expected_revision' => 0,
+        ])->assertOk()->assertJsonPath('data.responsible.id', $candidate->id);
+    }
+
+    public function test_legacy_reader_assignment_is_preserved_and_equal_patch_is_a_no_op(): void
+    {
+        [$institution, $actor, $document] = $this->context(RoleType::Editor);
+        $reader = User::factory()->for($institution)->create(['name' => 'Legacy Reader']);
+        $reader->roles()->attach(Rol::firstOrCreate(['type' => RoleType::Reader]));
+        $document->update(['responsible_user_id' => $reader->id, 'responsibility_revision' => 4]);
+        Sanctum::actingAs($actor);
+
+        $this->patchJson("/api/v1/documents/{$document->id}/responsible", [
+            'responsible_user_id' => $reader->id,
+            'expected_revision' => 4,
+        ])->assertOk()->assertExactJson($this->success($reader, 4));
+
+        $this->assertDatabaseCount('document_responsible_histories', 0);
+        $this->assertSame($reader->id, $document->fresh()->responsible_user_id);
     }
 
     public function test_history_failure_rolls_back_the_document_change(): void
     {
         [$institution, $actor, $document] = $this->context(RoleType::Admin);
-        $responsible = User::factory()->for($institution)->create();
+        $responsible = $this->eligibleUser($institution);
         Sanctum::actingAs($actor);
         DB::unprepared("CREATE TRIGGER fail_responsibility_history BEFORE INSERT ON document_responsible_histories BEGIN SELECT RAISE(ABORT, 'forced failure'); END");
 
@@ -251,5 +315,13 @@ class DocumentResponsibilityContractTest extends TestCase
             'responsible' => $user ? ['id' => $user->id, 'name' => $user->name, 'active' => true] : null,
             'responsibility_revision' => $revision,
         ], 'message' => 'Document responsibility updated successfully.'];
+    }
+
+    private function eligibleUser(Institution $institution, RoleType $role = RoleType::Editor, array $attributes = []): User
+    {
+        $user = User::factory()->for($institution)->create($attributes);
+        $user->roles()->attach(Rol::firstOrCreate(['type' => $role]));
+
+        return $user;
     }
 }

@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Acervo Institutional Users API",
-    "version": "2.1.0",
-    "description": "Admin-only contract for listing users of the authenticated admin's institution, registering a user in that institution, updating a user's profile, role, and active status, and deleting a user."
+    "version": "3.0.0",
+    "description": "Admin-only contract for listing users, registering accounts, previewing responsibility impact, and atomically updating profile and role data in the authenticated administrator's institution. Version 3 requires preview and explicit confirmation when a role change removes responsible eligibility."
   },
   "tags": [
     {
@@ -111,7 +111,7 @@
       "patch": {
         "operationId": "updateInstitutionUser",
         "summary": "Update a user's profile, role, and active status",
-        "description": "Updates the user identified by email. institution_id must equal both the authenticated admin's own institution_id and the target user's institution_id. When role is present, it replaces any role currently assigned to the user. An admin demoting themself to editor or reader requires another distinct, non-deleted admin account in the institution; inactive admin accounts count.",
+        "description": "Updates the user identified by email. institution_id must equal both the authenticated admin's own institution_id and the target user's institution_id. When role is present, it replaces any role currently assigned to the user. When the requested role removes the last admin/editor role, a current role-impact token and explicit responsibility-removal confirmation are required, including when the impact count is zero. The role change, removal from active and inactive documents, responsibility histories, revisions, and events are one transaction. A stale impact is rejected. Account deactivation alone preserves existing responsibilities. An admin demoting themself to editor or reader requires another distinct, non-deleted admin account; inactive admin accounts count.",
         "tags": ["Institution users"],
         "security": [{ "bearerAuth": [] }],
         "requestBody": {
@@ -142,7 +142,7 @@
           "401": { "$ref": "#/components/responses/Unauthenticated" },
           "403": { "$ref": "#/components/responses/Forbidden" },
           "404": { "$ref": "#/components/responses/InstitutionUserNotFound" },
-          "409": { "$ref": "#/components/responses/AnotherAdministratorRequired" },
+          "409": { "$ref": "#/components/responses/RoleChangeConflict" },
           "422": { "$ref": "#/components/responses/ValidationFailed" }
         }
       },
@@ -174,6 +174,26 @@
               }
             }
           },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/InstitutionUserNotFound" },
+          "422": { "$ref": "#/components/responses/ValidationFailed" }
+        }
+      }
+    },
+    "/api/v1/institution/users/role-impact": {
+      "post": {
+        "operationId": "inspectInstitutionUserRoleImpact",
+        "summary": "Inspect responsibility impact before changing a role",
+        "description": "Admin only. Evaluates the target user's actual roles. If the requested single managed role removes the last admin/editor role, returns the number of active and inactive institutional documents that would lose their responsible user and an opaque token bound to the roles and document responsibility revisions observed. This operation does not modify data.",
+        "tags": ["Institution users"],
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RoleImpactRequest" }, "example": { "institution_id": "22222222-2222-2222-2222-222222222222", "email": "ana.perez@example.com", "role": "reader" } } }
+        },
+        "responses": {
+          "200": { "description": "Current role impact retrieved without mutation.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RoleImpactSuccess" }, "example": { "success": true, "data": { "affected_documents_count": 4, "confirmation_required": true, "impact_token": "opaque-impact-token" }, "message": "Role change impact retrieved successfully." } } } },
           "401": { "$ref": "#/components/responses/Unauthenticated" },
           "403": { "$ref": "#/components/responses/Forbidden" },
           "404": { "$ref": "#/components/responses/InstitutionUserNotFound" },
@@ -316,7 +336,39 @@
           "email": { "type": "string", "format": "email", "description": "Identifies a user in the authenticated admin's institution. Foreign and nonexistent emails are indistinguishable." },
           "name": { "type": "string", "maxLength": 255 },
           "role": { "$ref": "#/components/schemas/RoleType" },
-          "active": { "type": "boolean", "description": "Whether the user may sign in to the platform." }
+          "active": { "type": "boolean", "description": "Whether the user may sign in to the platform. Changing only this field does not remove existing responsibilities." },
+          "role_impact_token": { "type": "string", "maxLength": 255, "description": "Opaque token from the latest matching role-impact response. Required when confirmation_required was true." },
+          "confirm_responsibility_removal": { "type": "boolean", "enum": [true], "description": "Explicit confirmation required with role_impact_token when the role change removes the last admin/editor role." }
+        }
+      },
+      "RoleImpactRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["institution_id", "email", "role"],
+        "properties": {
+          "institution_id": { "type": "string", "format": "uuid" },
+          "email": { "type": "string", "format": "email" },
+          "role": { "$ref": "#/components/schemas/RoleType" }
+        }
+      },
+      "RoleImpactData": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["affected_documents_count", "confirmation_required", "impact_token"],
+        "properties": {
+          "affected_documents_count": { "type": "integer", "minimum": 0 },
+          "confirmation_required": { "type": "boolean" },
+          "impact_token": { "type": ["string", "null"], "description": "Opaque state-bound token; null when no confirmation is required." }
+        }
+      },
+      "RoleImpactSuccess": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "data", "message"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [true] },
+          "data": { "$ref": "#/components/schemas/RoleImpactData" },
+          "message": { "type": "string", "enum": ["Role change impact retrieved successfully."] }
         }
       },
       "DeleteUserRequest": {
@@ -353,6 +405,16 @@
           "success": { "type": "boolean", "enum": [false] },
           "message": { "type": "string", "enum": ["The institution must retain another administrator."] },
           "code": { "type": "string", "enum": ["INSTITUTION_REQUIRES_ANOTHER_ADMIN"] }
+        }
+      },
+      "RoleChangeImpactError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "message", "code"],
+        "properties": {
+          "success": { "type": "boolean", "enum": [false] },
+          "message": { "type": "string" },
+          "code": { "type": "string", "enum": ["ROLE_CHANGE_IMPACT_CONFIRMATION_REQUIRED", "ROLE_CHANGE_IMPACT_STALE"] }
         }
       },
       "ValidationFailedError": {
@@ -414,6 +476,21 @@
               "success": false,
               "message": "The institution must retain another administrator.",
               "code": "INSTITUTION_REQUIRES_ANOTHER_ADMIN"
+            }
+          }
+        }
+      },
+      "RoleChangeConflict": {
+        "description": "The self-demotion would leave no other administrator, explicit impact confirmation is missing, or the reviewed impact is stale. No update is applied.",
+        "content": {
+          "application/json": {
+            "schema": { "oneOf": [
+              { "$ref": "#/components/schemas/AnotherAdministratorRequiredError" },
+              { "$ref": "#/components/schemas/RoleChangeImpactError" }
+            ] },
+            "examples": {
+              "confirmationRequired": { "value": { "success": false, "message": "Review and confirm the responsibility impact before changing this role.", "code": "ROLE_CHANGE_IMPACT_CONFIRMATION_REQUIRED" } },
+              "stale": { "value": { "success": false, "message": "The responsibility impact has changed. Review it again before confirming.", "code": "ROLE_CHANGE_IMPACT_STALE" } }
             }
           }
         }

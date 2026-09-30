@@ -28,8 +28,10 @@ use Modules\Documents\Models\DocumentDownload;
 use Modules\Documents\Models\DocumentVersion;
 use Modules\Documents\Services\DocumentEventRecorder;
 use Modules\Documents\Services\DocumentLifecycleAccess;
+use Modules\Documents\Services\DocumentResponsibilityWriter;
 use Modules\Documents\Support\DocumentName;
 use Modules\Documents\Support\DocumentResponsibleProjection;
+use Modules\Institution\Services\RoleChangeImpact;
 use Modules\Nodes\Models\Node;
 
 class DocumentsController extends BaseController
@@ -219,7 +221,7 @@ class DocumentsController extends BaseController
         );
     }
 
-    public function responsibleOptions(Request $request, $document_id, DocumentLifecycleAccess $access)
+    public function responsibleOptions(Request $request, $document_id, DocumentLifecycleAccess $access, RoleChangeImpact $impact)
     {
         if ($request->user()->cannot(InstitutionAbility::ManageDocuments->value)) {
             return ApiResponse::error('DOCUMENT_RESPONSIBILITY_FORBIDDEN', 'You are not allowed to manage document responsibility.', 403);
@@ -236,12 +238,25 @@ class DocumentsController extends BaseController
         $users = User::query()
             ->where('institution_id', $request->user()->institution_id)
             ->where('active', true)
+            ->with('roles')
             ->where(function (Builder $query) use ($term): void {
                 $query->whereRaw('LOWER(name) LIKE ?', ["%{$term}%"])
                     ->orWhereRaw('LOWER(email) LIKE ?', ["%{$term}%"]);
             })
             ->orderBy('name')->orderBy('id')->limit(10)->get(['id', 'name', 'email'])
-            ->map(fn (User $user): array => ['id' => $user->id, 'name' => $user->name, 'email' => $user->email])->all();
+            ->map(function (User $user) use ($impact): array {
+                $roles = $user->roles->pluck('type')->map(
+                    fn (mixed $role): string => $role instanceof \BackedEnum ? $role->value : (string) $role,
+                )->sort()->values()->all();
+
+                return [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'roles' => $roles,
+                    'eligible' => $impact->isEligible($user),
+                ];
+            })->all();
 
         return ApiResponse::success(['users' => $users], 'Responsible user options retrieved successfully.');
     }
@@ -252,6 +267,8 @@ class DocumentsController extends BaseController
         DocumentLifecycleAccess $access,
         UpdateDocumentResponsibilityAction $action,
         DocumentEventRecorder $events,
+        RoleChangeImpact $impact,
+        DocumentResponsibilityWriter $writer,
     ) {
         if ($request->user()->cannot(InstitutionAbility::ManageDocuments->value)) {
             return ApiResponse::error('DOCUMENT_RESPONSIBILITY_FORBIDDEN', 'You are not allowed to manage document responsibility.', 403);
@@ -275,6 +292,8 @@ class DocumentsController extends BaseController
                 $request->user(), $document_id, $validator->validated()['responsible_user_id'],
                 $validator->validated()['expected_revision'],
                 $events,
+                $impact,
+                $writer,
             );
         } catch (DocumentResponsibilityException $exception) {
             return ApiResponse::error($exception->errorCode, $exception->getMessage(), $exception->status);

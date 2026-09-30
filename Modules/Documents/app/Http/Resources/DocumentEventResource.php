@@ -5,6 +5,7 @@ namespace Modules\Documents\Http\Resources;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Modules\Documents\Enums\DocumentEventType;
+use Modules\Documents\Services\DocumentResponsibilityWriter;
 
 class DocumentEventResource extends JsonResource
 {
@@ -75,12 +76,18 @@ class DocumentEventResource extends JsonResource
             DocumentEventType::VersionNoteUpdated,
             DocumentEventType::VersionNoteCleared => (object) [],
             DocumentEventType::ResponsibleAssigned,
-            DocumentEventType::ResponsibleChanged,
-            DocumentEventType::ResponsibleRemoved => [
+            DocumentEventType::ResponsibleChanged => [
                 'previous_responsible_name' => is_string($detail['previous_responsible_name'] ?? null)
                     ? $detail['previous_responsible_name'] : null,
                 'new_responsible_name' => is_string($detail['new_responsible_name'] ?? null)
                     ? $detail['new_responsible_name'] : null,
+            ],
+            DocumentEventType::ResponsibleRemoved => [
+                'previous_responsible_name' => is_string($detail['previous_responsible_name'] ?? null)
+                    ? $detail['previous_responsible_name'] : null,
+                'new_responsible_name' => null,
+                'reason' => ($detail['reason'] ?? null) === DocumentResponsibilityWriter::ROLE_CHANGE_REASON
+                    ? DocumentResponsibilityWriter::ROLE_CHANGE_REASON : null,
             ],
         };
     }

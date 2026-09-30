@@ -15,7 +15,7 @@ class DocumentLifecycleOpenApiTest extends TestCase
     {
         $contract = $this->contract();
         $this->assertSame('3.1.0', $contract['openapi']);
-        $this->assertSame('2.3.0', $contract['info']['version']);
+        $this->assertSame('3.0.0', $contract['info']['version']);
 
         $operations = [];
         foreach ($contract['paths'] as $path) {
@@ -135,6 +135,12 @@ class DocumentLifecycleOpenApiTest extends TestCase
         foreach (['ResponsibleSummary', 'ResponsibleOption', 'UpdateResponsibilityRequest', 'ResponsibilityData'] as $schema) {
             $this->assertFalse($contract['components']['schemas'][$schema]['additionalProperties']);
         }
+        $option = $contract['components']['schemas']['ResponsibleOption'];
+        $this->assertSame(['id', 'name', 'email', 'roles', 'eligible'], $option['required']);
+        $this->assertSame(['admin', 'editor', 'reader'], $option['properties']['roles']['items']['enum']);
+        $removed = $contract['components']['schemas']['ResponsibilityRemovedDetail'];
+        $this->assertSame(['previous_responsible_name', 'new_responsible_name', 'reason'], $removed['required']);
+        $this->assertSame(['role_change'], $removed['properties']['reason']['oneOf'][0]['enum']);
         foreach (['401', '403', '404', '409', '422', '500'] as $status) {
             $this->assertArrayHasKey($status, $contract['paths']['/api/v1/documents/{document_id}/responsible']['patch']['responses']);
         }
