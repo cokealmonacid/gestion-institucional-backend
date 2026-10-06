@@ -6,6 +6,8 @@
 *.md diff=markdown
 *.php diff=php
 
+resources/demo/universidad-del-rio/*.pdf binary
+
 /.github export-ignore
 CHANGELOG.md export-ignore
 .styleci.yml export-ignore

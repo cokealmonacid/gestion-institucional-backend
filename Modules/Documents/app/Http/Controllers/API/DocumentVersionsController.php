@@ -10,7 +10,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Modules\Documents\Actions\StoreDocumentVersionAction;
 use Modules\Documents\Enums\DocumentEventType;
+use Modules\Documents\Exceptions\DocumentVersionCreationException;
 use Modules\Documents\Http\Resources\DocumentVersionResource;
 use Modules\Documents\Models\Document;
 use Modules\Documents\Models\DocumentDownload;
@@ -101,8 +103,13 @@ class DocumentVersionsController extends BaseController
         );
     }
 
-    public function store(Request $request, $document_id, DocumentLifecycleAccess $access, DocumentEventRecorder $events)
-    {
+    public function store(
+        Request $request,
+        $document_id,
+        DocumentLifecycleAccess $access,
+        DocumentEventRecorder $events,
+        StoreDocumentVersionAction $action,
+    ) {
         $document = $access->findDocument($request->user(), $document_id);
 
         if (! $document) {
@@ -150,92 +157,10 @@ class DocumentVersionsController extends BaseController
             return ApiResponse::error('VALIDATION_FAILED', 'The document version request is invalid.', 422, $validator->errors()->toArray());
         }
 
-        $file = $request->file('file');
-        $versionId = (string) Str::uuid();
-        $filename = $this->safeFilename($file->getClientOriginalName());
-        $extension = $file->getClientOriginalExtension();
-        $storedFilename = $versionId.($extension ? '.'.strtolower($extension) : '');
-        $path = 'institutions/'.$document->institution_id
-            .'/documents/'.$document->id
-            .'/versions/'.$versionId
-            .'/'.$storedFilename;
-
-        $disk = $this->storageDisk();
         try {
-            $stored = $file->storeAs(dirname($path), basename($path), $disk);
-        } catch (\Throwable) {
-            return ApiResponse::error('DOCUMENT_STORAGE_FAILED', 'The document file could not be stored.', 500);
-        }
-
-        if (! $stored) {
-            return ApiResponse::error('DOCUMENT_STORAGE_FAILED', 'The document file could not be stored.', 500);
-        }
-
-        try {
-            $storedFileIsValid = Storage::disk($disk)->exists($stored)
-                && Storage::disk($disk)->size($stored) > 0;
-        } catch (\Throwable) {
-            $this->deleteStoredFile($disk, $stored);
-
-            return ApiResponse::error('DOCUMENT_STORAGE_FAILED', 'The stored document file could not be verified.', 500);
-        }
-
-        if (! $storedFileIsValid) {
-            $this->deleteStoredFile($disk, $stored);
-
-            return ApiResponse::error('DOCUMENT_STORAGE_FAILED', 'The stored document file could not be verified.', 500);
-        }
-
-        try {
-            $version = DB::transaction(function () use ($request, $document, $file, $versionId, $filename, $stored, $events) {
-                $lockedDocument = $this->lockDocument($document);
-                if (! $lockedDocument) {
-                    return null;
-                }
-                $nextVersionNumber = ((int) $this->documentVersionQuery($lockedDocument)->max('version_number')) + 1;
-
-                $this->documentVersionQuery($lockedDocument)->update([
-                    'is_current' => false,
-                ]);
-
-                $version = new DocumentVersion;
-                $version->id = $versionId;
-                $version->fill([
-                    'version_number' => $nextVersionNumber,
-                    // The legacy column stores an internal storage path/key, not necessarily a public URL.
-                    'url' => $stored,
-                    'filename' => $filename,
-                    'mime_type' => $file->getMimeType() ?? $file->getClientMimeType(),
-                    'file_size' => $file->getSize(),
-                    'comment' => null,
-                    'author_id' => $request->user()->id,
-                    'document_id' => $lockedDocument->id,
-                    'institution_id' => $lockedDocument->institution_id,
-                    'node_id' => $lockedDocument->node_id,
-                    'active' => true,
-                    'is_current' => true,
-                ]);
-                $version->save();
-
-                $events->record($lockedDocument, DocumentEventType::VersionUploaded, $request->user(), [
-                    'version' => DocumentEventRecorder::versionSnapshot($version),
-                    'became_current' => true,
-                ], 'document_version', $version->id, $version, $version->created_at);
-
-                return $version;
-            });
-        } catch (\Throwable $exception) {
-            $this->deleteStoredFile($disk, $stored);
-
-            report($exception);
-
-            return ApiResponse::error('DOCUMENT_VERSION_CREATION_FAILED', 'The document version could not be created.', 500);
-        }
-
-        if (! $version) {
-            $this->deleteStoredFile($disk, $stored);
-
-            return ApiResponse::error('DOCUMENT_NOT_AVAILABLE', 'The document is not available.', 404);
+            $version = $action->execute($request->user(), $document, $request->file('file'), $events);
+        } catch (DocumentVersionCreationException $exception) {
+            return ApiResponse::error($exception->errorCode, $exception->getMessage(), $exception->status);
         }
 
         $version->load('author:id,name');
@@ -446,14 +371,5 @@ class DocumentVersionsController extends BaseController
         $suffix = $extension !== '' ? '.'.$extension : '';
 
         return mb_substr($basename, 0, max(1, 240 - mb_strlen($suffix))).$suffix;
-    }
-
-    private function deleteStoredFile(string $disk, string $path): void
-    {
-        try {
-            Storage::disk($disk)->delete($path);
-        } catch (\Throwable) {
-            // Best-effort compensation; an external storage failure may leave an orphaned file.
-        }
     }
 }
