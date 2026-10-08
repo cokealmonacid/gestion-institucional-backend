@@ -20,16 +20,12 @@ class StoreDocumentVersionAction
         Document $document,
         UploadedFile $file,
         DocumentEventRecorder $events,
+        array $forbiddenPaths = [],
     ): DocumentVersion {
-        $versionId = (string) Str::uuid();
         $filename = $this->safeFilename($file->getClientOriginalName());
         $extension = $file->getClientOriginalExtension();
-        $storedFilename = $versionId.($extension ? '.'.strtolower($extension) : '');
-        $path = 'institutions/'.$document->institution_id
-            .'/documents/'.$document->id
-            .'/versions/'.$versionId
-            .'/'.$storedFilename;
         $disk = $this->storageDisk();
+        [$versionId, $path] = $this->unusedStoragePath($disk, $document, $extension, $forbiddenPaths);
 
         try {
             $stored = $file->storeAs(dirname($path), basename($path), $disk);
@@ -154,6 +150,37 @@ class StoreDocumentVersionAction
         } catch (\Throwable) {
             // Best-effort compensation; an external storage failure may leave an orphaned file.
         }
+    }
+
+    /** @param list<string> $forbiddenPaths @return array{string, string} */
+    private function unusedStoragePath(string $disk, Document $document, string $extension, array $forbiddenPaths): array
+    {
+        for ($attempt = 0; $attempt < 10; $attempt++) {
+            $versionId = (string) Str::uuid();
+            $storedFilename = $versionId.($extension ? '.'.strtolower($extension) : '');
+            $path = 'institutions/'.$document->institution_id
+                .'/documents/'.$document->id
+                .'/versions/'.$versionId
+                .'/'.$storedFilename;
+            try {
+                $exists = Storage::disk($disk)->exists($path);
+            } catch (\Throwable) {
+                throw new DocumentVersionCreationException(
+                    'DOCUMENT_STORAGE_FAILED',
+                    'The document file could not be stored.',
+                    500,
+                );
+            }
+            if (! in_array($path, $forbiddenPaths, true) && ! $exists) {
+                return [$versionId, $path];
+            }
+        }
+
+        throw new DocumentVersionCreationException(
+            'DOCUMENT_STORAGE_FAILED',
+            'A unique document storage key could not be allocated.',
+            500,
+        );
     }
 
     private function safeFilename(string $filename): string

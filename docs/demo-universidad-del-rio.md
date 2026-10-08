@@ -18,6 +18,30 @@ php artisan acervo:demo:universidad-rio --force
 
 The command creates data only when the scenario is entirely absent. Complete data is a no-op. Partial, modified, or conflicting data stops the command without repair or overwrite.
 
+## Reset after a demonstration
+
+Reset is destructive only for the document and node data owned by the institution whose stable ID is `755ab137-825b-5f22-a4e5-ab961fea03d3`. It preserves the institution, the three stable accounts, their passwords, email verification, access tokens, and roles. Additional or incompatible accounts block the operation.
+
+First generate a read-only plan:
+
+```text
+php artisan acervo:demo:universidad-rio --reset --check
+```
+
+The plan lists affected records, preserved accounts, and exact storage keys with their cleanup eligibility. Its signed token expires after 15 minutes and becomes stale whenever the relevant database or storage inventory changes.
+
+Execute the reviewed plan explicitly:
+
+```text
+php artisan acervo:demo:universidad-rio --reset --plan-token=<token> --force
+```
+
+Reset must run during a maintenance window with no document, node, responsibility, role, note, or download writes for this institution. The implementation locks the institution, users, nodes, documents, and versions and revalidates the plan, but not every existing write path coordinates on the institution lock. The token detects observed changes; it is not a substitute for the write blackout.
+
+The database reconstruction is transactional. Old files are retained until the transaction commits, and files created by a failed reconstruction are compensated. After commit, only exact old keys proven to belong exclusively to the reset documents are deleted. Shared, missing, unreadable, or noncanonical keys are reported and retained.
+
+If post-commit deletion fails, the command reports `Restablecimiento completado; limpieza incompleta`, an operation ID, and the pending keys. The reconstructed database remains authoritative; do not repeat reset merely to retry file cleanup.
+
 ## Laravel Cloud prerequisite
 
 Before running the load in Laravel Cloud, confirm that `DOCUMENTS_FILESYSTEM_DISK` selects a persistent private disk and that its credentials are available to the command process. This repository does not verify the remote disk configuration. The read-only `--check` command can verify existing objects but intentionally does not write a probe object, so it cannot prove write permission.
