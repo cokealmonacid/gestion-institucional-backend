@@ -109,6 +109,12 @@ class UniversidadDelRioDemoLoader
         private readonly DocumentResponsibilityWriter $responsibilityWriter,
     ) {}
 
+    /** @return array<string, array{id: string, name: string, email: string, role: RoleType}> */
+    public static function userDefinitions(): array
+    {
+        return self::USERS;
+    }
+
     /** @return array{status: string, message: string, details: list<string>} */
     public function inspect(): array
     {
@@ -202,55 +208,7 @@ class UniversidadDelRioDemoLoader
                     $users[$key] = $user;
                 }
 
-                $nodes = [];
-                $nodes['Admisión'] = $this->createNode->execute($users['admin'], null, 'Admisión');
-                $nodes['Admisión 2027'] = $this->createNode->execute($users['admin'], $nodes['Admisión']->id, 'Admisión 2027');
-                foreach (['Lineamientos y calendario', 'Oferta académica', 'Requisitos y vías de ingreso'] as $name) {
-                    $nodes[$name] = $this->createNode->execute($users['admin'], $nodes['Admisión 2027']->id, $name);
-                }
-
-                $documents = [];
-                $versions = [];
-                foreach (self::DOCUMENTS as $name => $definition) {
-                    $document = $this->createDocument->execute($users['editor'], $nodes[$definition['node']]->id, [
-                        'name' => $name,
-                        'description' => $definition['description'],
-                        'category' => $definition['category'],
-                        'responsible_unit' => $definition['unit'],
-                    ], $this->events);
-                    $documents[$name] = $document;
-
-                    foreach ($definition['files'] as $filename) {
-                        $version = $this->storeVersion->execute(
-                            $users['editor'],
-                            $document,
-                            $this->uploadedAsset($filename),
-                            $this->events,
-                        );
-                        $createdFiles[] = $version->url;
-                        $versions[$name][(int) $version->version_number] = $version;
-                    }
-                }
-
-                $protagonist = $documents['Requisitos de ingreso especial 2027'];
-                $this->updateResponsibility->execute(
-                    $users['admin'],
-                    $protagonist->id,
-                    $users['editor']->id,
-                    0,
-                    $this->events,
-                    $this->roleImpact,
-                    $this->responsibilityWriter,
-                );
-                foreach (self::NOTES as $number => $note) {
-                    $this->updateNote->execute(
-                        $users['editor'],
-                        $protagonist->id,
-                        $versions[$protagonist->name][$number]->id,
-                        $note,
-                        $this->events,
-                    );
-                }
+                $this->populate($users, $createdFiles);
             }, 3);
         } catch (\Throwable $exception) {
             foreach ($createdFiles as $path) {
@@ -265,6 +223,62 @@ class UniversidadDelRioDemoLoader
         }
 
         return $after;
+    }
+
+    /** @param array<string, User> $users @param list<string> $createdFiles @param list<string> $forbiddenPaths */
+    public function populate(array $users, array &$createdFiles, array $forbiddenPaths = []): void
+    {
+        $this->assertAssets();
+        $nodes = [];
+        $nodes['Admisión'] = $this->createNode->execute($users['admin'], null, 'Admisión');
+        $nodes['Admisión 2027'] = $this->createNode->execute($users['admin'], $nodes['Admisión']->id, 'Admisión 2027');
+        foreach (['Lineamientos y calendario', 'Oferta académica', 'Requisitos y vías de ingreso'] as $name) {
+            $nodes[$name] = $this->createNode->execute($users['admin'], $nodes['Admisión 2027']->id, $name);
+        }
+
+        $documents = [];
+        $versions = [];
+        foreach (self::DOCUMENTS as $name => $definition) {
+            $document = $this->createDocument->execute($users['editor'], $nodes[$definition['node']]->id, [
+                'name' => $name,
+                'description' => $definition['description'],
+                'category' => $definition['category'],
+                'responsible_unit' => $definition['unit'],
+            ], $this->events);
+            $documents[$name] = $document;
+
+            foreach ($definition['files'] as $filename) {
+                $version = $this->storeVersion->execute(
+                    $users['editor'],
+                    $document,
+                    $this->uploadedAsset($filename),
+                    $this->events,
+                    $forbiddenPaths,
+                );
+                $createdFiles[] = $version->url;
+                $versions[$name][(int) $version->version_number] = $version;
+            }
+        }
+
+        $protagonist = $documents['Requisitos de ingreso especial 2027'];
+        $this->updateResponsibility->execute(
+            $users['admin'],
+            $protagonist->id,
+            $users['editor']->id,
+            0,
+            $this->events,
+            $this->roleImpact,
+            $this->responsibilityWriter,
+        );
+        foreach (self::NOTES as $number => $note) {
+            $this->updateNote->execute(
+                $users['editor'],
+                $protagonist->id,
+                $versions[$protagonist->name][$number]->id,
+                $note,
+                $this->events,
+            );
+        }
     }
 
     /** @param list<string> $missing @param list<string> $problems */

@@ -149,14 +149,19 @@ class UniversidadDelRioDemoCommandTest extends TestCase
                 private int &$calls,
             ) {}
 
-            public function execute(User $actor, Document $document, UploadedFile $file, DocumentEventRecorder $events): DocumentVersion
-            {
+            public function execute(
+                User $actor,
+                Document $document,
+                UploadedFile $file,
+                DocumentEventRecorder $events,
+                array $forbiddenPaths = [],
+            ): DocumentVersion {
                 $this->calls++;
                 if ($this->calls === 2) {
                     throw new RuntimeException('Fallo de almacenamiento simulado.');
                 }
 
-                return $this->delegate->execute($actor, $document, $file, $events);
+                return $this->delegate->execute($actor, $document, $file, $events, $forbiddenPaths);
             }
 
             public function storageDisk(): string
