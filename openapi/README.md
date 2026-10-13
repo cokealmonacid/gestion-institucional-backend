@@ -4,11 +4,11 @@
 
 The backend repository is the authority for Acervo API contracts. The canonical OpenAPI 3.1 contracts are:
 
-- [`v1/authentication.json`](v1/authentication.json), contract version `2.0.0`;
+- [`v1/authentication.json`](v1/authentication.json), contract version `2.1.0`;
 - [`v1/document-explorer.json`](v1/document-explorer.json), contract version `5.0.0`;
 - [`v1/document-lifecycle.json`](v1/document-lifecycle.json), contract version `3.0.0`;
 - [`v1/institution-documents.json`](v1/institution-documents.json), contract version `1.1.0`;
-- [`v1/institution-users.json`](v1/institution-users.json), contract version `3.0.0`;
+- [`v1/institution-users.json`](v1/institution-users.json), contract version `3.1.0`;
 - [`v1/institution-tags.json`](v1/institution-tags.json), contract version `2.0.0`;
 - [`v1/user-search.json`](v1/user-search.json), contract version `2.0.0`.
 
@@ -18,7 +18,9 @@ The authentication contract scope is deliberately limited to:
 - `GET /api/v1/user/profile`
 - `POST /api/v1/auth/logout`
 
-Password-recovery endpoints and every other API endpoint are outside the authentication contract version.
+Authentication 2.1 adds invitation activation, generic password-recovery request, password reset, and authenticated password change. Recovery and activation use distinct single-purpose tokens and successful password mutations revoke the documented Sanctum sessions.
+
+Institution-users 3.1 is the additive transition for invitation onboarding. The published password-based `POST /api/v1/institution/users` and the closed list resource remain unchanged for the currently deployed frontend. A new frontend creates accounts through `POST /api/v1/institution/user-invitations` and obtains activation/delivery state from `GET /api/v1/institution/users/{user_id}/invitation`. Removing password-based creation and adding required state fields to user rows are reserved for a coordinated major version.
 
 The document-explorer contract includes four read operations, admin-only canonical node creation through `POST /api/v1/institution/tree-directory`, admin-only canonical node renaming through `PATCH /api/v1/institution/tree-directory/{node_id}/name`, and admin/editor logical document creation through `POST /api/v1/institution/tree-directory/{node_id}/documents`. The virtual root is not a node and does not contain documents; node creation targets it with an explicit nullable `parent_id` in the request body. Document rows and the creation response include the institution-safe responsible-user summary and its optimistic-concurrency revision. Document creation requires a real accessible node and does not upload a file or create an initial version. The older node POST containing a parent identifier in the route remains runtime-only compatibility behavior and is not part of the canonical contract.
 

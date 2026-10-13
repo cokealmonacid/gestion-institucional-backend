@@ -51,6 +51,11 @@ class User extends Authenticatable
         return $this->belongsTo(Institution::class);
     }
 
+    public function invitation()
+    {
+        return $this->hasOne(UserInvitation::class);
+    }
+
     public function responsibleDocuments()
     {
         return $this->hasMany(Document::class, 'responsible_user_id');

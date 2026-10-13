@@ -16,17 +16,21 @@ class AuthenticationOpenApiTest extends TestCase
         return json_decode($contents, true, 512, JSON_THROW_ON_ERROR);
     }
 
-    public function test_contract_is_openapi_31_and_contains_only_the_authentication_paths(): void
+    public function test_contract_is_openapi_31_and_contains_the_additive_access_lifecycle_paths(): void
     {
         $contract = $this->contract();
 
         $this->assertSame('3.1.0', $contract['openapi']);
-        $this->assertSame('2.0.0', $contract['info']['version']);
+        $this->assertSame('2.1.0', $contract['info']['version']);
         $this->assertArrayNotHasKey('servers', $contract);
         $this->assertSame([
             '/api/v1/auth/login',
             '/api/v1/user/profile',
             '/api/v1/auth/logout',
+            '/api/v1/auth/password-recovery',
+            '/api/v1/auth/password-reset',
+            '/api/v1/auth/activation',
+            '/api/v1/user/update-password',
         ], array_keys($contract['paths']));
     }
 
@@ -35,7 +39,7 @@ class AuthenticationOpenApiTest extends TestCase
         $contract = $this->contract();
 
         $this->assertSame(
-            [200, 401, 403, 422],
+            [200, 401, 403, 422, 429],
             array_keys($contract['paths']['/api/v1/auth/login']['post']['responses']),
         );
         $this->assertSame(
@@ -46,6 +50,22 @@ class AuthenticationOpenApiTest extends TestCase
             [200, 401],
             array_keys($contract['paths']['/api/v1/auth/logout']['post']['responses']),
         );
+        $this->assertSame([202, 422, 429], array_keys($contract['paths']['/api/v1/auth/password-recovery']['post']['responses']));
+        $this->assertSame([200, 400, 422, 429], array_keys($contract['paths']['/api/v1/auth/password-reset']['post']['responses']));
+        $this->assertSame([200, 400, 422, 429], array_keys($contract['paths']['/api/v1/auth/activation']['post']['responses']));
+        $this->assertSame([200, 401, 422, 429], array_keys($contract['paths']['/api/v1/user/update-password']['patch']['responses']));
+    }
+
+    public function test_password_payloads_are_closed_confirmed_and_bcrypt_bounded(): void
+    {
+        $schemas = $this->contract()['components']['schemas'];
+
+        foreach (['PasswordTokenRequest', 'AuthenticatedPasswordRequest'] as $name) {
+            $this->assertFalse($schemas[$name]['additionalProperties']);
+            $this->assertContains('password_confirmation', $schemas[$name]['required']);
+            $this->assertSame(8, $schemas[$name]['properties']['password']['minLength']);
+            $this->assertSame(72, $schemas[$name]['properties']['password']['maxLength']);
+        }
     }
 
     public function test_token_is_required_only_by_the_login_success_schema(): void

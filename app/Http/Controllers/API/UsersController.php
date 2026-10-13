@@ -6,9 +6,12 @@ use App\Http\Controllers\BaseController;
 use App\Http\Resources\UserResource;
 use App\Http\Responses\ApiResponse;
 use App\Models\User;
+use App\Rules\UserPassword;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use Modules\Institution\Models\Institution;
 
 class UsersController extends BaseController
 {
@@ -48,9 +51,16 @@ class UsersController extends BaseController
 
     public function updatePassword(Request $request)
     {
+        $unexpected = array_values(array_diff(array_keys($request->all()), ['current_password', 'password', 'password_confirmation']));
+        if ($unexpected !== []) {
+            return ApiResponse::error('VALIDATION_ERROR', 'The given data was invalid.', 422, [
+                'request' => ['Unexpected properties: '.implode(', ', $unexpected).'.'],
+            ]);
+        }
+
         $validator = Validator::make($request->all(), [
-            'password' => 'bail|required|min:8',
-            'new_password' => 'bail|required|min:8|different:password',
+            'current_password' => ['required', 'string'],
+            'password' => array_merge(UserPassword::rules(), ['different:current_password']),
         ]);
 
         if ($validator->fails()) {
@@ -59,14 +69,25 @@ class UsersController extends BaseController
 
         $user = auth()->user();
 
-        if (! Hash::check($request->password, $user->password)) {
-            return $this->sendError('Validation failed.', ['error' => 'The current password is incorrect'], 405);
+        $changed = DB::transaction(function () use ($user, $request): bool {
+            Institution::query()->whereKey($user->institution_id)->lockForUpdate()->firstOrFail();
+            $locked = User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+            if (! is_string($locked->password) || ! Hash::check($request->current_password, $locked->password)) {
+                return false;
+            }
+            $locked->password = $request->password;
+            $locked->save();
+            DB::table('password_reset_tokens')->where('email', $locked->email)->delete();
+            $locked->tokens()->delete();
+
+            return true;
+        }, 3);
+
+        if (! $changed) {
+            return ApiResponse::error('CURRENT_PASSWORD_INVALID', 'The current password is incorrect.', 422);
         }
 
-        $user->password = Hash::make($request->new_password);
-        $user->save();
-
-        return $this->sendResponse([], 'Password has been udpated successfully.');
+        return ApiResponse::success(null, 'Password updated successfully. Sign in again.');
     }
 
     public function search(Request $request)

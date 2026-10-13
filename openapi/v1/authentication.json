@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Acervo Authentication API",
-    "version": "2.0.0",
-    "description": "Canonical Bearer-token authentication contract for Acervo. Authenticated user responses include informational institutional abilities for frontend presentation; every protected endpoint continues to authorize independently. Runtime API addresses are supplied by each deployment and are not part of this contract."
+    "version": "2.1.0",
+    "description": "Canonical Bearer-token authentication and user access lifecycle contract for Acervo. Version 2.1 adds invitation activation, non-enumerating password recovery, password reset, and authenticated password change without changing the existing login, profile, or logout operations. Runtime API addresses are supplied by each deployment and are not part of this contract."
   },
   "paths": {
     "/api/v1/auth/login": {
@@ -64,7 +64,8 @@
                 }
               }
             }
-          }
+          },
+          "429": { "$ref": "#/components/responses/RateLimited" }
         }
       }
     },
@@ -134,6 +135,62 @@
           }
         }
       }
+    },
+    "/api/v1/auth/password-recovery": {
+      "post": {
+        "operationId": "requestPasswordRecovery",
+        "summary": "Request password recovery without disclosing account state",
+        "description": "Always returns the same accepted response for a syntactically valid email. Mail is queued only for an activated, active, non-deleted user in an active institution.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/EmailRequest" } } } },
+        "responses": {
+          "202": { "description": "Request accepted regardless of account existence or eligibility.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RecoveryRequestedSuccess" } } } },
+          "422": { "description": "Request validation failed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ValidationError" } } } },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/v1/auth/password-reset": {
+      "post": {
+        "operationId": "resetPassword",
+        "summary": "Consume a password recovery token",
+        "description": "Requires an activated and enabled account in an active institution. A successful reset revokes every Sanctum token and does not alter email verification or administrative activation.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PasswordTokenRequest" } } } },
+        "responses": {
+          "200": { "description": "Password reset; the user must sign in again.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PasswordResetSuccess" } } } },
+          "400": { "description": "The link is invalid, expired, consumed, or no longer eligible.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AccessLinkError" } } } },
+          "422": { "description": "Request validation failed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ValidationError" } } } },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/v1/auth/activation": {
+      "post": {
+        "operationId": "activateInvitedUser",
+        "summary": "Activate an invited account and establish its password",
+        "description": "Consumes a single-purpose invitation token. Activation verifies the email and sets the password atomically without signing the user in.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PasswordTokenRequest" } } } },
+        "responses": {
+          "200": { "description": "Account activated; the user must sign in.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ActivationSuccess" } } } },
+          "400": { "description": "The invitation is invalid, expired, consumed, replaced, or no longer eligible.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AccessLinkError" } } } },
+          "422": { "description": "Request validation failed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ValidationError" } } } },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/api/v1/user/update-password": {
+      "patch": {
+        "operationId": "updateAuthenticatedPassword",
+        "summary": "Change the authenticated user's password",
+        "description": "Requires the current password and revokes all Sanctum tokens plus pending password recovery tokens after success.",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthenticatedPasswordRequest" } } } },
+        "responses": {
+          "200": { "description": "Password changed; the current token is revoked.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PasswordChangedSuccess" } } } },
+          "401": { "description": "Authentication is required.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UnauthenticatedError" } } } },
+          "422": { "description": "Validation failed or the current password is incorrect.", "content": { "application/json": { "schema": { "oneOf": [{ "$ref": "#/components/schemas/ValidationError" }, { "$ref": "#/components/schemas/CurrentPasswordError" }] } } } },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
     }
   },
   "components": {
@@ -162,6 +219,36 @@
           }
         }
       },
+      "EmailRequest": {
+        "type": "object", "additionalProperties": false, "required": ["email"],
+        "properties": { "email": { "type": "string", "format": "email", "maxLength": 255 } }
+      },
+      "PasswordTokenRequest": {
+        "type": "object", "additionalProperties": false,
+        "required": ["email", "token", "password", "password_confirmation"],
+        "properties": {
+          "email": { "type": "string", "format": "email", "maxLength": 255 },
+          "token": { "type": "string", "minLength": 1 },
+          "password": { "type": "string", "minLength": 8, "maxLength": 72, "description": "At most 72 UTF-8 bytes for bcrypt compatibility." },
+          "password_confirmation": { "type": "string", "description": "Must equal password." }
+        }
+      },
+      "AuthenticatedPasswordRequest": {
+        "type": "object", "additionalProperties": false,
+        "required": ["current_password", "password", "password_confirmation"],
+        "properties": {
+          "current_password": { "type": "string" },
+          "password": { "type": "string", "minLength": 8, "maxLength": 72, "description": "At most 72 UTF-8 bytes and different from current_password." },
+          "password_confirmation": { "type": "string", "description": "Must equal password." }
+        }
+      },
+      "RecoveryRequestedSuccess": { "type": "object", "additionalProperties": false, "required": ["success", "data", "message"], "properties": { "success": { "const": true }, "data": { "type": "null" }, "message": { "const": "If the account is eligible, recovery instructions will be sent." } } },
+      "PasswordResetSuccess": { "type": "object", "additionalProperties": false, "required": ["success", "data", "message"], "properties": { "success": { "const": true }, "data": { "type": "null" }, "message": { "const": "Password reset successfully. Sign in again." } } },
+      "ActivationSuccess": { "type": "object", "additionalProperties": false, "required": ["success", "data", "message"], "properties": { "success": { "const": true }, "data": { "type": "null" }, "message": { "const": "Account activated successfully. Sign in to continue." } } },
+      "PasswordChangedSuccess": { "type": "object", "additionalProperties": false, "required": ["success", "data", "message"], "properties": { "success": { "const": true }, "data": { "type": "null" }, "message": { "const": "Password updated successfully. Sign in again." } } },
+      "AccessLinkError": { "type": "object", "additionalProperties": false, "required": ["success", "error"], "properties": { "success": { "const": false }, "error": { "type": "object", "additionalProperties": false, "required": ["code", "message"], "properties": { "code": { "enum": ["PASSWORD_RESET_LINK_INVALID", "ACTIVATION_LINK_INVALID"] }, "message": { "type": "string" } } } } },
+      "CurrentPasswordError": { "type": "object", "additionalProperties": false, "required": ["success", "error"], "properties": { "success": { "const": false }, "error": { "type": "object", "additionalProperties": false, "required": ["code", "message"], "properties": { "code": { "const": "CURRENT_PASSWORD_INVALID" }, "message": { "const": "The current password is incorrect." } } } } },
+      "RateLimitError": { "type": "object", "additionalProperties": false, "required": ["success", "error"], "properties": { "success": { "const": false }, "error": { "type": "object", "additionalProperties": false, "required": ["code", "message"], "properties": { "code": { "const": "AUTH_RATE_LIMITED" }, "message": { "const": "Too many requests. Try again later." } } } } },
       "Institution": {
         "type": "object",
         "additionalProperties": false,
@@ -467,6 +554,9 @@
           }
         }
       }
+    },
+    "responses": {
+      "RateLimited": { "description": "The operation was rate limited.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RateLimitError" } } } }
     }
   }
 }

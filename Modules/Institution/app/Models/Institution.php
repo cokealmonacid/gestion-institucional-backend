@@ -3,17 +3,16 @@
 namespace Modules\Institution\Models;
 
 use App\Models\User;
-use Modules\Documents\Models\Document;
-use Modules\Institution\Models\Tag;
-use Modules\Nodes\Models\Node;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Modules\Documents\Models\Document;
 use Modules\Institution\Database\Factories\InstitutionFactory;
+use Modules\Nodes\Models\Node;
 
 class Institution extends Model
 {
-    use HasUuids, HasFactory;
+    use HasFactory, HasUuids;
 
     protected static function newFactory(): InstitutionFactory
     {
@@ -25,6 +24,11 @@ class Institution extends Model
     protected $table = 'institutions';
 
     protected $fillable = ['name', 'status'];
+
+    protected function casts(): array
+    {
+        return ['status' => 'boolean'];
+    }
 
     public function nodes()
     {
