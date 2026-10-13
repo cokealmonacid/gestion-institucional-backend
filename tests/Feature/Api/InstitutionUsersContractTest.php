@@ -24,6 +24,9 @@ class InstitutionUsersContractTest extends TestCase
         foreach ([
             fn () => $this->getJson('/api/v1/institution/users'),
             fn () => $this->postJson('/api/v1/institution/users', []),
+            fn () => $this->postJson('/api/v1/institution/user-invitations', []),
+            fn () => $this->getJson('/api/v1/institution/users/00000000-0000-4000-8000-000000000000/invitation'),
+            fn () => $this->postJson('/api/v1/institution/users/00000000-0000-4000-8000-000000000000/invitation'),
             fn () => $this->postJson('/api/v1/institution/users/role-impact', []),
             fn () => $this->patchJson('/api/v1/institution/users', []),
             fn () => $this->deleteJson('/api/v1/institution/users', []),

@@ -7,12 +7,15 @@ use App\Http\Controllers\BaseController;
 use App\Models\Rol;
 use App\Models\RoleUser;
 use App\Models\User;
+use App\Services\UserAccess\InvitationService;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
 use Modules\Documents\Services\DocumentEventRecorder;
 use Modules\Documents\Services\DocumentResponsibilityWriter;
+use Modules\Institution\Actions\InviteInstitutionUser;
 use Modules\Institution\Exceptions\RoleChangeException;
 use Modules\Institution\Http\Resources\UserResource;
 use Modules\Institution\Models\Institution;
@@ -20,6 +23,123 @@ use Modules\Institution\Services\RoleChangeImpact;
 
 class UsersController extends BaseController
 {
+    public function invite(Request $request, InviteInstitutionUser $action, InvitationService $invitations)
+    {
+        $unexpected = array_values(array_diff(array_keys($request->all()), ['institution_id', 'name', 'email', 'role']));
+        if ($unexpected !== []) {
+            return $this->sendError('Validation failed.', ['error' => [
+                'request' => ['Unexpected properties: '.implode(', ', $unexpected).'.'],
+            ]], 422);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['bail', 'required', 'string', 'email', 'max:255', 'unique:users,email'],
+            'role' => ['required', Rule::enum(RoleType::class)],
+            'institution_id' => ['required', 'uuid'],
+        ]);
+
+        if ($validator->fails()) {
+            return $this->sendError('Validation failed.', ['error' => $validator->errors()], 422);
+        }
+        if (! $this->institutionMatchesActor($request)) {
+            return $this->institutionalUserNotFound();
+        }
+
+        try {
+            [$user, $invitation, $token] = $action->execute($request->user(), $validator->validated(), $invitations);
+            $queued = $invitations->publish($invitation, $token);
+            $invitation->refresh();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'user_id' => $user->id,
+                    'activation_status' => 'pending_activation',
+                    'delivery_status' => $queued ? $invitation->delivery_status : 'failed',
+                    'expires_at' => $invitation->expires_at->toISOString(),
+                ],
+                'message' => $queued
+                    ? 'Account created and invitation queued.'
+                    : 'Account created, but the invitation could not be queued. It can be resent.',
+            ], 201);
+        } catch (\RuntimeException $exception) {
+            if ($exception->getMessage() === 'INSTITUTION_INACTIVE') {
+                return response()->json([
+                    'success' => false,
+                    'error' => ['code' => 'INSTITUTION_INACTIVE', 'message' => 'The institution is inactive.'],
+                ], 409);
+            }
+
+            return response()->json([
+                'success' => false,
+                'error' => ['code' => 'INSTITUTION_USER_INVITATION_FAILED', 'message' => 'The account could not be created.'],
+            ], 500);
+        } catch (\Throwable) {
+            return response()->json([
+                'success' => false,
+                'error' => ['code' => 'INSTITUTION_USER_INVITATION_FAILED', 'message' => 'The account could not be created.'],
+            ], 500);
+        }
+    }
+
+    public function invitationStatus(Request $request, string $user_id)
+    {
+        $user = User::query()
+            ->whereKey($user_id)
+            ->where('institution_id', $request->user()->institution_id)
+            ->with('invitation')
+            ->first();
+
+        if (! $user) {
+            return $this->institutionalUserNotFound();
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $this->invitationData($user),
+            'message' => 'Invitation status retrieved successfully.',
+        ]);
+    }
+
+    public function resendInvitation(Request $request, string $user_id, InvitationService $invitations)
+    {
+        try {
+            [$invitation, $token] = $invitations->reissue($request->user(), $user_id);
+            $queued = $invitations->publish($invitation, $token);
+            $invitation->refresh();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'user_id' => $user_id,
+                    'activation_status' => 'pending_activation',
+                    'delivery_status' => $queued ? $invitation->delivery_status : 'failed',
+                    'expires_at' => $invitation->expires_at->toISOString(),
+                ],
+                'message' => $queued
+                    ? 'Invitation queued successfully.'
+                    : 'The invitation could not be queued. It can be resent.',
+            ], 202);
+        } catch (ModelNotFoundException) {
+            return $this->institutionalUserNotFound();
+        } catch (\RuntimeException $exception) {
+            if ($exception->getMessage() === 'INVITATION_RESEND_THROTTLED') {
+                return response()->json([
+                    'success' => false,
+                    'error' => ['code' => 'INVITATION_RESEND_THROTTLED', 'message' => 'Wait before resending the invitation.'],
+                ], 429);
+            }
+
+            return response()->json([
+                'success' => false,
+                'error' => ['code' => 'INVITATION_NOT_AVAILABLE', 'message' => 'The invitation is not available.'],
+            ], 409);
+        } catch (\Throwable) {
+            return $this->institutionalUserNotFound();
+        }
+    }
+
     public function index(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -298,5 +418,22 @@ class UsersController extends BaseController
     private function institutionalUserNotFound()
     {
         return $this->sendError('Institution user not found.', [], 404);
+    }
+
+    /** @return array<string, mixed> */
+    private function invitationData(User $user): array
+    {
+        $invitation = $user->invitation;
+        $activationStatus = $user->email_verified_at !== null
+            ? 'activated'
+            : ($invitation ? 'pending_activation' : 'legacy_unverified');
+
+        return [
+            'user_id' => $user->id,
+            'activation_status' => $activationStatus,
+            'delivery_status' => $invitation?->delivery_status,
+            'expires_at' => $invitation?->expires_at?->toISOString(),
+            'last_sent_at' => $invitation?->last_sent_at?->toISOString(),
+        ];
     }
 }

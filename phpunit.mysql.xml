@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="tests/bootstrap-mysql.php"
+         colors="true"
+>
+    <testsuites>
+        <testsuite name="MySQL user access concurrency">
+            <file>tests/Feature/MySql/UserAccessConcurrencyTest.php</file>
+        </testsuite>
+    </testsuites>
+</phpunit>

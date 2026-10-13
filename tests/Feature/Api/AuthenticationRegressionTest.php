@@ -27,7 +27,6 @@ class AuthenticationRegressionTest extends TestCase
     {
         return [
             'user profile update' => ['PUT', '/api/v1/user/profile'],
-            'user password update' => ['PATCH', '/api/v1/user/update-password'],
             'nodes module' => ['GET', '/api/v1/nodes'],
             'institution module' => ['GET', '/api/v1/institution/tree-directory'],
         ];

@@ -20,15 +20,32 @@ class InstitutionUsersOpenApiTest extends TestCase
         $contract = $this->contract();
 
         $this->assertSame('3.1.0', $contract['openapi']);
-        $this->assertSame('3.0.0', $contract['info']['version']);
+        $this->assertSame('3.1.0', $contract['info']['version']);
         $this->assertArrayNotHasKey('servers', $contract);
         $this->assertSame([
             '/api/v1/institution/users',
+            '/api/v1/institution/user-invitations',
+            '/api/v1/institution/users/{user_id}/invitation',
             '/api/v1/institution/users/role-impact',
         ], array_keys($contract['paths']));
 
         $this->assertSame(['get', 'post', 'patch', 'delete'], array_keys($contract['paths']['/api/v1/institution/users']));
         $this->assertSame(['post'], array_keys($contract['paths']['/api/v1/institution/users/role-impact']));
+        $this->assertSame(['post'], array_keys($contract['paths']['/api/v1/institution/user-invitations']));
+        $this->assertSame(['parameters', 'get', 'post'], array_keys($contract['paths']['/api/v1/institution/users/{user_id}/invitation']));
+    }
+
+    public function test_invitation_transition_does_not_widen_the_closed_user_resource(): void
+    {
+        $contract = $this->contract();
+        $user = $contract['components']['schemas']['User'];
+        $legacyCreate = $contract['components']['schemas']['CreateUserRequest'];
+        $invite = $contract['components']['schemas']['InviteUserRequest'];
+
+        $this->assertSame(['id', 'name', 'email', 'role', 'created_at', 'active'], $user['required']);
+        $this->assertContains('password', $legacyCreate['required']);
+        $this->assertSame(['institution_id', 'name', 'email', 'role'], $invite['required']);
+        $this->assertArrayNotHasKey('password', $invite['properties']);
     }
 
     public function test_contract_documents_the_effective_status_codes_and_security(): void

@@ -221,6 +221,10 @@ class AuthenticationContractTest extends TestCase
         $this->postJson('/api/v1/auth/logout')
             ->assertUnauthorized()
             ->assertExactJson($expectedResponse);
+
+        $this->patchJson('/api/v1/user/update-password')
+            ->assertUnauthorized()
+            ->assertExactJson($expectedResponse);
     }
 
     public function test_logout_revokes_only_the_current_access_token(): void

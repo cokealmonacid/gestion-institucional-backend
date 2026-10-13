@@ -6,6 +6,7 @@ use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
@@ -30,6 +31,12 @@ return Application::configure(basePath: dirname(__DIR__))
         });
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->render(function (ThrottleRequestsException $e, Request $request) {
+            if ($request->is('api/v1/auth/*') || $request->is('api/v1/user/update-password')) {
+                return ApiResponse::error('AUTH_RATE_LIMITED', 'Too many requests. Try again later.', 429);
+            }
+        });
+
         $exceptions->shouldRenderJsonWhen(function (Request $request, Throwable $e) {
             if ($request->is('api/*')) {
                 return true;
@@ -45,6 +52,9 @@ return Application::configure(basePath: dirname(__DIR__))
             ) || (
                 $request->isMethod('POST')
                 && $request->is('api/v1/auth/logout')
+            ) || (
+                $request->isMethod('PATCH')
+                && $request->is('api/v1/user/update-password')
             ) || (
                 $request->isMethod('POST')
                 && $request->is('api/v1/institution/tree-directory')
