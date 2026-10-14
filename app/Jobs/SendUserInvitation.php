@@ -11,8 +11,12 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\View\ViewException;
 use RuntimeException;
+use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
+use Symfony\Component\Mailer\Exception\UnexpectedResponseException;
 use Throwable;
 
 class SendUserInvitation implements ShouldBeEncrypted, ShouldQueueAfterCommit
@@ -45,16 +49,34 @@ class SendUserInvitation implements ShouldBeEncrypted, ShouldQueueAfterCommit
             'delivery_attempted_at' => now(),
         ]);
 
+        $failureCategory = 'mailer_policy';
         try {
             $this->assertSafeMailer();
+            $failureCategory = 'mail_delivery';
             Mail::to($invitation->user->email)->send(new UserInvitationMail(
                 $invitation->user->name,
                 $invitation->user->institution->name,
                 $this->activationUrl($invitation->user->email),
                 (int) ceil(config('user-access.invitation.expire_minutes', 2880) / 60),
             ));
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            if ($exception instanceof ViewException) {
+                $failureCategory = 'mail_rendering';
+            } elseif ($exception instanceof TransportExceptionInterface) {
+                $failureCategory = 'mail_transport';
+            }
+            $exceptionClass = get_class($exception);
+            $rejectionReason = $this->smtpRejectionReason($exception);
+            Log::warning('Invitation email failed.', [
+                'exception_class' => preg_match('/^[A-Za-z_][A-Za-z0-9_\\\\]{0,179}$/D', $exceptionClass)
+                    ? $exceptionClass : 'unknown',
+                'failure_category' => $failureCategory,
+                'failure_code' => is_int($exception->getCode()) ? $exception->getCode() : null,
+                ...($rejectionReason === null ? [] : ['smtp_rejection_reason' => $rejectionReason]),
+            ]);
             $this->markFailed();
+            // Never chain the original exception: queue failure records serialize its
+            // message and trace, which may contain SMTP credentials or access links.
             throw new RuntimeException('The invitation email transport failed.');
         }
 
@@ -68,6 +90,33 @@ class SendUserInvitation implements ShouldBeEncrypted, ShouldQueueAfterCommit
     public function failed(?Throwable $exception): void
     {
         $this->markFailed();
+    }
+
+    private function smtpRejectionReason(Throwable $exception): ?string
+    {
+        // Only inspect delivery rejections, never authentication errors or debug transcripts.
+        if (! $exception instanceof UnexpectedResponseException
+            || ! in_array($exception->getCode(), [450, 451, 452, 550, 551, 552, 553, 554], true)) {
+            return null;
+        }
+
+        if (! preg_match('/\AExpected response code "[0-9\/]+" but got code "[0-9]{3}", with message "(.*)"\.\z/sD', $exception->getMessage(), $matches)) {
+            return 'other_rejection';
+        }
+
+        $response = strtolower($matches[1]);
+        // Emit only fixed labels. Never log any substring of the provider response.
+        if (str_contains($response, 'only send testing emails to your own email address')) {
+            return 'test_recipient_restriction';
+        }
+
+        if ((str_contains($response, 'domain') && str_contains($response, 'not verified'))
+            || str_contains($response, 'sender address rejected')
+            || str_contains($response, 'sender domain rejected')) {
+            return 'sender_domain_rejection';
+        }
+
+        return 'other_rejection';
     }
 
     private function isCurrentAndEligible(?UserInvitation $invitation): bool

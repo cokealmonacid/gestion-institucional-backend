@@ -15,12 +15,17 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\View\ViewException;
 use Laravel\Sanctum\Sanctum;
 use Modules\Institution\Models\Institution;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
+use Symfony\Component\Mailer\Exception\TransportException;
+use Symfony\Component\Mailer\Exception\UnexpectedResponseException;
 use Tests\TestCase;
 
 class UserAccessLifecycleTest extends TestCase
@@ -227,6 +232,11 @@ class UserAccessLifecycleTest extends TestCase
         ])->assertCreated();
         $job = Queue::pushed(SendUserInvitation::class)->first();
         config(['mail.default' => 'log']);
+        Log::shouldReceive('warning')->once()->with('Invitation email failed.', [
+            'exception_class' => RuntimeException::class,
+            'failure_category' => 'mailer_policy',
+            'failure_code' => 0,
+        ]);
 
         try {
             $job->handle();
@@ -238,6 +248,55 @@ class UserAccessLifecycleTest extends TestCase
         $invitation = UserInvitation::query()->where('user_id', $created->json('data.user_id'))->firstOrFail();
         $this->assertSame('failed', $invitation->delivery_status);
         $this->assertNotSame($job->token, $invitation->token_hash);
+    }
+
+    #[DataProvider('invitationMailFailures')]
+    public function test_invitation_failure_diagnostics_do_not_expose_messages_or_tokens(\Throwable $failure, string $category, ?string $reason = null): void
+    {
+        [$institution, $admin] = $this->admin();
+        Rol::create(['type' => RoleType::Reader]);
+        Queue::fake();
+        Sanctum::actingAs($admin);
+        $created = $this->postJson('/api/v1/institution/user-invitations', [
+            'institution_id' => $institution->id, 'name' => 'Diagnostic test',
+            'email' => 'diagnostic@example.test', 'role' => 'reader',
+        ])->assertCreated();
+        $job = Queue::pushed(SendUserInvitation::class)->first();
+        Mail::shouldReceive('to')->once()->with('diagnostic@example.test')->andReturnSelf();
+        Mail::shouldReceive('send')->once()->andThrow($failure);
+        Log::shouldReceive('warning')->once()->with('Invitation email failed.', [
+            'exception_class' => get_class($failure),
+            'failure_category' => $category,
+            'failure_code' => $failure->getCode(),
+            ...($reason === null ? [] : ['smtp_rejection_reason' => $reason]),
+        ]);
+
+        try {
+            $job->handle();
+            $this->fail('The mail failure must propagate safely.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('The invitation email transport failed.', $exception->getMessage());
+            $this->assertNull($exception->getPrevious());
+            $this->assertStringNotContainsString($job->token, (string) $exception);
+            $this->assertStringNotContainsString('sensitive-placeholder', (string) $exception);
+        }
+        $this->assertDatabaseHas('user_invitations', [
+            'user_id' => $created->json('data.user_id'), 'delivery_status' => 'failed',
+        ]);
+    }
+
+    public static function invitationMailFailures(): array
+    {
+        return [
+            'transport' => [new TransportException('sensitive-placeholder'), 'mail_transport'],
+            'rendering' => [new ViewException('sensitive-placeholder'), 'mail_rendering'],
+            'test recipient restriction' => [new UnexpectedResponseException('Expected response code "250" but got code "550", with message "550 You can only send testing emails to your own email address (owner@example.test). To send emails to other recipients, please verify a domain. sensitive-placeholder https://example.test/activate?token=sensitive-placeholder".', 550), 'mail_transport', 'test_recipient_restriction'],
+            'unverified sender domain' => [new UnexpectedResponseException('Expected response code "250" but got code "550", with message "550 The example.test domain is not verified. sensitive-placeholder".', 550), 'mail_transport', 'sender_domain_rejection'],
+            'sender rejected' => [new UnexpectedResponseException('Expected response code "250" but got code "553", with message "553 Sender address rejected: sender@example.test sensitive-placeholder".', 553), 'mail_transport', 'sender_domain_rejection'],
+            'other rejection' => [new UnexpectedResponseException('Expected response code "250" but got code "550", with message "550 Unknown user recipient@example.test sensitive-placeholder".', 550), 'mail_transport', 'other_rejection'],
+            'unrecognized format' => [new UnexpectedResponseException('sensitive-placeholder', 550), 'mail_transport', 'other_rejection'],
+            'authentication excluded' => [new UnexpectedResponseException('Expected response code "235" but got code "535", with message "535 sensitive-placeholder".', 535), 'mail_transport'],
+        ];
     }
 
     public function test_recovery_is_generic_and_only_eligible_user_gets_a_job(): void
