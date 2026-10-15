@@ -8,7 +8,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Laravel\Sanctum\Sanctum;
 use Modules\Documents\Models\Document;
 use Modules\Documents\Models\DocumentVersion;
 use Modules\Institution\Models\Institution;
@@ -48,7 +47,7 @@ class DocumentExplorerReadContractTest extends TestCase
         $this->node($otherInstitution, 'Other tenant', '0');
         $this->node($institution, 'Child', '0', parent: $first, depth: 1);
 
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         $response = $this->getJson('/api/v1/institution/tree-directory')
             ->assertOk()
@@ -69,7 +68,7 @@ class DocumentExplorerReadContractTest extends TestCase
         $root = $this->node($institution, 'Root', '01');
         $this->node($institution, 'Child', '1', parent: $root, depth: 1);
 
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         $data = $this->getJson("/api/v1/institution/tree-directory/{$root->id}")
             ->assertOk()
@@ -114,7 +113,7 @@ class DocumentExplorerReadContractTest extends TestCase
         $grandchild = $this->node($institution, 'Grandchild', '0', parent: $first, depth: 2);
         $this->node($otherInstitution, 'Other tenant', '0');
 
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         $response = $this->getJson("/api/v1/institution/tree-directory/{$parent->id}/children")
             ->assertOk()
@@ -153,7 +152,7 @@ class DocumentExplorerReadContractTest extends TestCase
         $this->document($institution, $child, 'Descendant document');
         $this->document($otherInstitution, $otherNode, 'Other tenant document');
 
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         $response = $this->getJson("/api/v1/institution/tree-directory/{$node->id}/documents")
             ->assertOk()
@@ -216,7 +215,7 @@ class DocumentExplorerReadContractTest extends TestCase
         $inactive->update(['responsible_user_id' => $inactiveUser->id, 'responsibility_revision' => 3]);
         $deleted->update(['responsible_user_id' => $deletedUser->id, 'responsibility_revision' => 4]);
         $deletedUser->delete();
-        Sanctum::actingAs($reader);
+        $this->authenticateInstitutionUser($reader);
 
         $response = $this->getJson("/api/v1/institution/tree-directory/{$node->id}/documents")
             ->assertOk()
@@ -250,7 +249,7 @@ class DocumentExplorerReadContractTest extends TestCase
         $this->version($available, $editor, 3, false, false, 'private/inactive.pdf');
         $this->version($missing, $editor, 1, true, true, 'private/missing.pdf');
         $this->version($unusable, $editor, 1, true, true, '   ');
-        Sanctum::actingAs($editor);
+        $this->authenticateInstitutionUser($editor);
 
         Storage::shouldReceive('disk')->never();
 
@@ -284,7 +283,7 @@ class DocumentExplorerReadContractTest extends TestCase
 
         $reader = User::factory()->for($institution)->create();
         $reader->roles()->attach(Rol::firstOrCreate(['type' => RoleType::Reader]));
-        Sanctum::actingAs($reader);
+        $this->authenticateInstitutionUser($reader);
         $this->getJson("/api/v1/institution/tree-directory/{$node->id}/documents")
             ->assertOk()
             ->assertJsonPath('data.0.lifecycle.capabilities.can_upload_version', false);
@@ -295,7 +294,7 @@ class DocumentExplorerReadContractTest extends TestCase
         Storage::fake('local');
         config(['filesystems.default' => 'local']);
         [$institution, $user] = $this->institutionUser();
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
         Storage::shouldReceive('disk')->never();
         $queries = [];
         DB::listen(function ($query) use (&$queries): void {
@@ -323,7 +322,7 @@ class DocumentExplorerReadContractTest extends TestCase
     public function test_responsible_projection_uses_one_user_query_as_document_count_grows(): void
     {
         [$institution, $user] = $this->institutionUser();
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
         $queries = [];
         DB::listen(function ($query) use (&$queries): void {
             if (str_contains(strtolower($query->sql), 'from "users"')) {
@@ -344,7 +343,7 @@ class DocumentExplorerReadContractTest extends TestCase
                 ->assertOk()
                 ->assertJsonCount($documentCount, 'data');
 
-            $this->assertCount(1, $queries);
+            $this->assertCount(3, $queries);
         }
     }
 
@@ -356,7 +355,7 @@ class DocumentExplorerReadContractTest extends TestCase
         $child = $this->node($institution, 'Child', '1', parent: $secondRoot, depth: 1);
         $document = $this->document($institution, $secondRoot, 'Direct document');
 
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         $this->getJson('/api/v1/institution/tree-directory')
             ->assertOk()
@@ -385,7 +384,7 @@ class DocumentExplorerReadContractTest extends TestCase
         $inactive = $this->node($institution, 'Inactive', '1', active: false);
         $foreign = $this->node($otherInstitution, 'Foreign', '1');
 
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         foreach ([$inactive->id, $foreign->id, 'missing-node'] as $nodeId) {
             foreach ([

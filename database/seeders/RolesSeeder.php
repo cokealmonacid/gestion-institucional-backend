@@ -2,17 +2,16 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-use Illuminate\Database\Seeder;
-use App\Models\Rol;
 use App\Enums\RoleType;
+use App\Models\Rol;
+use Illuminate\Database\Seeder;
 
 class RolesSeeder extends Seeder
 {
     public function run(): void
     {
         foreach (RoleType::cases() as $role) {
-            Rol::factory()->create([
+            Rol::firstOrCreate([
                 'type' => $role,
             ]);
         }

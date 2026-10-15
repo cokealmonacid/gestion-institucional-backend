@@ -20,7 +20,7 @@ class DocumentExplorerOpenApiTest extends TestCase
         $contract = $this->contract();
 
         $this->assertSame('3.1.0', $contract['openapi']);
-        $this->assertSame('5.1.0', $contract['info']['version']);
+        $this->assertSame('6.0.0', $contract['info']['version']);
         $this->assertStringContainsString('Only the admin role is allowed', $contract['paths']['/api/v1/institution/tree-directory']['post']['description']);
         $this->assertArrayNotHasKey('servers', $contract);
         $this->assertSame([
@@ -43,7 +43,7 @@ class DocumentExplorerOpenApiTest extends TestCase
         $contract = $this->contract();
 
         $this->assertSame(
-            [200, 401],
+            [200, 401, 403],
             array_keys($contract['paths']['/api/v1/institution/tree-directory']['get']['responses']),
         );
 
@@ -62,7 +62,7 @@ class DocumentExplorerOpenApiTest extends TestCase
             '/api/v1/institution/tree-directory/{node_id}/documents',
         ] as $path) {
             $operation = $contract['paths'][$path]['get'];
-            $this->assertSame([200, 401, 404], array_keys($operation['responses']));
+            $this->assertSame([200, 401, 403, 404], array_keys($operation['responses']));
             $this->assertSame([['bearerAuth' => []]], $operation['security']);
         }
 

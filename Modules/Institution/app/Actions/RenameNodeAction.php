@@ -6,6 +6,7 @@ use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Modules\Institution\Exceptions\NodeRenameException;
+use Modules\Institution\Services\InstitutionalAccess;
 use Modules\Nodes\Models\Node;
 use Modules\Nodes\Support\NodeName;
 
@@ -17,6 +18,7 @@ class RenameNodeAction
 
         try {
             return DB::transaction(function () use ($actor, $nodeId, $nameData): Node {
+                app(InstitutionalAccess::class)->lock($actor, 'nodes.manage');
                 $node = Node::query()
                     ->where('institution_id', $actor->institution_id)
                     ->lockForUpdate()

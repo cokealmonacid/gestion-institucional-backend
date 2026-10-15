@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Acervo User Search API",
-    "version": "2.0.0",
-    "description": "Admin-only contract for a typeahead-style search of active users by name or email within the authenticated admin's institution."
+    "version": "3.0.0",
+    "description": "Admin-only contract for a typeahead-style search of active users by name or email within the authenticated admin's institution. Block B consistently enforces operational suspension and credential epochs. Old credentials without current epoch metadata require fresh login; reactivation restores no credentials."
   },
   "tags": [
     {
@@ -16,7 +16,7 @@
       "get": {
         "operationId": "searchUsers",
         "summary": "Search active users by name or email",
-        "description": "Returns up to 10 active users in the authenticated admin's institution whose name or email contains q. Users from other institutions are never observable and no institution selector is accepted.",
+        "description": "Returns up to 10 active users in the authenticated admin's institution whose name or email contains q. Users from other institutions are never observable and no institution selector is accepted. Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish.",
         "tags": ["User search"],
         "security": [{ "bearerAuth": [] }],
         "parameters": [
@@ -44,8 +44,36 @@
               }
             }
           },
-          "401": { "$ref": "#/components/responses/Unauthenticated" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/LegacyError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/ForbiddenError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "422": { "$ref": "#/components/responses/ValidationFailed" }
         }
       }
@@ -135,6 +163,70 @@
                 "type": "object",
                 "description": "Laravel validator error bag: field name to list of messages.",
                 "additionalProperties": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          }
+        }
+      },
+      "InstitutionAccessError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "success",
+          "error"
+        ],
+        "properties": {
+          "success": {
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "enum": [
+                  "INSTITUTION_SUSPENDED",
+                  "AUTH_UNAUTHENTICATED",
+                  "AUTH_ACCOUNT_INACTIVE",
+                  "USER_QUOTA_EXCEEDED",
+                  "INSTITUTION_REQUIRES_USABLE_ADMIN"
+                ]
+              },
+              "message": { "type": "string" },
+              "details": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "role",
+                  "limit",
+                  "used",
+                  "requested_delta"
+                ],
+                "properties": {
+                  "role": {
+                    "enum": [
+                      "admin",
+                      "editor",
+                      "reader"
+                    ]
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "used": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "requested_delta": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
               }
             }
           }

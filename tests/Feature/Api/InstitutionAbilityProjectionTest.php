@@ -11,7 +11,6 @@ use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Laravel\Sanctum\Sanctum;
 use Modules\Institution\Models\Institution;
 use Tests\TestCase;
 
@@ -79,7 +78,7 @@ class InstitutionAbilityProjectionTest extends TestCase
         $this->assertContains(InstitutionAbility::ManageUsers->value, $this->projection()->project($admin));
         $this->assertNotContains(InstitutionAbility::ManageUsers->value, $this->projection()->project($reader));
 
-        Sanctum::actingAs($reader);
+        $this->authenticateInstitutionUser($reader);
         $this->getJson('/api/v1/user/profile')
             ->assertOk()
             ->assertJsonPath('data.user.abilities', [
@@ -122,7 +121,7 @@ class InstitutionAbilityProjectionTest extends TestCase
     public function test_client_supplied_ability_cannot_bypass_endpoint_gate(): void
     {
         $reader = $this->user(Institution::factory()->create(), [RoleType::Reader]);
-        Sanctum::actingAs($reader);
+        $this->authenticateInstitutionUser($reader);
 
         $this->withHeader('X-Abilities', InstitutionAbility::ManageUsers->value)
             ->getJson('/api/v1/user/search?q=reader')

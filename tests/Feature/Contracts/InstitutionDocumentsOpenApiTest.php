@@ -21,7 +21,7 @@ class InstitutionDocumentsOpenApiTest extends TestCase
         $contract = $this->contract();
 
         $this->assertSame('3.1.0', $contract['openapi']);
-        $this->assertSame('1.1.0', $contract['info']['version']);
+        $this->assertSame('2.0.0', $contract['info']['version']);
         $this->assertArrayNotHasKey('servers', $contract);
         $this->assertSame([
             '/api/v1/institution/documents',

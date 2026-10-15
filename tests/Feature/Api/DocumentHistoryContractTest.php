@@ -10,7 +10,6 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Pagination\Cursor;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
-use Laravel\Sanctum\Sanctum;
 use Modules\Documents\Models\Document;
 use Modules\Documents\Models\DocumentEvent;
 use Modules\Documents\Models\DocumentVersion;
@@ -27,7 +26,7 @@ class DocumentHistoryContractTest extends TestCase
     {
         Storage::fake('local');
         [$institution, $actor, $node] = $this->context(RoleType::Admin);
-        Sanctum::actingAs($actor);
+        $this->authenticateInstitutionUser($actor);
 
         $documentId = $this->postJson("/api/v1/institution/tree-directory/{$node->id}/documents", ['name' => 'Policy'])
             ->assertCreated()->json('data.id');
@@ -94,7 +93,7 @@ class DocumentHistoryContractTest extends TestCase
     {
         [, $reader, , $document] = $this->context(RoleType::Reader, true);
         app(BackfillDocumentEvents::class)->execute();
-        Sanctum::actingAs($reader);
+        $this->authenticateInstitutionUser($reader);
 
         $history = $this->decodedHistory($document->id);
         $created = collect($history->data)->firstWhere('type', 'document.created');
@@ -109,7 +108,7 @@ class DocumentHistoryContractTest extends TestCase
     public function test_history_is_cursor_paginated_without_gaps_for_equal_timestamps_and_has_bounded_queries(): void
     {
         [$institution, $actor, , $document] = $this->context(RoleType::Reader, true);
-        Sanctum::actingAs($actor);
+        $this->authenticateInstitutionUser($actor);
         $time = now()->startOfSecond();
         foreach (range(1, 45) as $number) {
             DocumentEvent::create([
@@ -134,7 +133,7 @@ class DocumentHistoryContractTest extends TestCase
 
         DB::enableQueryLog();
         $this->getJson("/api/v1/documents/{$document->id}/history?limit=100")->assertOk();
-        $this->assertLessThanOrEqual(6, count(DB::getQueryLog()));
+        $this->assertLessThanOrEqual(10, count(DB::getQueryLog()));
     }
 
     public function test_history_rejects_invalid_and_cross_document_cursors_and_validates_limits(): void
@@ -145,7 +144,7 @@ class DocumentHistoryContractTest extends TestCase
             'name' => 'Other', 'status' => true, 'author_id' => $reader->id,
             'institution_id' => $institution->id, 'node_id' => $document->node_id,
         ]);
-        Sanctum::actingAs($reader);
+        $this->authenticateInstitutionUser($reader);
 
         foreach ([$document, $sameInstitutionOther, $other] as $index => $owner) {
             DocumentEvent::create([
@@ -184,10 +183,10 @@ class DocumentHistoryContractTest extends TestCase
         $this->getJson($uri)->assertUnauthorized()->assertJsonPath('error.code', 'AUTH_UNAUTHENTICATED');
 
         $withoutAbility = User::factory()->create(['institution_id' => null]);
-        Sanctum::actingAs($withoutAbility);
+        $this->authenticateInstitutionUser($withoutAbility);
         $this->getJson($uri)->assertForbidden();
 
-        Sanctum::actingAs($reader);
+        $this->authenticateInstitutionUser($reader);
         $document->update(['node_id' => null]);
         $this->getJson($uri)->assertNotFound();
         $document->update(['node_id' => $node->id]);
@@ -204,7 +203,7 @@ class DocumentHistoryContractTest extends TestCase
     {
         Storage::fake('local');
         [, $actor, $node] = $this->context(RoleType::Admin);
-        Sanctum::actingAs($actor);
+        $this->authenticateInstitutionUser($actor);
         $documentId = $this->postJson("/api/v1/institution/tree-directory/{$node->id}/documents", ['name' => 'Policy'])->assertCreated()->json('data.id');
         $first = $this->post("/api/v1/documents/{$documentId}/versions", ['file' => UploadedFile::fake()->createWithContent('one.pdf', "%PDF-1.4\n".str_repeat('0', 2048))], ['Accept' => 'application/json'])->assertCreated()->json('data.id');
         $second = $this->post("/api/v1/documents/{$documentId}/versions", ['file' => UploadedFile::fake()->createWithContent('two.pdf', "%PDF-1.4\n".str_repeat('1', 2048))], ['Accept' => 'application/json'])->assertCreated()->json('data.id');
@@ -233,7 +232,7 @@ class DocumentHistoryContractTest extends TestCase
     {
         Storage::fake('local');
         [, $actor, $node] = $this->context(RoleType::Admin);
-        Sanctum::actingAs($actor);
+        $this->authenticateInstitutionUser($actor);
         $documentId = $this->postJson("/api/v1/institution/tree-directory/{$node->id}/documents", ['name' => 'Policy'])->assertCreated()->json('data.id');
         $first = $this->post("/api/v1/documents/{$documentId}/versions", ['file' => UploadedFile::fake()->createWithContent('one.pdf', "%PDF-1.4\n".str_repeat('0', 2048))], ['Accept' => 'application/json'])->assertCreated()->json('data.id');
         $second = $this->post("/api/v1/documents/{$documentId}/versions", ['file' => UploadedFile::fake()->createWithContent('two.pdf', "%PDF-1.4\n".str_repeat('1', 2048))], ['Accept' => 'application/json'])->assertCreated()->json('data.id');
@@ -266,7 +265,7 @@ class DocumentHistoryContractTest extends TestCase
         }
         $deleted->delete();
         $hardDeleted->forceDelete();
-        Sanctum::actingAs($reader);
+        $this->authenticateInstitutionUser($reader);
 
         $response = $this->getJson("/api/v1/documents/{$document->id}/history?limit=100")->assertOk();
         $byName = collect($response->json('data'))->keyBy('actor.name');
@@ -284,7 +283,7 @@ class DocumentHistoryContractTest extends TestCase
     {
         [, $reader, , $document] = $this->context(RoleType::Reader, true);
         $foreign = $this->context(RoleType::Reader, true)[3];
-        Sanctum::actingAs($reader);
+        $this->authenticateInstitutionUser($reader);
 
         $this->getJson("/api/v1/documents/{$document->id}/history")
             ->assertOk()->assertExactJson([
@@ -305,7 +304,7 @@ class DocumentHistoryContractTest extends TestCase
         [$institution, $actor, , $document] = $this->context(RoleType::Admin, true);
         $responsible = User::factory()->for($institution)->create();
         $responsible->roles()->attach(Rol::firstOrCreate(['type' => RoleType::Editor]));
-        Sanctum::actingAs($actor);
+        $this->authenticateInstitutionUser($actor);
         DB::unprepared("CREATE TRIGGER fail_document_event BEFORE INSERT ON document_events BEGIN SELECT RAISE(ABORT, 'forced failure'); END");
 
         $this->patchJson("/api/v1/documents/{$document->id}/responsible", [
@@ -323,7 +322,7 @@ class DocumentHistoryContractTest extends TestCase
     {
         Storage::fake('local');
         [, $actor, $node] = $this->context(RoleType::Admin);
-        Sanctum::actingAs($actor);
+        $this->authenticateInstitutionUser($actor);
         DB::unprepared("CREATE TRIGGER fail_created_event BEFORE INSERT ON document_events WHEN NEW.type = 'document.created' BEGIN SELECT RAISE(ABORT, 'forced failure'); END");
 
         $this->postJson("/api/v1/institution/tree-directory/{$node->id}/documents", ['name' => 'Rejected'])

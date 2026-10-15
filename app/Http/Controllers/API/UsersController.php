@@ -6,12 +6,13 @@ use App\Http\Controllers\BaseController;
 use App\Http\Resources\UserResource;
 use App\Http\Responses\ApiResponse;
 use App\Models\User;
+use App\Platform\Services\AdministrativeEventRecorder;
 use App\Rules\UserPassword;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
-use Modules\Institution\Models\Institution;
+use Modules\Institution\Services\InstitutionalAccess;
 
 class UsersController extends BaseController
 {
@@ -70,7 +71,7 @@ class UsersController extends BaseController
         $user = auth()->user();
 
         $changed = DB::transaction(function () use ($user, $request): bool {
-            Institution::query()->whereKey($user->institution_id)->lockForUpdate()->firstOrFail();
+            app(InstitutionalAccess::class)->lock($user);
             $locked = User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
             if (! is_string($locked->password) || ! Hash::check($request->current_password, $locked->password)) {
                 return false;
@@ -78,7 +79,8 @@ class UsersController extends BaseController
             $locked->password = $request->password;
             $locked->save();
             DB::table('password_reset_tokens')->where('email', $locked->email)->delete();
-            $locked->tokens()->delete();
+            app(InstitutionalAccess::class)->revoke($locked);
+            app(AdministrativeEventRecorder::class)->record($locked, 'user.credentials_changed', 'institution_user', $locked->id, [], ['access_revision' => (int) $locked->access_revision], 'Institutional credential change', $locked->institution_id);
 
             return true;
         }, 3);

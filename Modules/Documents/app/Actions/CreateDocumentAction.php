@@ -8,6 +8,7 @@ use Modules\Documents\Enums\DocumentEventType;
 use Modules\Documents\Exceptions\DocumentCreationException;
 use Modules\Documents\Models\Document;
 use Modules\Documents\Services\DocumentEventRecorder;
+use Modules\Institution\Services\InstitutionalAccess;
 use Modules\Nodes\Models\Node;
 
 class CreateDocumentAction
@@ -29,6 +30,7 @@ class CreateDocumentAction
         }
 
         return DB::transaction(function () use ($actor, $attributes, $node, $events): Document {
+            app(InstitutionalAccess::class)->lock($actor, 'documents.manage');
             $document = Document::create([
                 ...$attributes,
                 'status' => true,

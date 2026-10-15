@@ -2,13 +2,22 @@
 
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Responses\ApiResponse;
+use App\Platform\Http\Middleware\PlatformAuthenticate;
+use App\Platform\Http\Middleware\PlatformAuthorize;
+use App\Platform\Http\Middleware\RejectPlatformCredentials;
+use App\Platform\PlatformException;
 use Illuminate\Auth\AuthenticationException;
+use Illuminate\Auth\Middleware\Authenticate;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
+use Modules\Institution\Exceptions\InstitutionAccessException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -20,7 +29,12 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'active' => EnsureUserIsActive::class,
+            'platform.auth' => PlatformAuthenticate::class,
+            'platform.can' => PlatformAuthorize::class,
         ]);
+        $middleware->api(prepend: [RejectPlatformCredentials::class]);
+        $middleware->web(prepend: [RejectPlatformCredentials::class], append: [EnsureUserIsActive::class]);
+        $middleware->appendToPriorityList(Authenticate::class, EnsureUserIsActive::class);
 
         $middleware->redirectGuestsTo(function (Request $request) {
             if ($request->is('api/*')) {
@@ -31,7 +45,38 @@ return Application::configure(basePath: dirname(__DIR__))
         });
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->dontReport(PlatformException::class);
+        $exceptions->dontReport(InstitutionAccessException::class);
+        $exceptions->render(function (InstitutionAccessException $e, Request $request) {
+            $response = ApiResponse::error($e->errorCode, 'Institutional access is not available for this operation.', $e->status);
+            if ($e->details !== []) {
+                $data = $response->getData(true);
+                $data['error']['details'] = $e->details;
+                $response->setData($data);
+            }
+
+            return $response;
+        });
+        $exceptions->render(function (PlatformException $e, Request $request) {
+            return ApiResponse::error($e->errorCode, 'The platform request could not be completed.', $e->status);
+        });
+        $exceptions->render(function (ValidationException $e, Request $request) {
+            if ($request->is('api/v1/institution/users')) {
+                return response()->json(['success' => false, 'message' => 'Validation failed.', 'data' => ['error' => $e->errors()]], 422);
+            }
+            if ($request->is('api/v1/platform/*')) {
+                return ApiResponse::error('VALIDATION_ERROR', 'The given data was invalid.', 422, $e->errors());
+            }
+        });
+        $exceptions->render(function (NotFoundHttpException $e, Request $request) {
+            if ($request->is('api/v1/platform/*')) {
+                return ApiResponse::error('RESOURCE_NOT_FOUND', 'The resource is unavailable.', 404);
+            }
+        });
         $exceptions->render(function (ThrottleRequestsException $e, Request $request) {
+            if ($request->is('api/v1/platform/*')) {
+                return ApiResponse::error('AUTH_RATE_LIMITED', 'Too many requests. Try again later.', 429)->withHeaders($e->getHeaders());
+            }
             if ($request->is('api/v1/auth/*') || $request->is('api/v1/user/update-password')) {
                 return ApiResponse::error('AUTH_RATE_LIMITED', 'Too many requests. Try again later.', 429);
             }
@@ -92,8 +137,16 @@ return Application::configure(basePath: dirname(__DIR__))
         });
 
         $exceptions->render(function (AccessDeniedHttpException $e, Request $request) {
+            if ($request->is('api/v1/platform/*')) {
+                return ApiResponse::error('PLATFORM_ACCESS_DENIED', 'Platform permission is required.', 403);
+            }
             if ($request->is('api/*')) {
                 return response()->json(['message' => 'Forbidden.'], 403);
+            }
+        });
+        $exceptions->render(function (Throwable $e, Request $request) {
+            if ($request->is('api/v1/platform/*') && ! $e instanceof HttpExceptionInterface) {
+                return ApiResponse::error('PLATFORM_MUTATION_FAILED', 'The platform request could not be completed.', 500);
             }
         });
     })->create();

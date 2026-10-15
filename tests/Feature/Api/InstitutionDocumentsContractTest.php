@@ -7,7 +7,6 @@ use App\Models\Rol;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
-use Laravel\Sanctum\Sanctum;
 use Modules\Documents\Models\Document;
 use Modules\Documents\Models\DocumentVersion;
 use Modules\Institution\Models\Institution;
@@ -40,7 +39,7 @@ class InstitutionDocumentsContractTest extends TestCase
         $this->document($institution, $node, 'Inactive', status: false);
         $this->document($otherInstitution, $otherNode, 'Other tenant document');
 
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         $response = $this->getJson('/api/v1/institution/documents')
             ->assertOk()
@@ -59,7 +58,7 @@ class InstitutionDocumentsContractTest extends TestCase
         $this->document($institution, $node, 'Active');
         $this->document($institution, $node, 'Inactive', status: false);
 
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         $this->getJson('/api/v1/institution/documents')
             ->assertOk()
@@ -91,7 +90,7 @@ class InstitutionDocumentsContractTest extends TestCase
             createdAt: '2026-02-01 00:00:00',
         );
 
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         $response = $this->getJson('/api/v1/institution/documents')
             ->assertOk()
@@ -138,7 +137,7 @@ class InstitutionDocumentsContractTest extends TestCase
         $document->author_id = $user->id;
         $document->save();
 
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         $response = $this->getJson('/api/v1/institution/documents')
             ->assertOk()
@@ -158,7 +157,7 @@ class InstitutionDocumentsContractTest extends TestCase
             $this->document($institution, $node, "Document {$number}", createdAt: "2026-01-0{$number} 00:00:00");
         }
 
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         $page = $this->getJson('/api/v1/institution/documents?per_page=2')
             ->assertOk()
@@ -185,7 +184,7 @@ class InstitutionDocumentsContractTest extends TestCase
     public function test_validation_rejects_an_invalid_per_page(): void
     {
         [$institution, $user] = $this->institutionUser();
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         $this->getJson('/api/v1/institution/documents?per_page=0')
             ->assertUnprocessable()
@@ -201,7 +200,7 @@ class InstitutionDocumentsContractTest extends TestCase
         $document = $this->document($institution, $node, 'Available');
         $this->version($document, $editor, 1, true, true, 'private/available.pdf');
 
-        Sanctum::actingAs($editor);
+        $this->authenticateInstitutionUser($editor);
 
         $this->getJson('/api/v1/institution/documents')
             ->assertOk()
@@ -212,7 +211,7 @@ class InstitutionDocumentsContractTest extends TestCase
 
         $reader = User::factory()->for($institution)->create();
         $reader->roles()->attach(Rol::firstOrCreate(['type' => RoleType::Reader]));
-        Sanctum::actingAs($reader);
+        $this->authenticateInstitutionUser($reader);
 
         $this->getJson('/api/v1/institution/documents')
             ->assertOk()

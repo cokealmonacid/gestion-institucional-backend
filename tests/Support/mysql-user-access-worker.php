@@ -15,7 +15,9 @@ require dirname(__DIR__).'/bootstrap-mysql.php';
 $payload = json_decode((string) file_get_contents($payloadPath), true, flags: JSON_THROW_ON_ERROR);
 
 $app = require dirname(__DIR__, 2).'/bootstrap/app.php';
+$app->loadEnvironmentFrom('.env.isolated-testing');
 $app->make(Illuminate\Contracts\Console\Kernel::class)->bootstrap();
+config(['app.key' => 'base64:'.base64_encode(str_repeat('t', 32))]);
 config(['cache.default' => 'array', 'mail.default' => 'array', 'queue.default' => 'sync', 'session.driver' => 'array']);
 
 file_put_contents($readyPath, 'ready', LOCK_EX);

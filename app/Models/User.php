@@ -16,11 +16,13 @@ use Modules\Documents\Models\Document;
 use Modules\Institution\Models\Institution;
 
 #[Fillable(['name', 'email', 'password', 'institution_id', 'active'])]
-#[Hidden(['password', 'remember_token'])]
+#[Hidden(['password', 'remember_token', 'access_revision'])]
 class User extends Authenticatable
 {
+    use HasApiTokens { createToken as private createInstitutionToken; }
+
     /** @use HasFactory<UserFactory> */
-    use HasApiTokens, HasFactory, HasUuids, Notifiable, SoftDeletes;
+    use HasFactory, HasUuids, Notifiable, SoftDeletes;
 
     public $incrementing = false;
 
@@ -39,6 +41,14 @@ class User extends Authenticatable
             'password' => 'hashed',
             'active' => 'boolean',
         ];
+    }
+
+    public function createToken(string $name, array $abilities = ['*'], ?\DateTimeInterface $expiresAt = null)
+    {
+        $issued = $this->createInstitutionToken($name, $abilities, $expiresAt);
+        $issued->accessToken->forceFill(['institution_auth_epoch' => Institution::whereKey($this->institution_id)->value('auth_epoch')])->save();
+
+        return $issued;
     }
 
     public function roles()

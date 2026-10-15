@@ -6,7 +6,6 @@ use App\Enums\RoleType;
 use App\Models\Rol;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Laravel\Sanctum\Sanctum;
 use Modules\Documents\Models\Document;
 use Modules\Institution\Models\Institution;
 use Modules\Nodes\Models\Node;
@@ -25,7 +24,7 @@ class NodeRenameContractTest extends TestCase
         $document = Document::create(['name' => 'Doc', 'status' => true, 'institution_id' => $institution->id, 'node_id' => $node->id]);
         $preserved = ['id', 'institution_id', 'parent_id', 'parent_scope', 'path', 'depth', 'order'];
         $before = $node->only($preserved);
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
 
         $this->patchJson("/api/v1/institution/tree-directory/{$node->id}/name", ['name' => 'policy'])
             ->assertOk()->assertJsonPath('data.name', 'policy')
@@ -43,13 +42,13 @@ class NodeRenameContractTest extends TestCase
         [$institution, $admin] = $this->actor(RoleType::Admin);
         $node = $this->node($institution, 'Área');
         $updatedAt = $node->updated_at;
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
         $this->patchJson("/api/v1/institution/tree-directory/{$node->id}/name", ['name' => " A\u{0301}rea "])->assertOk();
         $this->assertTrue($node->fresh()->updated_at->equalTo($updatedAt));
 
         foreach ([RoleType::Editor, RoleType::Reader] as $role) {
             [, $actor] = $this->actor($role, $institution);
-            Sanctum::actingAs($actor);
+            $this->authenticateInstitutionUser($actor);
             $this->patchJson("/api/v1/institution/tree-directory/{$node->id}/name", ['name' => 'Denied'])
                 ->assertForbidden()->assertJsonPath('error.code', 'NODE_RENAME_FORBIDDEN');
         }
@@ -61,7 +60,7 @@ class NodeRenameContractTest extends TestCase
         $parent = $this->node($institution, 'Parent');
         $node = $this->node($institution, 'Node', $parent);
         $this->node($institution, 'DUPLICATE', $parent, false);
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
 
         foreach ([' ', 'a/b', 'a\\b', "a\nb", str_repeat('x', 256)] as $name) {
             $this->patchJson("/api/v1/institution/tree-directory/{$node->id}/name", ['name' => $name])

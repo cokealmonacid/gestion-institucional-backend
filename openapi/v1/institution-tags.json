@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Acervo Institution Tags API",
-    "version": "2.0.0",
-    "description": "Contract for listing tags and for admin/editor tag management scoped to the authenticated user's institution."
+    "version": "3.0.0",
+    "description": "Contract for listing tags and for admin/editor tag management scoped to the authenticated user's institution. Block B consistently enforces operational suspension and credential epochs. Old credentials without current epoch metadata require fresh login; reactivation restores no credentials."
   },
   "tags": [
     {
@@ -16,7 +16,7 @@
       "get": {
         "operationId": "listInstitutionTags",
         "summary": "List tags of the authenticated user's institution",
-        "description": "Returns a paginated list of tags whose institution_id matches the authenticated user's own institution_id. Optionally filtered by status.",
+        "description": "Returns a paginated list of tags whose institution_id matches the authenticated user's own institution_id. Optionally filtered by status. Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish.",
         "tags": ["Institution tags"],
         "security": [{ "bearerAuth": [] }],
         "parameters": [
@@ -63,14 +63,42 @@
               }
             }
           },
-          "401": { "$ref": "#/components/responses/Unauthenticated" },
-          "403": { "$ref": "#/components/responses/InactiveAccount" }
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/LegacyError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/InactiveAccountError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          }
         }
       },
       "post": {
         "operationId": "createInstitutionTag",
         "summary": "Create a tag in an institution",
-        "description": "Admin and editor only. Creates a tag with the given name and description in the authenticated user's institution. institution_id must equal that derived institutional context.",
+        "description": "Admin and editor only. Creates a tag with the given name and description in the authenticated user's institution. institution_id must equal that derived institutional context. Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish.",
         "tags": ["Institution tags"],
         "security": [{ "bearerAuth": [] }],
         "requestBody": {
@@ -104,8 +132,41 @@
               }
             }
           },
-          "401": { "$ref": "#/components/responses/Unauthenticated" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/LegacyError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "oneOf": [
+                        { "$ref": "#/components/schemas/InactiveAccountError" },
+                        { "$ref": "#/components/schemas/ForbiddenError" }
+                      ]
+                    },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "404": { "$ref": "#/components/responses/TagNotFound" },
           "422": { "$ref": "#/components/responses/ValidationFailed" },
           "500": { "$ref": "#/components/responses/ServerError" }
@@ -116,7 +177,7 @@
       "delete": {
         "operationId": "deleteInstitutionTag",
         "summary": "Delete a tag",
-        "description": "Admin and editor only. Deletes the tag identified by tag_id when it belongs to the authenticated user's institution. Cross-institution and nonexistent tags are indistinguishable.",
+        "description": "Admin and editor only. Deletes the tag identified by tag_id when it belongs to the authenticated user's institution. Cross-institution and nonexistent tags are indistinguishable. Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish.",
         "tags": ["Institution tags"],
         "security": [{ "bearerAuth": [] }],
         "parameters": [
@@ -140,8 +201,41 @@
               }
             }
           },
-          "401": { "$ref": "#/components/responses/Unauthenticated" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/LegacyError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "oneOf": [
+                        { "$ref": "#/components/schemas/InactiveAccountError" },
+                        { "$ref": "#/components/schemas/ForbiddenError" }
+                      ]
+                    },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "404": { "$ref": "#/components/responses/TagNotFound" },
           "422": { "$ref": "#/components/responses/ValidationFailed" },
           "500": { "$ref": "#/components/responses/ServerError" }
@@ -337,6 +431,67 @@
                 "type": "object",
                 "description": "Laravel validator error bag: field name to list of messages.",
                 "additionalProperties": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          }
+        }
+      },
+      "InstitutionAccessError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "success",
+          "error"
+        ],
+        "properties": {
+          "success": {
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "enum": [
+                  "INSTITUTION_SUSPENDED",
+                  "AUTH_UNAUTHENTICATED",
+                  "AUTH_ACCOUNT_INACTIVE",
+                  "USER_QUOTA_EXCEEDED",
+                  "INSTITUTION_REQUIRES_USABLE_ADMIN"
+                ]
+              },
+              "message": { "type": "string" },
+              "details": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "role",
+                  "limit",
+                  "used",
+                  "requested_delta"
+                ],
+                "properties": {
+                  "role": {
+                    "enum": [
+                      "admin",
+                      "editor",
+                      "reader"
+                    ]
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "used": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "requested_delta": { "type": "integer", "minimum": 1 }
+                }
               }
             }
           }

@@ -7,7 +7,6 @@ use App\Models\Rol;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use Laravel\Sanctum\Sanctum;
 use Modules\Documents\Models\Document;
 use Modules\Institution\Models\Institution;
 use Modules\Nodes\Models\Node;
@@ -21,7 +20,7 @@ class DocumentExplorerDocumentCreateContractTest extends TestCase
     {
         [$institution, $user] = $this->institutionUser(RoleType::Admin);
         $node = $this->node($institution, 'Documents');
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
         $userQueries = [];
         DB::listen(function ($query) use (&$userQueries): void {
             if (str_contains(strtolower($query->sql), 'from "users"')) {
@@ -63,7 +62,7 @@ class DocumentExplorerDocumentCreateContractTest extends TestCase
             'responsibility_revision', 'status',
             'author_id', 'institution_id', 'node_id', 'created_at', 'updated_at', 'lifecycle',
         ], array_keys($response->json('data')));
-        $this->assertCount(0, $userQueries);
+        $this->assertCount(2, $userQueries);
         $this->assertDatabaseCount('document_versions', 0);
     }
 
@@ -75,7 +74,7 @@ class DocumentExplorerDocumentCreateContractTest extends TestCase
 
         [$institution, $reader] = $this->institutionUser(RoleType::Reader);
         $node = $this->node($institution, 'Documents');
-        Sanctum::actingAs($reader);
+        $this->authenticateInstitutionUser($reader);
 
         $this->postJson("/api/v1/institution/tree-directory/{$node->id}/documents", ['name' => 'Document'])
             ->assertForbidden()
@@ -87,7 +86,7 @@ class DocumentExplorerDocumentCreateContractTest extends TestCase
     {
         [$institution, $editor] = $this->institutionUser(RoleType::Editor);
         $node = $this->node($institution, 'Documents');
-        Sanctum::actingAs($editor);
+        $this->authenticateInstitutionUser($editor);
 
         $this->postJson("/api/v1/institution/tree-directory/{$node->id}/documents", [
             'name' => 'Editor document',
@@ -109,7 +108,7 @@ class DocumentExplorerDocumentCreateContractTest extends TestCase
     {
         [$institution, $user] = $this->institutionUser(RoleType::Admin);
         $node = $this->node($institution, 'Documents');
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         $response = $this->postJson("/api/v1/institution/tree-directory/{$node->id}/documents", [
             'name' => '  Document name  ',
@@ -136,7 +135,7 @@ class DocumentExplorerDocumentCreateContractTest extends TestCase
     {
         [$institution, $user] = $this->institutionUser(RoleType::Admin);
         $node = $this->node($institution, 'Documents');
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         foreach (['', '   '] as $name) {
             $this->postJson("/api/v1/institution/tree-directory/{$node->id}/documents", ['name' => $name])
@@ -157,7 +156,7 @@ class DocumentExplorerDocumentCreateContractTest extends TestCase
         $hiddenChild = $this->node($institution, 'Hidden child', $inactiveParent, true);
         [$otherInstitution] = $this->institutionUser(RoleType::Admin);
         $foreign = $this->node($otherInstitution, 'Foreign');
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         foreach (['missing-node', $inactive->id, $hiddenChild->id, $foreign->id] as $nodeId) {
             $this->postJson("/api/v1/institution/tree-directory/{$nodeId}/documents", ['name' => 'Document'])
@@ -178,7 +177,7 @@ class DocumentExplorerDocumentCreateContractTest extends TestCase
     {
         [$institution, $user] = $this->institutionUser(RoleType::Admin);
         $node = $this->node($institution, 'Documents');
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         foreach ([
             [[], 'name'],

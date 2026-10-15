@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Acervo Institutional Users API",
-    "version": "3.1.0",
-    "description": "Admin-only contract for institutional users. Version 3.1 adds invitation-based account creation plus separate invitation status and resend operations while preserving the existing password-based POST /institution/users and its closed responses during frontend transition."
+    "version": "4.0.0",
+    "description": "Admin-only contract for institutional users. Version 3.1 adds invitation-based account creation plus separate invitation status and resend operations while preserving the existing password-based POST /institution/users and its closed responses during frontend transition. Block B consistently enforces operational suspension and credential epochs. Old credentials without current epoch metadata require fresh login; reactivation restores no credentials. Quotas count each actual role of active non-deleted users, including pending/expired invitations. Only positive over-limit occupancy changes are rejected. Usable admin requires active, verified and nonempty password. Explicit role replacement retains impact confirmation; other edits preserve multiple roles. Legacy password POST remains supported."
   },
   "tags": [
     {
@@ -16,7 +16,7 @@
       "get": {
         "operationId": "listInstitutionUsers",
         "summary": "List users of an institution",
-        "description": "Returns all users, including the authenticated administrator, belonging to the authenticated administrator's institution. institution_id is retained for compatibility but must match that server-derived context.",
+        "description": "Returns all users, including the authenticated administrator, belonging to the authenticated administrator's institution. institution_id is retained for compatibility but must match that server-derived context. Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish.",
         "tags": ["Institution users"],
         "security": [{ "bearerAuth": [] }],
         "parameters": [
@@ -64,8 +64,36 @@
               }
             }
           },
-          "401": { "$ref": "#/components/responses/Unauthenticated" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/LegacyError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/ForbiddenError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "404": { "$ref": "#/components/responses/InstitutionUserNotFound" },
           "422": { "$ref": "#/components/responses/ValidationFailed" }
         }
@@ -73,7 +101,7 @@
       "post": {
         "operationId": "registerInstitutionUser",
         "summary": "Register a user in an institution",
-        "description": "Creates a user with the given role in institution_id. The caller must be an admin and institution_id must equal the authenticated admin's own institution_id.",
+        "description": "Creates a user with the given role in institution_id. The caller must be an admin and institution_id must equal the authenticated admin's own institution_id. Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish.",
         "tags": ["Institution users"],
         "security": [{ "bearerAuth": [] }],
         "requestBody": {
@@ -102,16 +130,54 @@
               }
             }
           },
-          "401": { "$ref": "#/components/responses/Unauthenticated" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/LegacyError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/ForbiddenError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "404": { "$ref": "#/components/responses/InstitutionUserNotFound" },
+          "409": {
+            "description": "Quota or last usable administrator removal denied atomically.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstitutionAccessError"
+                }
+              }
+            }
+          },
           "422": { "$ref": "#/components/responses/ValidationFailed" }
         }
       },
       "patch": {
         "operationId": "updateInstitutionUser",
         "summary": "Update a user's profile, role, and active status",
-        "description": "Updates the user identified by email. institution_id must equal both the authenticated admin's own institution_id and the target user's institution_id. When role is present, it replaces any role currently assigned to the user. When the requested role removes the last admin/editor role, a current role-impact token and explicit responsibility-removal confirmation are required, including when the impact count is zero. The role change, removal from active and inactive documents, responsibility histories, revisions, and events are one transaction. A stale impact is rejected. Account deactivation alone preserves existing responsibilities. An admin demoting themself to editor or reader requires another distinct, non-deleted admin account; inactive admin accounts count.",
+        "description": "Updates the user identified by email. institution_id must equal both the authenticated admin's own institution_id and the target user's institution_id. When role is present, it replaces any role currently assigned to the user. When the requested role removes the last admin/editor role, a current role-impact token and explicit responsibility-removal confirmation are required, including when the impact count is zero. The role change, removal from active and inactive documents, responsibility histories, revisions, and events are one transaction. A stale impact is rejected. Account deactivation alone preserves existing responsibilities. Deletion, deactivation and explicit role replacement cannot remove the last active, verified administrator with a nonempty password, regardless of actor or target. Pending/inactive/deleted administrators do not satisfy this invariant. Existing zero-usable-admin states and pending initial administrators remain repairable. Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish.",
         "tags": ["Institution users"],
         "security": [{ "bearerAuth": [] }],
         "requestBody": {
@@ -139,17 +205,59 @@
               }
             }
           },
-          "401": { "$ref": "#/components/responses/Unauthenticated" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/LegacyError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/ForbiddenError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "404": { "$ref": "#/components/responses/InstitutionUserNotFound" },
-          "409": { "$ref": "#/components/responses/RoleChangeConflict" },
+          "409": {
+            "description": "Quota or last usable administrator removal denied atomically.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    },
+                    { "$ref": "#/components/schemas/RoleChangeImpactError" }
+                  ]
+                }
+              }
+            }
+          },
           "422": { "$ref": "#/components/responses/ValidationFailed" }
         }
       },
       "delete": {
         "operationId": "deleteInstitutionUser",
         "summary": "Delete a user",
-        "description": "Soft-deletes the user identified by email. institution_id must equal both the authenticated admin's own institution_id and the target user's institution_id. An admin cannot delete their own account.",
+        "description": "Soft-deletes the user identified by email. institution_id must equal both the authenticated admin's own institution_id and the target user's institution_id. An admin cannot delete their own account. Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish.",
         "tags": ["Institution users"],
         "security": [{ "bearerAuth": [] }],
         "requestBody": {
@@ -174,9 +282,47 @@
               }
             }
           },
-          "401": { "$ref": "#/components/responses/Unauthenticated" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/LegacyError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/ForbiddenError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "404": { "$ref": "#/components/responses/InstitutionUserNotFound" },
+          "409": {
+            "description": "Quota or last usable administrator removal denied atomically.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstitutionAccessError"
+                }
+              }
+            }
+          },
           "422": { "$ref": "#/components/responses/ValidationFailed" }
         }
       }
@@ -185,13 +331,42 @@
       "post": {
         "operationId": "inviteInstitutionUser",
         "summary": "Create an institutional user and invitation atomically",
-        "description": "Admin only. Creates a pending account, assigns one role, and creates a 48-hour single-use invitation. The administrator never supplies or learns the password. A queue publication failure still returns 201 with delivery_status failed because the account exists and can be located and resent.",
-        "tags": ["Institution users"], "security": [{ "bearerAuth": [] }],
+        "description": "Admin only. Creates a pending account, assigns one role, and creates a 48-hour single-use invitation. The administrator never supplies or learns the password. A queue publication failure still returns 201 with delivery_status failed because the account exists and can be located and resent. Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish.",
+        "tags": ["Institution users"],
+        "security": [{ "bearerAuth": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/InviteUserRequest" } } } },
         "responses": {
           "201": { "description": "Account and invitation created.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/InvitationMutationSuccess" } } } },
-          "401": { "$ref": "#/components/responses/Unauthenticated" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/LegacyError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/ForbiddenError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "404": { "$ref": "#/components/responses/InstitutionUserNotFound" },
           "409": { "description": "The authenticated institution is inactive.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CanonicalError" } } } },
           "422": { "$ref": "#/components/responses/ValidationFailed" },
@@ -204,21 +379,83 @@
       "get": {
         "operationId": "getInstitutionUserInvitationStatus",
         "summary": "Read activation and invitation-delivery state without changing the closed user list resource",
-        "description": "Transition endpoint for the new frontend. Existing GET /institution/users rows remain unchanged until the coordinated major contract release.",
-        "tags": ["Institution users"], "security": [{ "bearerAuth": [] }],
+        "description": "Transition endpoint for the new frontend. Existing GET /institution/users rows remain unchanged until the coordinated major contract release. Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish.",
+        "tags": ["Institution users"],
+        "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": { "description": "Current activation and invitation status.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/InvitationStatusSuccess" } } } },
-          "401": { "$ref": "#/components/responses/Unauthenticated" }, "403": { "$ref": "#/components/responses/Forbidden" }, "404": { "$ref": "#/components/responses/InstitutionUserNotFound" }
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/LegacyError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/ForbiddenError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/InstitutionUserNotFound" }
         }
       },
       "post": {
         "operationId": "resendInstitutionUserInvitation",
         "summary": "Replace and resend a pending invitation",
-        "description": "Admin only. Replaces the current token, invalidates older links, and queues a new encrypted mail job. The minimum resend interval is 60 seconds.",
-        "tags": ["Institution users"], "security": [{ "bearerAuth": [] }],
+        "description": "Admin only. Replaces the current token, invalidates older links, and queues a new encrypted mail job. The minimum resend interval is 60 seconds. Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish.",
+        "tags": ["Institution users"],
+        "security": [{ "bearerAuth": [] }],
         "responses": {
           "202": { "description": "New invitation created; delivery_status reports queue publication outcome.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/InvitationMutationSuccess" } } } },
-          "401": { "$ref": "#/components/responses/Unauthenticated" }, "403": { "$ref": "#/components/responses/Forbidden" }, "404": { "$ref": "#/components/responses/InstitutionUserNotFound" },
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/LegacyError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/ForbiddenError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/InstitutionUserNotFound" },
           "409": { "description": "The account is not eligible for invitation.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CanonicalError" } } } },
           "429": { "description": "The resend interval has not elapsed.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CanonicalError" } } } }
         }
@@ -228,7 +465,7 @@
       "post": {
         "operationId": "inspectInstitutionUserRoleImpact",
         "summary": "Inspect responsibility impact before changing a role",
-        "description": "Admin only. Evaluates the target user's actual roles. If the requested single managed role removes the last admin/editor role, returns the number of active and inactive institutional documents that would lose their responsible user and an opaque token bound to the roles and document responsibility revisions observed. This operation does not modify data.",
+        "description": "Admin only. Evaluates the target user's actual roles. If the requested single managed role removes the last admin/editor role, returns the number of active and inactive institutional documents that would lose their responsible user and an opaque token bound to the roles and document responsibility revisions observed. This operation does not modify data. Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish.",
         "tags": ["Institution users"],
         "security": [{ "bearerAuth": [] }],
         "requestBody": {
@@ -237,8 +474,36 @@
         },
         "responses": {
           "200": { "description": "Current role impact retrieved without mutation.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RoleImpactSuccess" }, "example": { "success": true, "data": { "affected_documents_count": 4, "confirmation_required": true, "impact_token": "opaque-impact-token" }, "message": "Role change impact retrieved successfully." } } } },
-          "401": { "$ref": "#/components/responses/Unauthenticated" },
-          "403": { "$ref": "#/components/responses/Forbidden" },
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/LegacyError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/ForbiddenError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "404": { "$ref": "#/components/responses/InstitutionUserNotFound" },
           "422": { "$ref": "#/components/responses/ValidationFailed" }
         }
@@ -273,10 +538,7 @@
       "UserId": { "name": "user_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
     },
     "schemas": {
-      "RoleType": {
-        "type": "string",
-        "enum": ["admin", "editor", "reader"]
-      },
+      "RoleType": { "type": "string", "enum": ["admin", "editor", "reader"] },
       "User": {
         "type": "object",
         "additionalProperties": false,
@@ -475,11 +737,44 @@
       "AnotherAdministratorRequiredError": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["success", "message", "code"],
+        "required": ["success", "error"],
         "properties": {
-          "success": { "type": "boolean", "enum": [false] },
-          "message": { "type": "string", "enum": ["The institution must retain another administrator."] },
-          "code": { "type": "string", "enum": ["INSTITUTION_REQUIRES_ANOTHER_ADMIN"] }
+          "success": { "const": false },
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["code", "message"],
+            "properties": {
+              "code": {
+                "enum": [
+                  "INSTITUTION_SUSPENDED",
+                  "AUTH_UNAUTHENTICATED",
+                  "AUTH_ACCOUNT_INACTIVE",
+                  "USER_QUOTA_EXCEEDED",
+                  "INSTITUTION_REQUIRES_USABLE_ADMIN"
+                ]
+              },
+              "message": { "type": "string" },
+              "details": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "role",
+                  "limit",
+                  "used",
+                  "requested_delta"
+                ],
+                "properties": {
+                  "role": {
+                    "enum": ["admin", "editor", "reader"]
+                  },
+                  "limit": { "type": "integer", "minimum": 0 },
+                  "used": { "type": "integer", "minimum": 0 },
+                  "requested_delta": { "type": "integer", "minimum": 1 }
+                }
+              }
+            }
+          }
         }
       },
       "RoleChangeImpactError": {
@@ -508,6 +803,49 @@
                 "type": "object",
                 "description": "Laravel validator error bag: field name to list of messages.",
                 "additionalProperties": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          }
+        }
+      },
+      "InstitutionAccessError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "error"],
+        "properties": {
+          "success": { "const": false },
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["code", "message"],
+            "properties": {
+              "code": {
+                "enum": [
+                  "INSTITUTION_SUSPENDED",
+                  "AUTH_UNAUTHENTICATED",
+                  "AUTH_ACCOUNT_INACTIVE",
+                  "USER_QUOTA_EXCEEDED",
+                  "INSTITUTION_REQUIRES_USABLE_ADMIN"
+                ]
+              },
+              "message": { "type": "string" },
+              "details": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "role",
+                  "limit",
+                  "used",
+                  "requested_delta"
+                ],
+                "properties": {
+                  "role": {
+                    "enum": ["admin", "editor", "reader"]
+                  },
+                  "limit": { "type": "integer", "minimum": 0 },
+                  "used": { "type": "integer", "minimum": 0 },
+                  "requested_delta": { "type": "integer", "minimum": 1 }
+                }
               }
             }
           }
@@ -543,26 +881,29 @@
         }
       },
       "AnotherAdministratorRequired": {
-        "description": "An admin cannot demote themself because no other non-deleted admin account belongs to the institution. Inactive admin accounts count.",
+        "description": "The mutation would remove the last usable administrator. Inactive or pending administrators do not qualify.",
         "content": {
           "application/json": {
             "schema": { "$ref": "#/components/schemas/AnotherAdministratorRequiredError" },
             "example": {
               "success": false,
-              "message": "The institution must retain another administrator.",
-              "code": "INSTITUTION_REQUIRES_ANOTHER_ADMIN"
+              "error": {"code": "INSTITUTION_REQUIRES_USABLE_ADMIN", "message": "Institutional access is not available for this operation."}
             }
           }
         }
       },
       "RoleChangeConflict": {
-        "description": "The self-demotion would leave no other administrator, explicit impact confirmation is missing, or the reviewed impact is stale. No update is applied.",
+        "description": "Quota/last usable admin, missing responsibility confirmation or stale impact.",
         "content": {
           "application/json": {
-            "schema": { "oneOf": [
-              { "$ref": "#/components/schemas/AnotherAdministratorRequiredError" },
-              { "$ref": "#/components/schemas/RoleChangeImpactError" }
-            ] },
+            "schema": {
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/InstitutionAccessError"
+                },
+                { "$ref": "#/components/schemas/RoleChangeImpactError" }
+              ]
+            },
             "examples": {
               "confirmationRequired": { "value": { "success": false, "message": "Review and confirm the responsibility impact before changing this role.", "code": "ROLE_CHANGE_IMPACT_CONFIRMATION_REQUIRED" } },
               "stale": { "value": { "success": false, "message": "The responsibility impact has changed. Review it again before confirming.", "code": "ROLE_CHANGE_IMPACT_STALE" } }

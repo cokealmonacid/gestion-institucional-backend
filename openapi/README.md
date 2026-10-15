@@ -4,13 +4,17 @@
 
 The backend repository is the authority for Acervo API contracts. The canonical OpenAPI 3.1 contracts are:
 
-- [`v1/authentication.json`](v1/authentication.json), contract version `2.1.0`;
-- [`v1/document-explorer.json`](v1/document-explorer.json), contract version `5.0.0`;
-- [`v1/document-lifecycle.json`](v1/document-lifecycle.json), contract version `3.0.0`;
-- [`v1/institution-documents.json`](v1/institution-documents.json), contract version `1.1.0`;
-- [`v1/institution-users.json`](v1/institution-users.json), contract version `3.1.0`;
-- [`v1/institution-tags.json`](v1/institution-tags.json), contract version `2.0.0`;
-- [`v1/user-search.json`](v1/user-search.json), contract version `2.0.0`.
+- [`v1/authentication.json`](v1/authentication.json), contract version `3.0.0`;
+- [`v1/document-explorer.json`](v1/document-explorer.json), contract version `6.0.0`;
+- [`v1/document-lifecycle.json`](v1/document-lifecycle.json), contract version `4.0.0`;
+- [`v1/institution-documents.json`](v1/institution-documents.json), contract version `2.0.0`;
+- [`v1/institution-users.json`](v1/institution-users.json), contract version `4.0.0`;
+- [`v1/institution-tags.json`](v1/institution-tags.json), contract version `3.0.0`;
+- [`v1/user-search.json`](v1/user-search.json), contract version `3.0.0`.
+- [`v1/platform-authentication.json`](v1/platform-authentication.json), contract version `1.0.0`;
+- [`v1/platform-administration.json`](v1/platform-administration.json), contract version `3.0.0`.
+
+Platform authentication remains 1.0.0. Platform administration 3.0.0 covers A/B/C: actual role quotas, suspension/reactivation, scoped existing-admin repair, atomic onboarding, new administrator invitations and operator-owned operation lookup. The major revision also enriches closed institution details with current agreement, quotas and warnings. Quota resources report `quota_enforcement: enforced`. Creation operations require UUID Idempotency-Key headers; equivalent retries return saved identifiers without another publication. Publication queued/failed/unknown is distinct from transport accepted and recipient delivery. Audit history supports action/subject filters. Existing compatibility endpoints, including the public institution list and legacy password POST, remain available until coordinated cutover. Principal isolation and mandatory operator MFA are unchanged. Backend completion does not establish production readiness or authorize frontend cutover.
 
 The authentication contract scope is deliberately limited to:
 

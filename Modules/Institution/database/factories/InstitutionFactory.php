@@ -13,8 +13,7 @@ class InstitutionFactory extends Factory
     {
         return [
             'name' => fake()->word(),
-            'status' => fake()->boolean(50),
+            'status' => true,
         ];
     }
 }
-

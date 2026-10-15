@@ -8,7 +8,6 @@ use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use Laravel\Sanctum\Sanctum;
 use Modules\Documents\Models\Document;
 use Modules\Institution\Models\Institution;
 use Modules\Nodes\Models\Node;
@@ -21,7 +20,7 @@ class DocumentExplorerCreateContractTest extends TestCase
     public function test_admin_creates_a_node_in_the_virtual_root(): void
     {
         [$institution, $user] = $this->institutionUser(RoleType::Admin);
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         $response = $this->postJson('/api/v1/institution/tree-directory', [
             'name' => '  Contratos  ',
@@ -52,7 +51,7 @@ class DocumentExplorerCreateContractTest extends TestCase
     {
         [$institution, $user] = $this->institutionUser(RoleType::Editor);
         $parent = $this->node($institution, 'Root', null, 1);
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         $this->postJson('/api/v1/institution/tree-directory', [
             'name' => 'Child',
@@ -71,7 +70,7 @@ class DocumentExplorerCreateContractTest extends TestCase
         [$institution, $user] = $this->institutionUser(RoleType::Admin);
         $firstParent = $this->node($institution, 'First parent', null, 1);
         $secondParent = $this->node($institution, 'Second parent', null, 2);
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         $this->postJson('/api/v1/institution/tree-directory', ['name' => 'Root A', 'parent_id' => null])->assertCreated();
         $this->postJson('/api/v1/institution/tree-directory', ['name' => 'Root B', 'parent_id' => null])->assertCreated();
@@ -83,7 +82,7 @@ class DocumentExplorerCreateContractTest extends TestCase
     {
         [$institution, $user] = $this->institutionUser(RoleType::Admin);
         $this->node($institution, 'ÁREA', null, 1, false);
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         $this->postJson('/api/v1/institution/tree-directory', [
             'name' => "A\u{0301}rea",
@@ -103,7 +102,7 @@ class DocumentExplorerCreateContractTest extends TestCase
         [$institution, $user] = $this->institutionUser(RoleType::Admin);
         $parent = $this->node($institution, 'Parent', null, 1);
         $this->node($institution, 'Duplicate', $parent, 1);
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         $this->postJson('/api/v1/institution/tree-directory', [
             'name' => 'duplicate',
@@ -133,7 +132,7 @@ class DocumentExplorerCreateContractTest extends TestCase
     public function test_request_validation_rejects_missing_parent_derived_fields_and_invalid_names(): void
     {
         [, $user] = $this->institutionUser(RoleType::Admin);
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         $this->postJson('/api/v1/institution/tree-directory', ['name' => 'Valid'])
             ->assertUnprocessable()->assertJsonPath('error.code', 'VALIDATION_FAILED');
@@ -156,7 +155,7 @@ class DocumentExplorerCreateContractTest extends TestCase
             ->assertUnauthorized()->assertJsonPath('error.code', 'AUTH_UNAUTHENTICATED');
 
         [, $reader] = $this->institutionUser(RoleType::Reader);
-        Sanctum::actingAs($reader);
+        $this->authenticateInstitutionUser($reader);
         $this->postJson('/api/v1/institution/tree-directory', ['name' => 'A', 'parent_id' => null])
             ->assertForbidden()->assertJsonPath('error.code', 'NODE_CREATE_FORBIDDEN');
 
@@ -168,7 +167,7 @@ class DocumentExplorerCreateContractTest extends TestCase
         [$otherInstitution] = $this->institutionUser(RoleType::Admin);
         $foreignParent = $this->node($otherInstitution, 'Foreign', null, 1);
         [$institution, $admin] = $this->institutionUser(RoleType::Admin);
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
 
         $this->postJson('/api/v1/institution/tree-directory', [
             'name' => 'Hidden',
@@ -190,7 +189,7 @@ class DocumentExplorerCreateContractTest extends TestCase
     {
         [$institution, $user] = $this->institutionUser(RoleType::Admin);
         $parent = $this->node($institution, 'Parent', null, 1);
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         $data = $this->postJson("/api/v1/institution/tree-directory/{$parent->id}", [
             'name' => ' Legacy ',
@@ -213,7 +212,7 @@ class DocumentExplorerCreateContractTest extends TestCase
     {
         [$institution, $editor] = $this->institutionUser(RoleType::Editor);
         $parent = $this->node($institution, 'Parent', null, 1);
-        Sanctum::actingAs($editor);
+        $this->authenticateInstitutionUser($editor);
 
         $this->postJson("/api/v1/institution/tree-directory/{$parent->id}", ['name' => 'Denied'])
             ->assertForbidden();

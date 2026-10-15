@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Acervo Document Lifecycle API",
-    "version": "3.0.0",
-    "description": "Backend-authoritative contract for logical document detail, renaming, traceability, institutional notes on document versions, responsible users, active file versions, authenticated downloads, version upload, and current-version selection. Version 3.0.0 adds role-aware responsible eligibility and a stable reason for removals caused by role changes; this is a major version because closed responses gain required fields and previously valid assignments are restricted."
+    "version": "4.0.0",
+    "description": "Backend-authoritative contract for logical document detail, renaming, traceability, institutional notes on document versions, responsible users, active file versions, authenticated downloads, version upload, and current-version selection. Version 3.0.0 adds role-aware responsible eligibility and a stable reason for removals caused by role changes; this is a major version because closed responses gain required fields and previously valid assignments are restricted. Block B consistently enforces operational suspension and credential epochs. Old credentials without current epoch metadata require fresh login; reactivation restores no credentials."
   },
   "paths": {
     "/api/v1/documents/{document_id}": {
@@ -17,24 +17,93 @@
             "description": "Document lifecycle detail retrieved.",
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DocumentDetailSuccess" }, "example": { "success": true, "data": { "id": "11111111-1111-4111-8111-111111111111", "name": "Institutional policy", "description": "Current policy.", "category": "Policy", "responsible_unit": "General Secretariat", "responsible": { "id": "66666666-6666-4666-8666-666666666666", "name": "Responsible User", "active": true }, "responsibility_revision": 2, "status": true, "author_id": "22222222-2222-4222-8222-222222222222", "institution_id": "55555555-5555-4555-8555-555555555555", "node_id": "33333333-3333-4333-8333-333333333333", "created_at": "2026-08-17T12:00:00.000000Z", "updated_at": "2026-08-17T12:00:00.000000Z", "author": { "id": "22222222-2222-4222-8222-222222222222", "name": "Editor User" }, "location": { "id": "33333333-3333-4333-8333-333333333333", "name": "Policies", "path": "33333333-3333-4333-8333-333333333333" }, "current_version": null, "version_count": 0, "capabilities": { "can_download": false, "can_upload_version": true, "can_mark_version_current": true } }, "message": "Document lifecycle detail retrieved successfully." } } }
           },
-          "401": { "$ref": "#/components/responses/Unauthenticated" },
-          "403": { "$ref": "#/components/responses/InactiveUser" },
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/Error" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "message"
+                      ],
+                      "properties": {
+                        "message": { "type": "string" },
+                        "success": {
+                          "const": false
+                        }
+                      }
+                    },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "404": { "$ref": "#/components/responses/DocumentNotAvailable" }
-        }
+        },
+        "description": " Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish."
       }
     },
     "/api/v1/documents/{document_id}/name": {
       "patch": {
         "operationId": "renameDocument",
         "summary": "Rename a logical document",
-        "description": "Admin and editor only. Renames an active document whose node and complete ancestor path are active. The exclusive name is trimmed and NFC-normalized; slash, backslash, and control characters are prohibited. A case-only change is real. Equality after canonicalization returns success without a write or event. Duplicate document names remain allowed. Identity, institution, author, responsibility, node, lifecycle state, versions, filenames, URLs, and stored files are preserved. Effective changes and their document.renamed event are atomic.",
+        "description": "Admin and editor only. Renames an active document whose node and complete ancestor path are active. The exclusive name is trimmed and NFC-normalized; slash, backslash, and control characters are prohibited. A case-only change is real. Equality after canonicalization returns success without a write or event. Duplicate document names remain allowed. Identity, institution, author, responsibility, node, lifecycle state, versions, filenames, URLs, and stored files are preserved. Effective changes and their document.renamed event are atomic. Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish.",
         "security": [{ "bearerAuth": [] }],
         "parameters": [{ "$ref": "#/components/parameters/DocumentId" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RenameDocumentRequest" }, "example": { "name": "Institutional policy 2026" } } } },
         "responses": {
           "200": { "description": "Document renamed or already canonically equal.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DocumentRenameSuccess" } } } },
-          "401": { "$ref": "#/components/responses/Unauthenticated" },
-          "403": { "$ref": "#/components/responses/DocumentRenameForbidden" },
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/Error" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/Error" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "404": { "$ref": "#/components/responses/DocumentNotAvailable" },
           "422": { "$ref": "#/components/responses/DocumentRenameValidationFailed" },
           "500": { "$ref": "#/components/responses/DocumentRenameFailed" }
@@ -45,7 +114,7 @@
       "get": {
         "operationId": "listDocumentHistory",
         "summary": "List document history",
-        "description": "Returns persisted document events newest first. Equal timestamps are ordered deterministically. Internal event origin and source identity are never exposed.",
+        "description": "Returns persisted document events newest first. Equal timestamps are ordered deterministically. Internal event origin and source identity are never exposed. Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish.",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           { "$ref": "#/components/parameters/DocumentId" },
@@ -54,8 +123,48 @@
         ],
         "responses": {
           "200": { "description": "Document history retrieved.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DocumentHistorySuccess" } } } },
-          "401": { "$ref": "#/components/responses/Unauthenticated" },
-          "403": { "$ref": "#/components/responses/TraceabilityForbidden" },
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/Error" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "message"
+                      ],
+                      "properties": {
+                        "message": { "type": "string" },
+                        "success": {
+                          "const": false
+                        }
+                      }
+                    },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "404": { "$ref": "#/components/responses/DocumentNotAvailable" },
           "422": { "$ref": "#/components/responses/HistoryValidationFailed" }
         }
@@ -63,16 +172,93 @@
     },
     "/api/v1/documents/{document_id}/responsible-options": {
       "get": {
-        "operationId": "searchDocumentResponsibleOptions", "summary": "Search responsible-user candidates", "description": "Admin and editor only. Returns at most ten matching active, non-deleted users from the document tenant, ordered by name and identifier. Actual roles and eligibility are included. Users require at least one admin or editor role to be eligible; active readers and roleless users remain visible but are not eligible. Foreign and missing documents are indistinguishable.", "security": [{ "bearerAuth": [] }],
+        "operationId": "searchDocumentResponsibleOptions",
+        "summary": "Search responsible-user candidates",
+        "description": "Admin and editor only. Returns at most ten matching active, non-deleted users from the document tenant, ordered by name and identifier. Actual roles and eligibility are included. Users require at least one admin or editor role to be eligible; active readers and roleless users remain visible but are not eligible. Foreign and missing documents are indistinguishable. Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish.",
+        "security": [{ "bearerAuth": [] }],
         "parameters": [{ "$ref": "#/components/parameters/DocumentId" }, { "name": "q", "in": "query", "required": true, "schema": { "type": "string", "minLength": 2, "maxLength": 100 } }],
-        "responses": { "200": { "description": "Candidate users retrieved with role-aware eligibility.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResponsibleOptionsSuccess" }, "example": { "success": true, "data": { "users": [{ "id": "66666666-6666-4666-8666-666666666666", "name": "Responsible User", "email": "responsible@example.test", "roles": ["editor"], "eligible": true }, { "id": "77777777-7777-4777-8777-777777777777", "name": "Reader User", "email": "reader@example.test", "roles": ["reader"], "eligible": false }] }, "message": "Responsible user options retrieved successfully." } } } }, "401": { "$ref": "#/components/responses/Unauthenticated" }, "403": { "$ref": "#/components/responses/ResponsibilityForbidden" }, "404": { "$ref": "#/components/responses/DocumentNotAvailable" }, "422": { "$ref": "#/components/responses/ResponsibilityValidationFailed" } }
+        "responses": {
+          "200": { "description": "Candidate users retrieved with role-aware eligibility.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResponsibleOptionsSuccess" }, "example": { "success": true, "data": { "users": [{ "id": "66666666-6666-4666-8666-666666666666", "name": "Responsible User", "email": "responsible@example.test", "roles": ["editor"], "eligible": true }, { "id": "77777777-7777-4777-8777-777777777777", "name": "Reader User", "email": "reader@example.test", "roles": ["reader"], "eligible": false }] }, "message": "Responsible user options retrieved successfully." } } } },
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/Error" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "oneOf": [{ "$ref": "#/components/schemas/Error" }, { "$ref": "#/components/schemas/InactiveAccountError" }] },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/DocumentNotAvailable" },
+          "422": { "$ref": "#/components/responses/ResponsibilityValidationFailed" }
+        }
       }
     },
     "/api/v1/documents/{document_id}/responsible": {
       "patch": {
-        "operationId": "updateDocumentResponsible", "summary": "Assign, change, or remove the responsible user", "description": "Admin and editor only. The expected revision is compared while the tenant-scoped document is locked. Effective changes increment it once and are historized atomically; equal assignments are idempotent. A null identifier removes the assignment. A new responsible must be active, belong to the institution, and have at least one admin or editor role. Assignment and role changes coordinate on the institution lock. Missing, foreign, inactive, deleted, and role-ineligible targets are indistinguishable.", "security": [{ "bearerAuth": [] }], "parameters": [{ "$ref": "#/components/parameters/DocumentId" }],
+        "operationId": "updateDocumentResponsible",
+        "summary": "Assign, change, or remove the responsible user",
+        "description": "Admin and editor only. The expected revision is compared while the tenant-scoped document is locked. Effective changes increment it once and are historized atomically; equal assignments are idempotent. A null identifier removes the assignment. A new responsible must be active, belong to the institution, and have at least one admin or editor role. Assignment and role changes coordinate on the institution lock. Missing, foreign, inactive, deleted, and role-ineligible targets are indistinguishable. Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish.",
+        "security": [{ "bearerAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/DocumentId" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateResponsibilityRequest" }, "example": { "responsible_user_id": "66666666-6666-4666-8666-666666666666", "expected_revision": 2 } } } },
-        "responses": { "200": { "description": "Responsibility updated or already equal.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResponsibilitySuccess" }, "examples": { "active": { "value": { "success": true, "data": { "responsible": { "id": "66666666-6666-4666-8666-666666666666", "name": "Responsible User", "active": true }, "responsibility_revision": 3 }, "message": "Document responsibility updated successfully." } }, "removed": { "value": { "success": true, "data": { "responsible": null, "responsibility_revision": 4 }, "message": "Document responsibility updated successfully." } }, "inactivePersisted": { "value": { "success": true, "data": { "responsible": { "id": "77777777-7777-4777-8777-777777777777", "name": "Former User", "active": false }, "responsibility_revision": 2 }, "message": "Document responsibility updated successfully." } } } } } }, "401": { "$ref": "#/components/responses/Unauthenticated" }, "403": { "$ref": "#/components/responses/ResponsibilityForbidden" }, "404": { "$ref": "#/components/responses/ResponsibilityNotAvailable" }, "409": { "$ref": "#/components/responses/ResponsibilityConflict" }, "422": { "$ref": "#/components/responses/ResponsibilityValidationFailed" }, "500": { "$ref": "#/components/responses/ResponsibilityFailed" } }
+        "responses": {
+          "200": { "description": "Responsibility updated or already equal.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResponsibilitySuccess" }, "examples": { "active": { "value": { "success": true, "data": { "responsible": { "id": "66666666-6666-4666-8666-666666666666", "name": "Responsible User", "active": true }, "responsibility_revision": 3 }, "message": "Document responsibility updated successfully." } }, "removed": { "value": { "success": true, "data": { "responsible": null, "responsibility_revision": 4 }, "message": "Document responsibility updated successfully." } }, "inactivePersisted": { "value": { "success": true, "data": { "responsible": { "id": "77777777-7777-4777-8777-777777777777", "name": "Former User", "active": false }, "responsibility_revision": 2 }, "message": "Document responsibility updated successfully." } } } } } },
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/Error" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "oneOf": [{ "$ref": "#/components/schemas/Error" }, { "$ref": "#/components/schemas/InactiveAccountError" }] },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/ResponsibilityNotAvailable" },
+          "409": { "$ref": "#/components/responses/ResponsibilityConflict" },
+          "422": { "$ref": "#/components/responses/ResponsibilityValidationFailed" },
+          "500": { "$ref": "#/components/responses/ResponsibilityFailed" }
+        }
       }
     },
     "/api/v1/documents/{document_id}/versions": {
@@ -83,15 +269,56 @@
         "parameters": [{ "$ref": "#/components/parameters/DocumentId" }],
         "responses": {
           "200": { "description": "Active versions retrieved in descending version order.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VersionCollectionSuccess" }, "example": { "success": true, "data": [{ "id": "44444444-4444-4444-4444-444444444444", "version_number": 1, "filename": "policy.pdf", "mime_type": "application/pdf", "file_size": 1200, "active": true, "is_current": true, "author": { "id": "22222222-2222-2222-2222-222222222222", "name": "Editor User" }, "created_at": "2026-08-17T12:00:00.000000Z", "updated_at": "2026-08-17T12:00:00.000000Z" }], "message": "Document versions retrieved successfully." } } } },
-          "401": { "$ref": "#/components/responses/Unauthenticated" },
-          "403": { "$ref": "#/components/responses/InactiveUser" },
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/Error" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "message"
+                      ],
+                      "properties": {
+                        "message": { "type": "string" },
+                        "success": {
+                          "const": false
+                        }
+                      }
+                    },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "404": { "$ref": "#/components/responses/DocumentNotAvailable" }
-        }
+        },
+        "description": " Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish."
       },
       "post": {
         "operationId": "createDocumentVersion",
         "summary": "Upload the first or a new document version",
-        "description": "Admin and editor only. The first upload creates version 1. Each subsequent upload uses the next number and becomes current. Maximum file size is 25 MiB (26,214,400 bytes).",
+        "description": "Admin and editor only. The first upload creates version 1. Each subsequent upload uses the next number and becomes current. Maximum file size is 25 MiB (26,214,400 bytes). Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish.",
         "security": [{ "bearerAuth": [] }],
         "parameters": [{ "$ref": "#/components/parameters/DocumentId" }],
         "requestBody": {
@@ -100,8 +327,36 @@
         },
         "responses": {
           "201": { "description": "Document version created and made current.", "headers": { "Location": { "description": "Location of the created document version resource.", "schema": { "type": "string" } } }, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VersionSuccess" }, "example": { "success": true, "data": { "id": "44444444-4444-4444-4444-444444444444", "version_number": 1, "filename": "policy.pdf", "mime_type": "application/pdf", "file_size": 1200, "active": true, "is_current": true, "author": { "id": "22222222-2222-2222-2222-222222222222", "name": "Editor User" }, "created_at": "2026-08-17T12:00:00.000000Z", "updated_at": "2026-08-17T12:00:00.000000Z" }, "message": "Document version created successfully." } } } },
-          "401": { "$ref": "#/components/responses/Unauthenticated" },
-          "403": { "$ref": "#/components/responses/MutationForbidden" },
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/Error" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/Error" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "404": { "$ref": "#/components/responses/DocumentNotAvailable" },
           "422": { "$ref": "#/components/responses/ValidationFailed" },
           "500": { "$ref": "#/components/responses/CreationOrStorageFailed" }
@@ -116,11 +371,52 @@
         "parameters": [{ "$ref": "#/components/parameters/DocumentId" }],
         "responses": {
           "200": { "description": "Private file download emitted. The audit row records authorization and response emission, not completed transfer.", "headers": { "Content-Disposition": { "schema": { "type": "string" } }, "Content-Type": { "schema": { "type": "string" } } }, "content": { "application/octet-stream": { "schema": { "type": "string", "format": "binary" } } } },
-          "401": { "$ref": "#/components/responses/Unauthenticated" },
-          "403": { "$ref": "#/components/responses/InactiveUser" },
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/Error" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "message"
+                      ],
+                      "properties": {
+                        "message": { "type": "string" },
+                        "success": {
+                          "const": false
+                        }
+                      }
+                    },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "404": { "$ref": "#/components/responses/DownloadNotAvailable" },
           "500": { "$ref": "#/components/responses/StorageFailed" }
-        }
+        },
+        "description": " Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish."
       }
     },
     "/api/v1/documents/{document_id}/versions/{version_id}/download": {
@@ -131,24 +427,93 @@
         "parameters": [{ "$ref": "#/components/parameters/DocumentId" }, { "$ref": "#/components/parameters/VersionId" }],
         "responses": {
           "200": { "description": "Private file download emitted. The audit row records authorization and response emission, not completed transfer.", "headers": { "Content-Disposition": { "schema": { "type": "string" } }, "Content-Type": { "schema": { "type": "string" } } }, "content": { "application/octet-stream": { "schema": { "type": "string", "format": "binary" } } } },
-          "401": { "$ref": "#/components/responses/Unauthenticated" },
-          "403": { "$ref": "#/components/responses/InactiveUser" },
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/Error" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "message"
+                      ],
+                      "properties": {
+                        "message": { "type": "string" },
+                        "success": {
+                          "const": false
+                        }
+                      }
+                    },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "404": { "$ref": "#/components/responses/DownloadNotAvailable" },
           "500": { "$ref": "#/components/responses/StorageFailed" }
-        }
+        },
+        "description": " Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish."
       }
     },
     "/api/v1/documents/{document_id}/versions/{version_id}/current": {
       "patch": {
         "operationId": "setCurrentDocumentVersion",
         "summary": "Mark an active version as current",
-        "description": "Admin and editor only. Exactly one active version becomes current; a document with no versions may legitimately have no current version.",
+        "description": "Admin and editor only. Exactly one active version becomes current; a document with no versions may legitimately have no current version. Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish.",
         "security": [{ "bearerAuth": [] }],
         "parameters": [{ "$ref": "#/components/parameters/DocumentId" }, { "$ref": "#/components/parameters/VersionId" }],
         "responses": {
           "200": { "description": "Version marked current.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VersionSuccess" }, "example": { "success": true, "data": { "id": "44444444-4444-4444-4444-444444444444", "version_number": 1, "filename": "policy.pdf", "mime_type": "application/pdf", "file_size": 1200, "active": true, "is_current": true, "author": null, "created_at": "2026-08-17T12:00:00.000000Z", "updated_at": "2026-08-17T12:00:00.000000Z" }, "message": "Document version marked as current successfully." } } } },
-          "401": { "$ref": "#/components/responses/Unauthenticated" },
-          "403": { "$ref": "#/components/responses/MutationForbidden" },
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/Error" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/Error" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "404": { "$ref": "#/components/responses/VersionOrDocumentNotAvailable" }
         }
       }
@@ -157,13 +522,53 @@
       "get": {
         "operationId": "listDocumentVersionNotes",
         "summary": "List current institutional version notes",
-        "description": "Returns active and inactive versions of a tenant-scoped document. Each version has zero or one current institutional note. Inactive documents and versions remain readable.",
+        "description": "Returns active and inactive versions of a tenant-scoped document. Each version has zero or one current institutional note. Inactive documents and versions remain readable. Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish.",
         "security": [{ "bearerAuth": [] }],
         "parameters": [{ "$ref": "#/components/parameters/DocumentId" }],
         "responses": {
           "200": { "description": "Version notes retrieved.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VersionNoteCollectionSuccess" } } } },
-          "401": { "$ref": "#/components/responses/Unauthenticated" },
-          "403": { "$ref": "#/components/responses/TraceabilityForbidden" },
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/Error" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "message"
+                      ],
+                      "properties": {
+                        "message": { "type": "string" },
+                        "success": {
+                          "const": false
+                        }
+                      }
+                    },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "404": { "$ref": "#/components/responses/VersionNoteDocumentNotAvailable" }
         }
       }
@@ -172,7 +577,7 @@
       "get": {
         "operationId": "listDocumentVersionNoteHistory",
         "summary": "List immutable version-note transitions",
-        "description": "Returns note creation, replacement, and clearing transitions newest first. Equal timestamps are ordered by identifier. Inactive documents and versions remain readable.",
+        "description": "Returns note creation, replacement, and clearing transitions newest first. Equal timestamps are ordered by identifier. Inactive documents and versions remain readable. Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish.",
         "security": [{ "bearerAuth": [] }],
         "parameters": [
           { "$ref": "#/components/parameters/DocumentId" },
@@ -182,8 +587,48 @@
         ],
         "responses": {
           "200": { "description": "Version-note history retrieved.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VersionNoteHistorySuccess" } } } },
-          "401": { "$ref": "#/components/responses/Unauthenticated" },
-          "403": { "$ref": "#/components/responses/TraceabilityForbidden" },
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/Error" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "message"
+                      ],
+                      "properties": {
+                        "message": { "type": "string" },
+                        "success": {
+                          "const": false
+                        }
+                      }
+                    },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "404": { "$ref": "#/components/responses/VersionNoteOrDocumentNotAvailable" },
           "422": { "$ref": "#/components/responses/VersionNoteValidationFailed" }
         }
@@ -193,14 +638,42 @@
       "patch": {
         "operationId": "updateDocumentVersionNote",
         "summary": "Set, replace, or clear an institutional version note",
-        "description": "Admin and editor only. Leading and trailing whitespace is removed. A null note clears it. The active document and version are locked and the transition plus a content-free document event are persisted atomically.",
+        "description": "Admin and editor only. Leading and trailing whitespace is removed. A null note clears it. The active document and version are locked and the transition plus a content-free document event are persisted atomically. Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish.",
         "security": [{ "bearerAuth": [] }],
         "parameters": [{ "$ref": "#/components/parameters/DocumentId" }, { "$ref": "#/components/parameters/VersionId" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdateVersionNoteRequest" }, "examples": { "set": { "value": { "note": "Reviewed by the legal unit." } }, "clear": { "value": { "note": null } } } } } },
         "responses": {
           "200": { "description": "Version note updated or cleared.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VersionNoteMutationSuccess" } } } },
-          "401": { "$ref": "#/components/responses/Unauthenticated" },
-          "403": { "$ref": "#/components/responses/VersionNoteForbidden" },
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/Error" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "oneOf": [{ "$ref": "#/components/schemas/Error" }, { "$ref": "#/components/schemas/InactiveAccountError" }] },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "404": { "$ref": "#/components/responses/VersionNoteOrDocumentNotAvailable" },
           "409": { "$ref": "#/components/responses/VersionNoteConflict" },
           "422": { "$ref": "#/components/responses/VersionNoteValidationFailed" }
@@ -264,7 +737,52 @@
       "VersionNoteHistorySuccess": { "type": "object", "additionalProperties": false, "required": ["success", "data", "meta", "message"], "properties": { "success": { "type": "boolean", "enum": [true] }, "data": { "type": "array", "items": { "$ref": "#/components/schemas/VersionNoteTransition" } }, "meta": { "type": "object", "additionalProperties": false, "required": ["next_cursor"], "properties": { "next_cursor": { "type": ["string", "null"] } } }, "message": { "type": "string" } } },
       "VersionNoteMutationData": { "type": "object", "additionalProperties": false, "required": ["note", "transition"], "properties": { "note": { "$ref": "#/components/schemas/VersionNote" }, "transition": { "$ref": "#/components/schemas/VersionNoteTransition" } } },
       "VersionNoteMutationSuccess": { "type": "object", "additionalProperties": false, "required": ["success", "data", "message"], "properties": { "success": { "type": "boolean", "enum": [true] }, "data": { "$ref": "#/components/schemas/VersionNoteMutationData" }, "message": { "type": "string" } } },
-      "Error": { "type": "object", "additionalProperties": false, "required": ["success", "error"], "properties": { "success": { "type": "boolean", "enum": [false] }, "error": { "type": "object", "additionalProperties": false, "required": ["code", "message"], "properties": { "code": { "type": "string" }, "message": { "type": "string" }, "fields": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "string" } } } } } } }
+      "Error": { "type": "object", "additionalProperties": false, "required": ["success", "error"], "properties": { "success": { "type": "boolean", "enum": [false] }, "error": { "type": "object", "additionalProperties": false, "required": ["code", "message"], "properties": { "code": { "type": "string" }, "message": { "type": "string" }, "fields": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "string" } } } } } } },
+      "InstitutionAccessError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "error"],
+        "properties": {
+          "success": {
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["code", "message"],
+            "properties": {
+              "code": {
+                "enum": [
+                  "INSTITUTION_SUSPENDED",
+                  "AUTH_UNAUTHENTICATED",
+                  "AUTH_ACCOUNT_INACTIVE",
+                  "USER_QUOTA_EXCEEDED",
+                  "INSTITUTION_REQUIRES_USABLE_ADMIN"
+                ]
+              },
+              "message": { "type": "string" },
+              "details": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "role",
+                  "limit",
+                  "used",
+                  "requested_delta"
+                ],
+                "properties": {
+                  "role": {
+                    "enum": ["admin", "editor", "reader"]
+                  },
+                  "limit": { "type": "integer", "minimum": 0 },
+                  "used": { "type": "integer", "minimum": 0 },
+                  "requested_delta": { "type": "integer", "minimum": 1 }
+                }
+              }
+            }
+          }
+        }
+      }
     },
     "responses": {
       "Unauthenticated": { "description": "Authentication required.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" }, "example": { "success": false, "error": { "code": "AUTH_UNAUTHENTICATED", "message": "Authentication is required." } } } } },

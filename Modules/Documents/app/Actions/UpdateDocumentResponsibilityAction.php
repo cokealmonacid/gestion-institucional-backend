@@ -8,7 +8,7 @@ use Modules\Documents\Exceptions\DocumentResponsibilityException;
 use Modules\Documents\Models\Document;
 use Modules\Documents\Services\DocumentEventRecorder;
 use Modules\Documents\Services\DocumentResponsibilityWriter;
-use Modules\Institution\Models\Institution;
+use Modules\Institution\Services\InstitutionalAccess;
 use Modules\Institution\Services\RoleChangeImpact;
 
 class UpdateDocumentResponsibilityAction
@@ -23,7 +23,11 @@ class UpdateDocumentResponsibilityAction
         DocumentResponsibilityWriter $writer,
     ): Document {
         return DB::transaction(function () use ($actor, $documentId, $responsibleId, $expectedRevision, $events, $impact, $writer): Document {
-            Institution::query()->whereKey($actor->institution_id)->lockForUpdate()->firstOrFail();
+            app(InstitutionalAccess::class)->lock($actor, 'documents.manage');
+
+            $responsible = $responsibleId === null ? null : User::query()
+                ->where('institution_id', $actor->institution_id)->where('active', true)
+                ->lockForUpdate()->find($responsibleId);
 
             $document = Document::query()->where('institution_id', $actor->institution_id)
                 ->where('status', true)->lockForUpdate()->find($documentId);
@@ -42,9 +46,6 @@ class UpdateDocumentResponsibilityAction
                 }
             }
 
-            $responsible = $responsibleId === null ? null : User::query()
-                ->where('institution_id', $actor->institution_id)->where('active', true)
-                ->lockForUpdate()->find($responsibleId);
             if ($responsibleId !== null && (! $responsible || ! $impact->isEligible($responsible))) {
                 throw new DocumentResponsibilityException('DOCUMENT_RESPONSIBLE_NOT_AVAILABLE', 'The selected responsible user is not available.', 404);
             }

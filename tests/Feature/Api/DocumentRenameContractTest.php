@@ -7,7 +7,6 @@ use App\Models\Rol;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use Laravel\Sanctum\Sanctum;
 use Modules\Documents\Models\Document;
 use Modules\Documents\Models\DocumentEvent;
 use Modules\Documents\Models\DocumentVersion;
@@ -29,7 +28,7 @@ class DocumentRenameContractTest extends TestCase
                 'author_id' => $actor->id, 'institution_id' => $institution->id, 'document_id' => $document->id,
             ]);
             $before = $document->only(['id', 'institution_id', 'node_id', 'status', 'author_id', 'description', 'category', 'responsible_unit']);
-            Sanctum::actingAs($actor);
+            $this->authenticateInstitutionUser($actor);
 
             $this->patchJson("/api/v1/documents/{$document->id}/name", ['name' => ' policy '])
                 ->assertOk()->assertJsonPath('data.name', 'policy')
@@ -58,7 +57,7 @@ class DocumentRenameContractTest extends TestCase
     {
         [, $actor, , $document] = $this->context(RoleType::Admin, 'Póliza');
         $updatedAt = $document->updated_at;
-        Sanctum::actingAs($actor);
+        $this->authenticateInstitutionUser($actor);
 
         $this->patchJson("/api/v1/documents/{$document->id}/name", ['name' => " Po\u{0301}liza "])->assertOk();
         $this->assertTrue($document->fresh()->updated_at->equalTo($updatedAt));
@@ -73,7 +72,7 @@ class DocumentRenameContractTest extends TestCase
     {
         [$institution, $admin, $node, $document] = $this->context(RoleType::Admin);
         Document::create(['name' => 'Same', 'status' => true, 'institution_id' => $institution->id, 'node_id' => $node->id]);
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
         $this->patchJson("/api/v1/documents/{$document->id}/name", ['name' => 'Same'])->assertOk();
 
         foreach ([' ', 'a/b', 'a\\b', "a\nb", str_repeat('x', 256)] as $name) {
@@ -84,11 +83,11 @@ class DocumentRenameContractTest extends TestCase
             ->assertUnprocessable()->assertJsonPath('error.code', 'VALIDATION_FAILED');
 
         [, $reader] = $this->actor(RoleType::Reader, $institution);
-        Sanctum::actingAs($reader);
+        $this->authenticateInstitutionUser($reader);
         $this->patchJson("/api/v1/documents/{$document->id}/name", ['name' => 'Denied'])
             ->assertForbidden()->assertJsonPath('error.code', 'DOCUMENT_RENAME_FORBIDDEN');
 
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
         $node->update(['active' => false]);
         $this->patchJson("/api/v1/documents/{$document->id}/name", ['name' => 'Blocked'])
             ->assertNotFound()->assertJsonPath('error.code', 'DOCUMENT_NOT_AVAILABLE');
@@ -110,7 +109,7 @@ class DocumentRenameContractTest extends TestCase
         $parent = Node::factory()->for($institution)->create(['name' => 'Parent', 'active' => false]);
         $node = Node::factory()->for($institution)->create(['name' => 'Child', 'parent_id' => $parent->id, 'active' => true]);
         $document = Document::create(['name' => 'Policy', 'status' => true, 'institution_id' => $institution->id, 'node_id' => $node->id]);
-        Sanctum::actingAs($actor);
+        $this->authenticateInstitutionUser($actor);
 
         $this->patchJson("/api/v1/documents/{$document->id}/name", ['name' => 'Policy'])
             ->assertNotFound()->assertJsonPath('error.code', 'DOCUMENT_NOT_AVAILABLE');
@@ -119,7 +118,7 @@ class DocumentRenameContractTest extends TestCase
     public function test_legacy_name_uses_the_same_rules_and_mixed_updates_are_atomic(): void
     {
         [, $actor, $node, $document] = $this->context(RoleType::Admin);
-        Sanctum::actingAs($actor);
+        $this->authenticateInstitutionUser($actor);
 
         $this->patchJson("/api/v1/documents/{$document->id}", ['description' => 'Metadata only'])
             ->assertOk();
@@ -141,7 +140,7 @@ class DocumentRenameContractTest extends TestCase
     public function test_event_failure_rolls_back_canonical_and_legacy_mixed_updates(): void
     {
         [, $actor, , $document] = $this->context(RoleType::Admin);
-        Sanctum::actingAs($actor);
+        $this->authenticateInstitutionUser($actor);
         DB::unprepared("CREATE TRIGGER fail_document_rename BEFORE INSERT ON document_events WHEN NEW.type = 'document.renamed' BEGIN SELECT RAISE(ABORT, 'forced failure'); END");
 
         $this->patchJson("/api/v1/documents/{$document->id}/name", ['name' => 'Canonical'])->assertStatus(500);

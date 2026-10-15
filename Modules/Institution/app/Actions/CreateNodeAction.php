@@ -7,7 +7,7 @@ use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Modules\Institution\Exceptions\NodeCreationException;
-use Modules\Institution\Models\Institution;
+use Modules\Institution\Services\InstitutionalAccess;
 use Modules\Nodes\Models\Node;
 use Modules\Nodes\Support\NodeName;
 
@@ -39,7 +39,7 @@ class CreateNodeAction
         for ($attempt = 1; $attempt <= 3; $attempt++) {
             try {
                 return DB::transaction(function () use ($actor, $parentId, $nameData) {
-                    $institution = Institution::query()->lockForUpdate()->find($actor->institution_id);
+                    $institution = app(InstitutionalAccess::class)->lock($actor, 'nodes.manage');
 
                     if ($institution === null) {
                         throw new NodeCreationException('NODE_PARENT_NOT_FOUND', 'The selected parent is not available.', 404);

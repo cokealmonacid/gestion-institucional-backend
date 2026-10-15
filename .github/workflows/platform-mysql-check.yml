@@ -1,0 +1,45 @@
+name: Platform MySQL concurrency
+on:
+  pull_request:
+    paths: ['app/**', 'Modules/**', 'database/**', 'bootstrap/**', 'config/**', 'routes/**', 'tests/**', 'composer.*', 'phpunit*.xml', '.github/workflows/platform-mysql-check.yml']
+  push:
+    branches: [develop]
+    paths: ['app/**', 'Modules/**', 'database/**', 'bootstrap/**', 'config/**', 'routes/**', 'tests/**', 'composer.*', 'phpunit*.xml', '.github/workflows/platform-mysql-check.yml']
+permissions:
+  contents: read
+jobs:
+  mysql-concurrency:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: acervo_user_access_concurrency_test
+          MYSQL_ROOT_PASSWORD: isolated-ci-fixture
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pisolated-ci-fixture"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    env:
+      APP_ENV: testing
+      DB_CONNECTION: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_DATABASE: acervo_user_access_concurrency_test
+      DB_USERNAME: root
+      DB_PASSWORD: isolated-ci-fixture
+      DB_URL: ''
+      MYSQL_CONCURRENCY_TESTS: '1'
+      CACHE_STORE: array
+      MAIL_MAILER: array
+      QUEUE_CONNECTION: sync
+      SESSION_DRIVER: array
+      BCRYPT_ROUNDS: '4'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_mysql
+      - run: composer install --no-interaction --prefer-dist --no-progress --no-scripts
+      - run: php -d memory_limit=512M vendor/phpunit/phpunit/phpunit -c phpunit.mysql.xml --do-not-cache-result

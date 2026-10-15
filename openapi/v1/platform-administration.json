@@ -1,0 +1,4130 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Acervo platform administration",
+    "version": "3.0.0",
+    "description": "Platform A/B/C administration. Atomic institution onboarding and new administrator invitations use owner/type-scoped idempotency. Publication is after commit with explicit recovery and no outbox guarantee. Institution details include current agreement, computed quotas and warnings. Backend completion does not authorize frontend cutover or retirement of compatibility endpoints."
+  },
+  "paths": {
+    "/api/v1/platform/plans": {
+      "get": {
+        "operationId": "Listcatalogplans",
+        "summary": "List catalog plans",
+        "description": "List catalog plans",
+        "responses": {
+          "200": {
+            "description": "Successful List catalog plans",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "success",
+                    "data",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "items",
+                        "page",
+                        "per_page",
+                        "total",
+                        "last_page"
+                      ],
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Plan"
+                          }
+                        },
+                        "page": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "per_page": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 100
+                        },
+                        "total": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "last_page": {
+                          "type": "integer",
+                          "minimum": 1
+                        }
+                      }
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "available",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ]
+      },
+      "post": {
+        "operationId": "Createcatalogplan",
+        "summary": "Create catalog plan",
+        "description": "Create catalog plan",
+        "responses": {
+          "201": {
+            "description": "Successful Create catalog plan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "success",
+                    "data",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Plan"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanCreate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/platform/plans/{id}": {
+      "get": {
+        "operationId": "Getcatalogplan",
+        "summary": "Get catalog plan",
+        "description": "Get catalog plan",
+        "responses": {
+          "200": {
+            "description": "Successful Get catalog plan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "success",
+                    "data",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Plan"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "Updatecatalogplan",
+        "summary": "Update catalog plan",
+        "description": "Code is immutable. Expected revision required. Editing or withdrawing the catalog never mutates existing agreements.",
+        "responses": {
+          "200": {
+            "description": "Successful Update catalog plan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "success",
+                    "data",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Plan"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanUpdate"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/platform/institutions": {
+      "get": {
+        "operationId": "Listexistinginstitutionmetadata",
+        "summary": "List existing institution metadata",
+        "description": "List existing institution metadata",
+        "responses": {
+          "200": {
+            "description": "Successful List existing institution metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "success",
+                    "data",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "items",
+                        "page",
+                        "per_page",
+                        "total",
+                        "last_page"
+                      ],
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Institution"
+                          }
+                        },
+                        "page": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "per_page": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 100
+                        },
+                        "total": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "last_page": {
+                          "type": "integer",
+                          "minimum": 1
+                        }
+                      }
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "commercial_state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "legacy_unconfigured",
+                "configured"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ]
+      },
+      "post": {
+        "operationId": "onboardInstitution",
+        "summary": "onboardInstitution",
+        "description": "MFA-verified platform operator with explicit permissions only. No document access or impersonation. Keys are scoped to operator and operation type. Equivalent normalized payload replays the committed result without another publication; conflicting payload is 409. Queue/refresh/outcome persistence failure retains committed identifiers with failed or unknown publication. accepted means transport acceptance, never recipient delivery. Stale pending state is unknown at five minutes; explicit resend rotates generation. Operations are retained for resource lifetime.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Committed resource identifiers or owned operation. No secrets or raw email links.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingSuccess"
+                }
+              }
+            },
+            "headers": {
+              "Idempotency-Replayed": {
+                "description": "True only for a normalized equivalent replay. No second email publication.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true",
+                    "false"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Controlled platform error; another operator has no operation visibility.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Controlled platform error; another operator has no operation visibility.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Controlled platform error; another operator has no operation visibility.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_CONFLICT, EMAIL_UNAVAILABLE, USER_QUOTA_EXCEEDED, PLAN_REVISION_CONFLICT or PLAN_NOT_AVAILABLE. No partial creation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Controlled platform error; another operator has no operation visibility.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Controlled platform error; another operator has no operation visibility.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnboardingRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/platform/institutions/{id}": {
+      "get": {
+        "operationId": "Getinstitutionmetadata",
+        "summary": "Get institution metadata",
+        "description": "Get institution metadata",
+        "responses": {
+          "200": {
+            "description": "Successful Get institution metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "success",
+                    "data",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/InstitutionDetail"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "Updateinstitutioncustomermetadata",
+        "summary": "Update institution customer metadata",
+        "description": "Whole name/customer replacement with expected operational revision and reason. Natural persons use their own name. RUT normalizes modulo-11 and is not unique across spaces. Paid customer metadata cannot be erased; historical snapshots stay immutable.",
+        "responses": {
+          "200": {
+            "description": "Successful Update institution customer metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "success",
+                    "data",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Institution"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MetadataUpdate"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/platform/institutions/{id}/contract": {
+      "get": {
+        "operationId": "Getinstitutionalagreement",
+        "summary": "Get institutional agreement",
+        "description": "Get institutional agreement",
+        "responses": {
+          "200": {
+            "description": "Successful Get institutional agreement",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "success",
+                    "data",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "contract",
+                        "commercial_state",
+                        "quota_enforcement"
+                      ],
+                      "properties": {
+                        "contract": {
+                          "anyOf": [
+                            {
+                              "$ref": "#/components/schemas/Revision"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "commercial_state": {
+                          "type": "string",
+                          "enum": [
+                            "legacy_unconfigured",
+                            "configured"
+                          ]
+                        },
+                        "quota_enforcement": {
+                          "const": "enforced"
+                        }
+                      }
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/platform/institutions/{id}/contract/revisions": {
+      "post": {
+        "operationId": "Reviseinstitutionalagreement",
+        "summary": "Revise institutional agreement",
+        "description": "Immediate immutable revision under institution lock. Existing same-plan amendments preserve source snapshot even after catalog withdrawal; switching selects current available plan with expected revision. All changed role limits require matching reasoned exceptions. Whole-peso CLP strings; no tax/payment calculation. Paid agreements require customer identity. Dates are inclusive Santiago days; future/expired contracts do not change access. Block A does not enforce agreed limits.",
+        "responses": {
+          "201": {
+            "description": "Successful Revise institutional agreement",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "success",
+                    "data",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Revision"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AgreementRequest"
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      },
+      "get": {
+        "operationId": "Listimmutableagreementrevisions",
+        "summary": "List immutable agreement revisions",
+        "description": "List immutable agreement revisions",
+        "responses": {
+          "200": {
+            "description": "Successful List immutable agreement revisions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "success",
+                    "data",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "items",
+                        "next_cursor"
+                      ],
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Revision"
+                          }
+                        },
+                        "next_cursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "uuid"
+                        }
+                      }
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/platform/institutions/{id}/audit": {
+      "get": {
+        "operationId": "Listinstitutionadministrativeaudit",
+        "summary": "List institution administrative audit",
+        "description": "Platform-only administrative history, scoped cursor. No document events/content. Keyset by occurred_at then UUID descending.",
+        "responses": {
+          "200": {
+            "description": "Successful List institution administrative audit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "success",
+                    "data",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "items",
+                        "next_cursor"
+                      ],
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/AuditEvent"
+                          }
+                        },
+                        "next_cursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "uuid"
+                        }
+                      }
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "subject_kind",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "subject_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/platform/audit": {
+      "get": {
+        "operationId": "Listplatformadministrativeaudit",
+        "summary": "List platform administrative audit",
+        "description": "List platform administrative audit",
+        "responses": {
+          "200": {
+            "description": "Successful List platform administrative audit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "success",
+                    "data",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "items",
+                        "next_cursor"
+                      ],
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/AuditEvent"
+                          }
+                        },
+                        "next_cursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "format": "uuid"
+                        }
+                      }
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Controlled platform error; secrets are never returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "subject_kind",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "subject_id",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/platform/institutions/{id}/quotas": {
+      "get": {
+        "operationId": "institutionQuotas",
+        "summary": "Read actual role usage and agreed limits",
+        "description": "MFA-verified platform operator and explicit permission required. No institutional or document access. Mutations recheck authorization and audit atomically under the institution lock.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuotaSuccess"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Controlled platform error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Controlled platform error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Controlled platform error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/platform/institutions/{id}/suspension": {
+      "post": {
+        "operationId": "suspendInstitution",
+        "summary": "Suspend and revoke institutional access atomically",
+        "description": "MFA-verified platform operator and explicit permission required. No institutional or document access. Mutations recheck authorization and audit atomically under the institution lock.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Get institution metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "success",
+                    "data",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Institution"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Controlled platform error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Controlled platform error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Controlled platform error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Controlled administrative mutation failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Controlled administrative mutation failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Controlled administrative mutation failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OperationalTransition"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/platform/institutions/{id}/reactivation": {
+      "post": {
+        "operationId": "reactivateInstitution",
+        "summary": "Enable institution without restoring credentials",
+        "description": "MFA-verified platform operator and explicit permission required. No institutional or document access. Mutations recheck authorization and audit atomically under the institution lock.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Get institution metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "success",
+                    "data",
+                    "message"
+                  ],
+                  "properties": {
+                    "success": {
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Institution"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Controlled platform error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Controlled platform error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Controlled platform error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Controlled administrative mutation failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Controlled administrative mutation failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Controlled administrative mutation failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OperationalTransition"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/platform/institutions/{id}/administrators/{userId}/invitation": {
+      "get": {
+        "operationId": "administratorAccessStatus",
+        "summary": "Read scoped administrator access state, including while suspended",
+        "description": "MFA-verified platform operator and explicit permission required. No institutional or document access. Mutations recheck authorization and audit atomically under the institution lock.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdministratorSuccess"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Controlled platform error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Controlled platform error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Controlled platform error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "resendAdministratorInvitation",
+        "summary": "Rotate and publish activation for an existing pending administrator",
+        "description": "MFA-verified platform operator and explicit permission required. No institutional or document access. Mutations recheck authorization and audit atomically under the institution lock. Publication is after commit. Unknown/failed publication is recoverable through status/resend. An existing active reserved seat consumes no additional quota.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Operation completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdministratorPublicationSuccess"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Controlled platform error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Controlled platform error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Controlled platform error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Controlled administrative mutation failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Controlled administrative mutation failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Resend interval has not elapsed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Controlled administrative mutation failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdministratorResend"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/platform/institutions/{id}/administrators/{userId}/reactivation": {
+      "post": {
+        "operationId": "reactivateInstitutionAdministrator",
+        "summary": "Reactivate existing administrator without promotion or activation",
+        "description": "MFA-verified platform operator and explicit permission required. No institutional or document access. Mutations recheck authorization and audit atomically under the institution lock.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Operation completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdministratorSuccess"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Controlled platform error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Controlled platform error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Controlled platform error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Controlled administrative mutation failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Controlled administrative mutation failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Controlled administrative mutation failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdministratorReactivation"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/platform/institutions/{id}/administrator-invitations": {
+      "post": {
+        "operationId": "inviteInstitutionAdministrator",
+        "summary": "inviteInstitutionAdministrator",
+        "description": "MFA-verified platform operator with explicit permissions only. No document access or impersonation. Keys are scoped to operator and operation type. Equivalent normalized payload replays the committed result without another publication; conflicting payload is 409. Queue/refresh/outcome persistence failure retains committed identifiers with failed or unknown publication. accepted means transport acceptance, never recipient delivery. Stale pending state is unknown at five minutes; explicit resend rotates generation. Operations are retained for resource lifetime.",
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Committed resource identifiers or owned operation. No secrets or raw email links.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NewAdministratorSuccess"
+                }
+              }
+            },
+            "headers": {
+              "Idempotency-Replayed": {
+                "description": "True only for a normalized equivalent replay. No second email publication.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "true",
+                    "false"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Controlled platform error; another operator has no operation visibility.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Controlled platform error; another operator has no operation visibility.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Controlled platform error; another operator has no operation visibility.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_CONFLICT, EMAIL_UNAVAILABLE, USER_QUOTA_EXCEEDED, PLAN_REVISION_CONFLICT or PLAN_NOT_AVAILABLE. No partial creation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Controlled platform error; another operator has no operation visibility.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Controlled platform error; another operator has no operation visibility.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewAdministratorRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/platform/operations/{key}": {
+      "get": {
+        "operationId": "lookupPlatformOperation",
+        "summary": "lookupPlatformOperation",
+        "description": "MFA-verified platform operator with explicit permissions only. No document access or impersonation. Keys are scoped to operator and operation type. Equivalent normalized payload replays the committed result without another publication; conflicting payload is 409. Queue/refresh/outcome persistence failure retains committed identifiers with failed or unknown publication. accepted means transport acceptance, never recipient delivery. Stale pending state is unknown at five minutes; explicit resend rotates generation. Operations are retained for resource lifetime.",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "operation_type",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "institution_onboarding",
+                "administrator_invitation"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Committed resource identifiers or owned operation. No secrets or raw email links.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationSuccess"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Controlled platform error; another operator has no operation visibility.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Controlled platform error; another operator has no operation visibility.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Controlled platform error; another operator has no operation visibility.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Controlled platform error; another operator has no operation visibility.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Controlled platform error; another operator has no operation visibility.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "platformBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "Sanctum platform operator (MFA verified)"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "success",
+          "error"
+        ],
+        "properties": {
+          "success": {
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "fields": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "details": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "role",
+                  "limit",
+                  "used",
+                  "requested_delta"
+                ],
+                "properties": {
+                  "role": {
+                    "enum": [
+                      "admin",
+                      "editor",
+                      "reader"
+                    ]
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "used": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "requested_delta": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "Limits": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "admin",
+          "editor",
+          "reader"
+        ],
+        "properties": {
+          "admin": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "editor": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 2147483647
+          },
+          "reader": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "maximum": 2147483647
+          }
+        }
+      },
+      "Customer": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [],
+        "properties": {
+          "type": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "natural_person",
+              "legal_entity",
+              null
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 255
+          },
+          "rut": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 32
+          }
+        }
+      },
+      "Plan": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "code",
+          "name",
+          "description",
+          "available_for_new_contracts",
+          "limits",
+          "revision"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "available_for_new_contracts": {
+            "type": "boolean"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/Limits"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "PlanCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "name",
+          "description",
+          "available_for_new_contracts",
+          "limits"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "available_for_new_contracts": {
+            "type": "boolean"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/Limits"
+          }
+        }
+      },
+      "PlanUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "description",
+          "available_for_new_contracts",
+          "limits",
+          "expected_revision",
+          "reason"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 5000
+          },
+          "available_for_new_contracts": {
+            "type": "boolean"
+          },
+          "limits": {
+            "$ref": "#/components/schemas/Limits"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        }
+      },
+      "Institution": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "status",
+          "operational_revision",
+          "commercial_state",
+          "customer",
+          "quota_enforcement"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "boolean"
+          },
+          "operational_revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "commercial_state": {
+            "type": "string",
+            "enum": [
+              "legacy_unconfigured",
+              "configured"
+            ]
+          },
+          "customer": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "name",
+              "rut"
+            ],
+            "properties": {
+              "type": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "rut": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "quota_enforcement": {
+            "const": "enforced"
+          }
+        }
+      },
+      "MetadataUpdate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expected_revision",
+          "name",
+          "customer",
+          "reason"
+        ],
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255
+          },
+          "customer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Customer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        }
+      },
+      "Trial": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "starts_on",
+          "ends_on"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "trial",
+              "pilot"
+            ]
+          },
+          "starts_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "ends_on": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "Exception": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "condition",
+          "base_value",
+          "agreed_value",
+          "reason"
+        ],
+        "properties": {
+          "condition": {
+            "type": "string",
+            "enum": [
+              "limits.admin",
+              "limits.editor",
+              "limits.reader",
+              "price_clp",
+              "periodicity",
+              "starts_on",
+              "ends_on",
+              "tax_treatment"
+            ]
+          },
+          "base_value": {
+            "type": [
+              "integer",
+              "string",
+              "null"
+            ]
+          },
+          "agreed_value": {
+            "type": [
+              "integer",
+              "string",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        }
+      },
+      "AgreementRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expected_revision",
+          "plan_id",
+          "expected_plan_revision",
+          "agreement_kind",
+          "lifecycle",
+          "limits",
+          "price_clp",
+          "currency",
+          "tax_treatment",
+          "periodicity",
+          "starts_on",
+          "ends_on",
+          "trial",
+          "exceptions",
+          "reason"
+        ],
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "plan_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expected_plan_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "agreement_kind": {
+            "type": "string",
+            "enum": [
+              "paid",
+              "free_trial"
+            ]
+          },
+          "lifecycle": {
+            "type": "string",
+            "enum": [
+              "agreed",
+              "terminated"
+            ]
+          },
+          "limits": {
+            "$ref": "#/components/schemas/Limits"
+          },
+          "price_clp": {
+            "type": "string",
+            "pattern": "^\\d{1,18}$"
+          },
+          "currency": {
+            "const": "CLP"
+          },
+          "tax_treatment": {
+            "type": "string",
+            "enum": [
+              "inclusive",
+              "exclusive"
+            ]
+          },
+          "periodicity": {
+            "type": "string",
+            "enum": [
+              "monthly",
+              "annual",
+              "one_time_pilot"
+            ]
+          },
+          "starts_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "ends_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "trial": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Trial"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "exceptions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Exception"
+            },
+            "maxItems": 20
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        }
+      },
+      "Conditions": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "agreement_kind",
+          "lifecycle",
+          "limits",
+          "price_clp",
+          "currency",
+          "tax_treatment",
+          "periodicity",
+          "starts_on",
+          "ends_on",
+          "trial",
+          "exceptions",
+          "reason",
+          "source_plan",
+          "customer"
+        ],
+        "properties": {
+          "agreement_kind": {
+            "type": "string",
+            "enum": [
+              "paid",
+              "free_trial"
+            ]
+          },
+          "lifecycle": {
+            "type": "string",
+            "enum": [
+              "agreed",
+              "terminated"
+            ]
+          },
+          "limits": {
+            "$ref": "#/components/schemas/Limits"
+          },
+          "price_clp": {
+            "type": "string",
+            "pattern": "^\\d{1,18}$"
+          },
+          "currency": {
+            "const": "CLP"
+          },
+          "tax_treatment": {
+            "type": "string",
+            "enum": [
+              "inclusive",
+              "exclusive"
+            ]
+          },
+          "periodicity": {
+            "type": "string",
+            "enum": [
+              "monthly",
+              "annual",
+              "one_time_pilot"
+            ]
+          },
+          "starts_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "ends_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "trial": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Trial"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "exceptions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Exception"
+            },
+            "maxItems": 20
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "source_plan": {
+            "$ref": "#/components/schemas/Plan"
+          },
+          "customer": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "name",
+              "rut"
+            ],
+            "properties": {
+              "type": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "rut": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "Revision": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "contract_id",
+          "institution_id",
+          "revision",
+          "conditions",
+          "effective_at",
+          "validity",
+          "quota_enforcement",
+          "payment_status",
+          "quotas"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "contract_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "institution_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "conditions": {
+            "$ref": "#/components/schemas/Conditions"
+          },
+          "effective_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "validity": {
+            "type": "string",
+            "enum": [
+              "not_started",
+              "current",
+              "expired"
+            ]
+          },
+          "quota_enforcement": {
+            "const": "enforced"
+          },
+          "payment_status": {
+            "const": "untracked"
+          },
+          "quotas": {
+            "$ref": "#/components/schemas/Quotas"
+          }
+        }
+      },
+      "AuditEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "actor_kind",
+          "actor_id",
+          "actor_name",
+          "action",
+          "subject_kind",
+          "subject_id",
+          "institution_id",
+          "before_values",
+          "after_values",
+          "reason",
+          "operation_id",
+          "occurred_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actor_kind": {
+            "type": "string",
+            "enum": [
+              "platform",
+              "operator_cli"
+            ]
+          },
+          "actor_id": {
+            "type": "string"
+          },
+          "actor_name": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "subject_kind": {
+            "type": "string"
+          },
+          "subject_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "institution_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "before_values": {
+            "type": [
+              "object",
+              "array"
+            ],
+            "additionalProperties": true
+          },
+          "after_values": {
+            "type": [
+              "object",
+              "array"
+            ],
+            "additionalProperties": true
+          },
+          "reason": {
+            "type": "string"
+          },
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "occurred_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Quotas": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "roles",
+          "agreement_revision",
+          "computed_at",
+          "warnings",
+          "quota_enforcement"
+        ],
+        "properties": {
+          "roles": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "admin",
+              "editor",
+              "reader"
+            ],
+            "properties": {
+              "admin": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "limit",
+                  "used",
+                  "over_by"
+                ],
+                "properties": {
+                  "limit": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 0
+                  },
+                  "used": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "over_by": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              },
+              "editor": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "limit",
+                  "used",
+                  "over_by"
+                ],
+                "properties": {
+                  "limit": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 0
+                  },
+                  "used": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "over_by": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              },
+              "reader": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "limit",
+                  "used",
+                  "over_by"
+                ],
+                "properties": {
+                  "limit": {
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "minimum": 0
+                  },
+                  "used": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "over_by": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          },
+          "agreement_revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "computed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "NO_USABLE_ADMIN"
+              ]
+            }
+          },
+          "quota_enforcement": {
+            "const": "enforced"
+          }
+        }
+      },
+      "QuotaSuccess": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "success",
+          "data",
+          "message"
+        ],
+        "properties": {
+          "success": {
+            "const": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/Quotas"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "AdministratorStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "user_id",
+          "active",
+          "access_revision",
+          "activation_status",
+          "usable_administrator",
+          "invitation_id",
+          "generation",
+          "delivery_status",
+          "publication_status",
+          "expires_at",
+          "revoked_at"
+        ],
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "access_revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "activation_status": {
+            "enum": [
+              "activated",
+              "pending_activation"
+            ]
+          },
+          "usable_administrator": {
+            "type": "boolean"
+          },
+          "invitation_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "generation": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "delivery_status": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "pending",
+              "accepted",
+              "failed",
+              null
+            ]
+          },
+          "publication_status": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "queued",
+              "failed",
+              "unknown",
+              null
+            ]
+          },
+          "expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "revoked_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "AdministratorSuccess": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "success",
+          "data",
+          "message"
+        ],
+        "properties": {
+          "success": {
+            "const": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/AdministratorStatus"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "AdministratorPublicationSuccess": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "success",
+          "data",
+          "message"
+        ],
+        "properties": {
+          "success": {
+            "const": true
+          },
+          "data": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AdministratorStatus"
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "user_id",
+                  "access_revision",
+                  "publication_status"
+                ],
+                "properties": {
+                  "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "access_revision": {
+                    "type": "integer"
+                  },
+                  "publication_status": {
+                    "const": "unknown"
+                  }
+                }
+              }
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "OperationalTransition": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expected_revision",
+          "reason"
+        ],
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        }
+      },
+      "AdministratorReactivation": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expected_user_revision",
+          "reason"
+        ],
+        "properties": {
+          "expected_user_revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        }
+      },
+      "AdministratorResend": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "reason"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        }
+      },
+      "OnboardingContract": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "plan_id",
+          "expected_plan_revision",
+          "agreement_kind",
+          "lifecycle",
+          "limits",
+          "price_clp",
+          "currency",
+          "tax_treatment",
+          "periodicity",
+          "starts_on",
+          "ends_on",
+          "trial",
+          "exceptions",
+          "reason"
+        ],
+        "properties": {
+          "plan_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "expected_plan_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "agreement_kind": {
+            "type": "string",
+            "enum": [
+              "paid",
+              "free_trial"
+            ]
+          },
+          "lifecycle": {
+            "type": "string",
+            "enum": [
+              "agreed",
+              "terminated"
+            ]
+          },
+          "limits": {
+            "$ref": "#/components/schemas/Limits"
+          },
+          "price_clp": {
+            "type": "string",
+            "pattern": "^\\d{1,18}$"
+          },
+          "currency": {
+            "const": "CLP"
+          },
+          "tax_treatment": {
+            "type": "string",
+            "enum": [
+              "inclusive",
+              "exclusive"
+            ]
+          },
+          "periodicity": {
+            "type": "string",
+            "enum": [
+              "monthly",
+              "annual",
+              "one_time_pilot"
+            ]
+          },
+          "starts_on": {
+            "type": "string",
+            "format": "date"
+          },
+          "ends_on": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "trial": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Trial"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "exceptions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Exception"
+            },
+            "maxItems": 20
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        }
+      },
+      "OnboardingRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "institution",
+          "customer",
+          "initial_admin",
+          "contract"
+        ],
+        "properties": {
+          "institution": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              }
+            }
+          },
+          "customer": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": false,
+            "required": [],
+            "properties": {
+              "type": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "natural_person",
+                  "legal_entity",
+                  null
+                ]
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 255
+              },
+              "rut": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 32
+              }
+            }
+          },
+          "initial_admin": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "email"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 255
+              },
+              "email": {
+                "type": "string",
+                "format": "email",
+                "maxLength": 255
+              }
+            }
+          },
+          "contract": {
+            "$ref": "#/components/schemas/OnboardingContract"
+          }
+        }
+      },
+      "NewAdministratorRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "email",
+          "reason"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "maxLength": 255
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        }
+      },
+      "OnboardingResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "operation_id",
+          "institution_id",
+          "invitation_id",
+          "invitation_generation",
+          "activation_status",
+          "delivery_status",
+          "publication_status",
+          "status_url",
+          "resend_url",
+          "initial_admin_id",
+          "contract_revision"
+        ],
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "institution_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invitation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invitation_generation": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "activation_status": {
+            "const": "pending_activation"
+          },
+          "delivery_status": {
+            "enum": [
+              "pending",
+              "accepted",
+              "failed"
+            ]
+          },
+          "publication_status": {
+            "enum": [
+              "queued",
+              "failed",
+              "unknown"
+            ]
+          },
+          "status_url": {
+            "type": "string",
+            "format": "uri-reference"
+          },
+          "resend_url": {
+            "type": "string",
+            "format": "uri-reference"
+          },
+          "initial_admin_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "contract_revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "NewAdministratorResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "operation_id",
+          "institution_id",
+          "invitation_id",
+          "invitation_generation",
+          "activation_status",
+          "delivery_status",
+          "publication_status",
+          "status_url",
+          "resend_url",
+          "administrator_id"
+        ],
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "institution_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invitation_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "invitation_generation": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "activation_status": {
+            "const": "pending_activation"
+          },
+          "delivery_status": {
+            "enum": [
+              "pending",
+              "accepted",
+              "failed"
+            ]
+          },
+          "publication_status": {
+            "enum": [
+              "queued",
+              "failed",
+              "unknown"
+            ]
+          },
+          "status_url": {
+            "type": "string",
+            "format": "uri-reference"
+          },
+          "resend_url": {
+            "type": "string",
+            "format": "uri-reference"
+          },
+          "administrator_id": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "OnboardingSuccess": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "success",
+          "data",
+          "message"
+        ],
+        "properties": {
+          "success": {
+            "const": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/OnboardingResult"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "NewAdministratorSuccess": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "success",
+          "data",
+          "message"
+        ],
+        "properties": {
+          "success": {
+            "const": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/NewAdministratorResult"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "OperationSuccess": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "success",
+          "data",
+          "message"
+        ],
+        "properties": {
+          "success": {
+            "const": true
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "operation_id",
+              "operation_type",
+              "committed_at",
+              "result"
+            ],
+            "properties": {
+              "operation_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "operation_type": {
+                "enum": [
+                  "institution_onboarding",
+                  "administrator_invitation"
+                ]
+              },
+              "committed_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "result": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/OnboardingResult"
+                  },
+                  {
+                    "$ref": "#/components/schemas/NewAdministratorResult"
+                  }
+                ]
+              }
+            }
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "InstitutionDetail": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "status",
+          "operational_revision",
+          "commercial_state",
+          "customer",
+          "quota_enforcement",
+          "current_contract",
+          "quotas",
+          "warnings"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "boolean"
+          },
+          "operational_revision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "commercial_state": {
+            "type": "string",
+            "enum": [
+              "legacy_unconfigured",
+              "configured"
+            ]
+          },
+          "customer": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "name",
+              "rut"
+            ],
+            "properties": {
+              "type": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "rut": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          },
+          "quota_enforcement": {
+            "const": "enforced"
+          },
+          "current_contract": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Revision"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quotas": {
+            "$ref": "#/components/schemas/Quotas"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "NO_USABLE_ADMIN"
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "platformBearer": []
+    }
+  ]
+}

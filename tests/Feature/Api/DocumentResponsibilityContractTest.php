@@ -7,7 +7,6 @@ use App\Models\Rol;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
-use Laravel\Sanctum\Sanctum;
 use Modules\Documents\Models\Document;
 use Modules\Institution\Models\Institution;
 use Modules\Nodes\Models\Node;
@@ -23,7 +22,7 @@ class DocumentResponsibilityContractTest extends TestCase
             [$institution, $actor, $document] = $this->context($role);
             $first = $this->eligibleUser($institution, RoleType::Editor, ['name' => 'First Responsible']);
             $second = $this->eligibleUser($institution, RoleType::Admin, ['name' => 'Second Responsible']);
-            Sanctum::actingAs($actor);
+            $this->authenticateInstitutionUser($actor);
 
             $this->patchJson("/api/v1/documents/{$document->id}/responsible", [
                 'responsible_user_id' => $first->id, 'expected_revision' => 0,
@@ -53,7 +52,7 @@ class DocumentResponsibilityContractTest extends TestCase
         $this->patchJson($uri, ['responsible_user_id' => null, 'expected_revision' => 0])
             ->assertUnauthorized()->assertJsonPath('error.code', 'AUTH_UNAUTHENTICATED');
 
-        Sanctum::actingAs($actor);
+        $this->authenticateInstitutionUser($actor);
         $this->patchJson($uri, ['responsible_user_id' => 'invalid', 'expected_revision' => -1, 'extra' => true])
             ->assertUnprocessable()->assertJsonPath('error.code', 'VALIDATION_FAILED');
 
@@ -76,7 +75,7 @@ class DocumentResponsibilityContractTest extends TestCase
     {
         [$institution, $actor, $document] = $this->context(RoleType::Editor);
         $responsible = $this->eligibleUser($institution);
-        Sanctum::actingAs($actor);
+        $this->authenticateInstitutionUser($actor);
         $uri = "/api/v1/documents/{$document->id}/responsible";
 
         $this->patchJson($uri, ['responsible_user_id' => $responsible->id, 'expected_revision' => 0])->assertOk();
@@ -99,7 +98,7 @@ class DocumentResponsibilityContractTest extends TestCase
         $inactive = User::factory()->for($institution)->inactive()->create(['email' => 'inactive@example.test']);
         $deleted = User::factory()->for($institution)->create(['email' => 'deleted@example.test']);
         $deleted->delete();
-        Sanctum::actingAs($actor);
+        $this->authenticateInstitutionUser($actor);
 
         foreach ([$foreign->id, $inactive->id, $deleted->id, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'] as $id) {
             $response = $this->patchJson("/api/v1/documents/{$document->id}/responsible", [
@@ -118,7 +117,7 @@ class DocumentResponsibilityContractTest extends TestCase
             [$institution, $actor, $document] = $this->context($role);
             $responsible = User::factory()->for($institution)->create();
             $document->update(['responsible_user_id' => $responsible->id, 'responsibility_revision' => 1]);
-            Sanctum::actingAs($actor);
+            $this->authenticateInstitutionUser($actor);
 
             $this->getJson("/api/v1/documents/{$document->id}")
                 ->assertOk()->assertJsonPath('data.responsible.id', $responsible->id)
@@ -137,7 +136,7 @@ class DocumentResponsibilityContractTest extends TestCase
             $responsible = User::factory()->for($institution)->create();
             $document->update(['responsible_user_id' => $responsible->id, 'responsibility_revision' => 1]);
             $state === 'inactive' ? $responsible->update(['active' => false]) : $responsible->delete();
-            Sanctum::actingAs($actor);
+            $this->authenticateInstitutionUser($actor);
 
             $this->getJson("/api/v1/documents/{$document->id}")
                 ->assertOk()->assertJsonPath('data.responsible.id', $responsible->id)
@@ -154,7 +153,7 @@ class DocumentResponsibilityContractTest extends TestCase
         ]);
         $local = $this->eligibleUser($institution, attributes: ['name' => 'Local Responsible']);
         $document->update(['responsible_user_id' => $foreign->id, 'responsibility_revision' => 7]);
-        Sanctum::actingAs($actor);
+        $this->authenticateInstitutionUser($actor);
 
         foreach ([
             "/api/v1/institution/tree-directory/{$document->node_id}/documents",
@@ -203,7 +202,7 @@ class DocumentResponsibilityContractTest extends TestCase
         $deleted = User::factory()->for($institution)->create(['name' => 'Match deleted']);
         $deleted->delete();
         User::factory()->for(Institution::factory())->create(['name' => 'Match foreign']);
-        Sanctum::actingAs($actor);
+        $this->authenticateInstitutionUser($actor);
 
         $data = $this->getJson("/api/v1/documents/{$document->id}/responsible-options?q=MATCH")
             ->assertOk()->assertJsonCount(10, 'data.users')->json('data.users');
@@ -222,7 +221,7 @@ class DocumentResponsibilityContractTest extends TestCase
         $reader = User::factory()->for($institution)->create(['name' => 'Visible Reader']);
         $reader->roles()->attach(Rol::firstOrCreate(['type' => RoleType::Reader]));
         $roleless = User::factory()->for($institution)->create(['name' => 'Visible Roleless']);
-        Sanctum::actingAs($actor);
+        $this->authenticateInstitutionUser($actor);
 
         $users = collect($this->getJson("/api/v1/documents/{$document->id}/responsible-options?q=Visible")
             ->assertOk()->json('data.users'))->keyBy('id');
@@ -248,7 +247,7 @@ class DocumentResponsibilityContractTest extends TestCase
             Rol::firstOrCreate(['type' => RoleType::Reader])->id,
             Rol::firstOrCreate(['type' => RoleType::Editor])->id,
         ]);
-        Sanctum::actingAs($actor);
+        $this->authenticateInstitutionUser($actor);
 
         $this->getJson("/api/v1/documents/{$document->id}/responsible-options?q=Dual")
             ->assertOk()
@@ -266,7 +265,7 @@ class DocumentResponsibilityContractTest extends TestCase
         $reader = User::factory()->for($institution)->create(['name' => 'Legacy Reader']);
         $reader->roles()->attach(Rol::firstOrCreate(['type' => RoleType::Reader]));
         $document->update(['responsible_user_id' => $reader->id, 'responsibility_revision' => 4]);
-        Sanctum::actingAs($actor);
+        $this->authenticateInstitutionUser($actor);
 
         $this->patchJson("/api/v1/documents/{$document->id}/responsible", [
             'responsible_user_id' => $reader->id,
@@ -281,7 +280,7 @@ class DocumentResponsibilityContractTest extends TestCase
     {
         [$institution, $actor, $document] = $this->context(RoleType::Admin);
         $responsible = $this->eligibleUser($institution);
-        Sanctum::actingAs($actor);
+        $this->authenticateInstitutionUser($actor);
         DB::unprepared("CREATE TRIGGER fail_responsibility_history BEFORE INSERT ON document_responsible_histories BEGIN SELECT RAISE(ABORT, 'forced failure'); END");
 
         $this->patchJson("/api/v1/documents/{$document->id}/responsible", [

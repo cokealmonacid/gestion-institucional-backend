@@ -2,15 +2,15 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Acervo Authentication API",
-    "version": "2.1.0",
-    "description": "Canonical Bearer-token authentication and user access lifecycle contract for Acervo. Version 2.1 adds invitation activation, non-enumerating password recovery, password reset, and authenticated password change without changing the existing login, profile, or logout operations. Runtime API addresses are supplied by each deployment and are not part of this contract."
+    "version": "3.0.0",
+    "description": "Canonical Bearer-token authentication and user access lifecycle contract for Acervo. Version 2.1 adds invitation activation, non-enumerating password recovery, password reset, and authenticated password change without changing the existing login, profile, or logout operations. Runtime API addresses are supplied by each deployment and are not part of this contract. Block B consistently enforces operational suspension and credential epochs. Old credentials without current epoch metadata require fresh login; reactivation restores no credentials."
   },
   "paths": {
     "/api/v1/auth/login": {
       "post": {
         "operationId": "login",
         "summary": "Authenticate a user and issue a Sanctum Bearer token",
-        "description": "Returns a Sanctum Personal Access Token in data.token. This contract does not define or issue a refresh token.",
+        "description": "Returns a Sanctum Personal Access Token in data.token. This contract does not define or issue a refresh token. Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish.",
         "requestBody": {
           "required": true,
           "content": {
@@ -33,23 +33,37 @@
             }
           },
           "401": {
-            "description": "Invalid credentials or unverified account",
+            "description": "Suspension, insufficient permission or unavailable credentials.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/InvalidCredentialsError"
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/InvalidCredentialsError"
+                    },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
                 }
               }
             }
           },
           "403": {
-            "description": "The authenticated identity has no valid institution, or the account is inactive",
+            "description": "Suspension, insufficient permission or unavailable credentials.",
             "content": {
               "application/json": {
                 "schema": {
-                  "oneOf": [
-                    { "$ref": "#/components/schemas/InstitutionRequiredError" },
-                    { "$ref": "#/components/schemas/AccountInactiveError" }
+                  "anyOf": [
+                    {
+                      "oneOf": [
+                        { "$ref": "#/components/schemas/InstitutionRequiredError" },
+                        { "$ref": "#/components/schemas/AccountInactiveError" }
+                      ]
+                    },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
                   ]
                 }
               }
@@ -73,11 +87,7 @@
       "get": {
         "operationId": "profile",
         "summary": "Get the authenticated user profile",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
+        "security": [{ "bearerAuth": [] }],
         "responses": {
           "200": {
             "description": "Profile retrieved successfully",
@@ -90,16 +100,32 @@
             }
           },
           "401": {
-            "description": "Authentication is required",
+            "description": "Suspension, insufficient permission or unavailable credentials.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/UnauthenticatedError"
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/UnauthenticatedError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstitutionAccessError"
                 }
               }
             }
           }
-        }
+        },
+        "description": " Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish."
       }
     },
     "/api/v1/auth/logout": {
@@ -181,12 +207,36 @@
       "patch": {
         "operationId": "updateAuthenticatedPassword",
         "summary": "Change the authenticated user's password",
-        "description": "Requires the current password and revokes all Sanctum tokens plus pending password recovery tokens after success.",
+        "description": "Requires the current password and revokes all Sanctum tokens plus pending password recovery tokens after success. Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish.",
         "security": [{ "bearerAuth": [] }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthenticatedPasswordRequest" } } } },
         "responses": {
           "200": { "description": "Password changed; the current token is revoked.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PasswordChangedSuccess" } } } },
-          "401": { "description": "Authentication is required.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UnauthenticatedError" } } } },
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/UnauthenticatedError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstitutionAccessError"
+                }
+              }
+            }
+          },
           "422": { "description": "Validation failed or the current password is incorrect.", "content": { "application/json": { "schema": { "oneOf": [{ "$ref": "#/components/schemas/ValidationError" }, { "$ref": "#/components/schemas/CurrentPasswordError" }] } } } },
           "429": { "$ref": "#/components/responses/RateLimited" }
         }
@@ -547,6 +597,72 @@
                   "type": "array",
                   "items": {
                     "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "InstitutionAccessError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "success",
+          "error"
+        ],
+        "properties": {
+          "success": {
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "enum": [
+                  "INSTITUTION_SUSPENDED",
+                  "AUTH_UNAUTHENTICATED",
+                  "AUTH_ACCOUNT_INACTIVE",
+                  "USER_QUOTA_EXCEEDED",
+                  "INSTITUTION_REQUIRES_USABLE_ADMIN"
+                ]
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "role",
+                  "limit",
+                  "used",
+                  "requested_delta"
+                ],
+                "properties": {
+                  "role": {
+                    "enum": [
+                      "admin",
+                      "editor",
+                      "reader"
+                    ]
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "used": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "requested_delta": {
+                    "type": "integer",
+                    "minimum": 1
                   }
                 }
               }

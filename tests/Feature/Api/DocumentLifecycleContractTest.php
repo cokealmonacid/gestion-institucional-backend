@@ -8,7 +8,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
-use Laravel\Sanctum\Sanctum;
 use Modules\Documents\Models\Document;
 use Modules\Documents\Models\DocumentVersion;
 use Modules\Institution\Models\Institution;
@@ -43,7 +42,7 @@ class DocumentLifecycleContractTest extends TestCase
             [$institution, $user] = $this->institutionUser($role);
             $document = $this->document($institution, $user);
             $version = $this->version($document, $user, 1, true);
-            Sanctum::actingAs($user);
+            $this->authenticateInstitutionUser($user);
 
             $detail = $this->getJson("/api/v1/documents/{$document->id}")->assertOk();
             $detail->assertJsonPath('data.current_version.id', $version->id)
@@ -69,7 +68,7 @@ class DocumentLifecycleContractTest extends TestCase
         foreach ([RoleType::Admin, RoleType::Editor] as $role) {
             [$institution, $user] = $this->institutionUser($role);
             $document = $this->document($institution, $user);
-            Sanctum::actingAs($user);
+            $this->authenticateInstitutionUser($user);
 
             $response = $this->post("/api/v1/documents/{$document->id}/versions", [
                 'file' => UploadedFile::fake()->createWithContent('policy.pdf', "%PDF-1.4\n".str_repeat('0', 2048)),
@@ -88,7 +87,7 @@ class DocumentLifecycleContractTest extends TestCase
         [$institution, $reader] = $this->institutionUser(RoleType::Reader);
         $document = $this->document($institution, $reader);
         $version = $this->version($document, $reader, 1, true);
-        Sanctum::actingAs($reader);
+        $this->authenticateInstitutionUser($reader);
         $this->post("/api/v1/documents/{$document->id}/versions", ['file' => UploadedFile::fake()->create('x.pdf', 1, 'application/pdf')])
             ->assertForbidden()->assertJsonPath('error.code', 'DOCUMENT_VERSION_MUTATION_FORBIDDEN');
         $this->patchJson("/api/v1/documents/{$document->id}/versions/{$version->id}/current")
@@ -102,7 +101,7 @@ class DocumentLifecycleContractTest extends TestCase
         [$institution, $editor] = $this->institutionUser(RoleType::Editor);
         $document = $this->document($institution, $editor);
         $old = $this->version($document, $editor, 1, true);
-        Sanctum::actingAs($editor);
+        $this->authenticateInstitutionUser($editor);
 
         $this->post("/api/v1/documents/{$document->id}/versions", [
             'file' => UploadedFile::fake()->createWithContent('next.txt', str_repeat('version two ', 200)),
@@ -119,7 +118,7 @@ class DocumentLifecycleContractTest extends TestCase
         config(['filesystems.default' => 'local']);
         [$institution, $admin] = $this->institutionUser(RoleType::Admin);
         $document = $this->document($institution, $admin);
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
 
         foreach ([
             ['file' => UploadedFile::fake()->create('empty.txt', 0, 'text/plain')],
@@ -140,7 +139,7 @@ class DocumentLifecycleContractTest extends TestCase
         config(['filesystems.default' => 'local']);
         [$institution, $editor] = $this->institutionUser(RoleType::Editor);
         $document = $this->document($institution, $editor);
-        Sanctum::actingAs($editor);
+        $this->authenticateInstitutionUser($editor);
 
         $created = $this->post("/api/v1/documents/{$document->id}/versions", [
             'file' => UploadedFile::fake()->createWithContent('policy.pdf', "%PDF-1.4\n".str_repeat('0', 2048)),
@@ -157,7 +156,7 @@ class DocumentLifecycleContractTest extends TestCase
         [$institution, $admin] = $this->institutionUser(RoleType::Admin);
         $document = $this->document($institution, $admin);
         $version = $this->version($document, $admin, 1, true, true);
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
 
         $this->deleteJson("/api/v1/documents/{$document->id}/versions/{$version->id}")->assertOk();
         $this->assertFalse($version->fresh()->active);
@@ -175,7 +174,7 @@ class DocumentLifecycleContractTest extends TestCase
         foreach ([RoleType::Admin, RoleType::Editor, RoleType::Reader] as $role) {
             [$institution, $user] = $this->institutionUser($role);
             $document = $this->document($institution, $user);
-            Sanctum::actingAs($user);
+            $this->authenticateInstitutionUser($user);
 
             $response = $this->getJson("/api/v1/documents/{$document->id}")->assertOk()
                 ->assertJsonPath('data.author.id', $user->id)
@@ -196,7 +195,7 @@ class DocumentLifecycleContractTest extends TestCase
         [$institution, $reader] = $this->institutionUser(RoleType::Reader);
         $document = $this->document($institution, $reader);
         $version = $this->version($document, $reader, 1, true, true, 'private/missing.pdf');
-        Sanctum::actingAs($reader);
+        $this->authenticateInstitutionUser($reader);
         config(['filesystems.default' => 'missing-disk']);
 
         $this->getJson("/api/v1/documents/{$document->id}")
@@ -218,7 +217,7 @@ class DocumentLifecycleContractTest extends TestCase
         [$institution, $reader] = $this->institutionUser(RoleType::Reader);
         $document = $this->document($institution, $reader);
         $this->version($document, $reader, 1, true, true, 'private/missing.pdf');
-        Sanctum::actingAs($reader);
+        $this->authenticateInstitutionUser($reader);
 
         $this->getJson("/api/v1/documents/{$document->id}")
             ->assertOk()
@@ -240,7 +239,7 @@ class DocumentLifecycleContractTest extends TestCase
     public function test_inactive_document_missing_node_inactive_node_and_inactive_ancestor_are_unavailable(): void
     {
         [$institution, $reader] = $this->institutionUser(RoleType::Reader);
-        Sanctum::actingAs($reader);
+        $this->authenticateInstitutionUser($reader);
 
         $inactiveDocument = $this->document($institution, $reader);
         $inactiveDocument->update(['status' => false]);
@@ -270,7 +269,7 @@ class DocumentLifecycleContractTest extends TestCase
         $v1 = $this->version($document, $reader, 1, true, false);
         $v3 = $this->version($document, $reader, 3, true, true, 'private/v3', 'v3.pdf');
         $foreignVersion = $this->version($other, $reader, 1, true, true, 'private/other', 'other.pdf');
-        Sanctum::actingAs($reader);
+        $this->authenticateInstitutionUser($reader);
 
         $this->getJson("/api/v1/documents/{$document->id}/versions")
             ->assertOk()->assertJsonPath('data.0.id', $v3->id)->assertJsonPath('data.1.id', $v1->id);
@@ -283,7 +282,7 @@ class DocumentLifecycleContractTest extends TestCase
         [$institution, $user] = $this->institutionUser(RoleType::Reader);
         $document = $this->document($institution, $user);
         $user->update(['active' => false]);
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         $this->getJson("/api/v1/documents/{$document->id}")->assertForbidden()
             ->assertExactJson(['success' => false, 'message' => 'This account is inactive.']);
@@ -293,7 +292,7 @@ class DocumentLifecycleContractTest extends TestCase
     {
         [$institution, $admin] = $this->institutionUser(RoleType::Admin);
         $document = $this->document($institution, $admin);
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
         config(['filesystems.default' => 'missing-disk']);
         $this->post("/api/v1/documents/{$document->id}/versions", [
             'file' => UploadedFile::fake()->createWithContent('policy.pdf', "%PDF-1.4\n".str_repeat('0', 2048)),
@@ -323,7 +322,7 @@ class DocumentLifecycleContractTest extends TestCase
         config(['filesystems.default' => 'local']);
         [$institution, $admin] = $this->institutionUser(RoleType::Admin);
         $document = $this->document($institution, $admin);
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
         $prefix = "%PDF-1.4\n";
         $content = $prefix.str_repeat('0', 26214400 - strlen($prefix));
         $filename = "..\\quoted\"\r\n-Ñ-".str_repeat('a', 300).'.pdf';
@@ -344,7 +343,7 @@ class DocumentLifecycleContractTest extends TestCase
         [$institution, $reader] = $this->institutionUser(RoleType::Reader);
         [$foreignInstitution, $foreignUser] = $this->institutionUser(RoleType::Admin);
         $foreign = $this->document($foreignInstitution, $foreignUser);
-        Sanctum::actingAs($reader);
+        $this->authenticateInstitutionUser($reader);
 
         foreach (['missing', $foreign->id] as $id) {
             $this->getJson("/api/v1/documents/{$id}")->assertNotFound()->assertJsonPath('error.code', 'DOCUMENT_NOT_AVAILABLE');
@@ -362,7 +361,7 @@ class DocumentLifecycleContractTest extends TestCase
         config(['filesystems.default' => 'local']);
         [$institution, $admin] = $this->institutionUser(RoleType::Admin);
         $document = $this->document($institution, $admin);
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
         $extreme = "..\\quoted\"\r\n-Ñ-".str_repeat('文', 300).'.PDF';
         $prefix = "%PDF-1.4\n";
         $exact = $prefix.str_repeat('0', 26214400 - strlen($prefix));
@@ -398,7 +397,7 @@ class DocumentLifecycleContractTest extends TestCase
         [$institution, $reader] = $this->institutionUser(RoleType::Reader);
         $document = $this->document($institution, $reader);
         $version = $this->version($document, $reader, 1, true, true, 'private/file.pdf', '../policy.pdf');
-        Sanctum::actingAs($reader);
+        $this->authenticateInstitutionUser($reader);
 
         $this->get("/api/v1/documents/{$document->id}/download")
             ->assertNotFound()->assertJsonPath('error.code', 'DOCUMENT_FILE_NOT_AVAILABLE');

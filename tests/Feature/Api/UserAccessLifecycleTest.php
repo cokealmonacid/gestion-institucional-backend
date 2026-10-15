@@ -20,7 +20,6 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\View\ViewException;
-use Laravel\Sanctum\Sanctum;
 use Modules\Institution\Models\Institution;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
@@ -43,7 +42,7 @@ class UserAccessLifecycleTest extends TestCase
         [$institution, $admin] = $this->admin();
         Rol::create(['type' => RoleType::Editor]);
         Queue::fake();
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
 
         $response = $this->postJson('/api/v1/institution/user-invitations', [
             'institution_id' => $institution->id,
@@ -68,7 +67,7 @@ class UserAccessLifecycleTest extends TestCase
     public function test_creation_rolls_back_when_role_is_missing(): void
     {
         [$institution, $admin] = $this->admin();
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
 
         $this->postJson('/api/v1/institution/user-invitations', [
             'institution_id' => $institution->id,
@@ -86,7 +85,7 @@ class UserAccessLifecycleTest extends TestCase
         [$institution, $admin] = $this->admin();
         Rol::create(['type' => RoleType::Reader]);
         DB::unprepared("CREATE TRIGGER fail_invitation BEFORE INSERT ON user_invitations BEGIN SELECT RAISE(ABORT, 'forced failure'); END");
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
 
         $this->postJson('/api/v1/institution/user-invitations', [
             'institution_id' => $institution->id, 'name' => 'Rollback',
@@ -101,7 +100,7 @@ class UserAccessLifecycleTest extends TestCase
     {
         [$institution, $admin] = $this->admin();
         Rol::create(['type' => RoleType::Reader]);
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
         Bus::shouldReceive('dispatch')->once()->andThrow(new RuntimeException('queue unavailable'));
 
         $response = $this->postJson('/api/v1/institution/user-invitations', [
@@ -123,7 +122,7 @@ class UserAccessLifecycleTest extends TestCase
         [$institution, $admin] = $this->admin();
         Rol::create(['type' => RoleType::Reader]);
         Queue::fake();
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
         $this->postJson('/api/v1/institution/user-invitations', [
             'institution_id' => $institution->id, 'name' => 'Pending', 'email' => 'pending@example.test', 'role' => 'reader',
         ])->assertCreated();
@@ -151,7 +150,7 @@ class UserAccessLifecycleTest extends TestCase
         [$institution, $admin] = $this->admin();
         Rol::create(['type' => RoleType::Reader]);
         Queue::fake();
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
         $created = $this->postJson('/api/v1/institution/user-invitations', [
             'institution_id' => $institution->id, 'name' => 'Pending', 'email' => 'replace@example.test', 'role' => 'reader',
         ])->assertCreated();
@@ -175,7 +174,7 @@ class UserAccessLifecycleTest extends TestCase
         [$institution, $admin] = $this->admin();
         Rol::create(['type' => RoleType::Reader]);
         Queue::fake();
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
         $this->postJson('/api/v1/institution/user-invitations', [
             'institution_id' => $institution->id, 'name' => 'Expires', 'email' => 'expired-invite@example.test', 'role' => 'reader',
         ])->assertCreated();
@@ -203,7 +202,7 @@ class UserAccessLifecycleTest extends TestCase
         [$institution, $admin] = $this->admin();
         Rol::create(['type' => RoleType::Reader]);
         Queue::fake();
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
         $created = $this->postJson('/api/v1/institution/user-invitations', [
             'institution_id' => $institution->id, 'name' => 'Pending', 'email' => 'late@example.test', 'role' => 'reader',
         ])->assertCreated();
@@ -226,7 +225,7 @@ class UserAccessLifecycleTest extends TestCase
         [$institution, $admin] = $this->admin();
         Rol::create(['type' => RoleType::Reader]);
         Queue::fake();
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
         $created = $this->postJson('/api/v1/institution/user-invitations', [
             'institution_id' => $institution->id, 'name' => 'Safe mail', 'email' => 'safe-mail@example.test', 'role' => 'reader',
         ])->assertCreated();
@@ -256,7 +255,7 @@ class UserAccessLifecycleTest extends TestCase
         [$institution, $admin] = $this->admin();
         Rol::create(['type' => RoleType::Reader]);
         Queue::fake();
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
         $created = $this->postJson('/api/v1/institution/user-invitations', [
             'institution_id' => $institution->id, 'name' => 'Diagnostic test',
             'email' => 'diagnostic@example.test', 'role' => 'reader',
@@ -416,7 +415,7 @@ class UserAccessLifecycleTest extends TestCase
         [$institution, $admin] = $this->admin();
         Rol::create(['type' => RoleType::Reader]);
         Queue::fake();
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
         $created = $this->postJson('/api/v1/institution/user-invitations', [
             'institution_id' => $institution->id, 'name' => 'Disabled', 'email' => 'disabled@example.test', 'role' => 'reader',
         ])->assertCreated();
@@ -443,7 +442,7 @@ class UserAccessLifecycleTest extends TestCase
         $editor->roles()->attach(Rol::firstOrCreate(['type' => RoleType::Editor]));
         $foreignInstitution = Institution::factory()->create(['status' => true]);
         $foreign = User::factory()->unverified()->for($foreignInstitution)->create();
-        Sanctum::actingAs($editor);
+        $this->authenticateInstitutionUser($editor);
 
         $this->postJson('/api/v1/institution/user-invitations', [
             'institution_id' => $institution->id, 'name' => 'Forbidden', 'email' => 'forbidden@example.test', 'role' => 'reader',

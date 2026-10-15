@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a Laravel 13 web application for institutional management. It's a fresh Laravel installation with Tailwind CSS and Vite for the frontend build system.
 
 **Key Technologies:**
-- **Backend:** Laravel 13, PHP 8.3
+- **Backend:** Laravel 13, PHP 8.4 or newer (current lockfile minimum)
 - **Frontend:** Vite, Tailwind CSS 4
 - **Testing:** PHPUnit 12, Mockery
 - **Linting/Formatting:** Laravel Pint

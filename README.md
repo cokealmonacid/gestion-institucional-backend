@@ -111,7 +111,7 @@ gestion-institucional-app/
 
 | Herramienta | Versión requerida | Descarga |
 |-------------|-------------------|----------|
-| **PHP** | 8.3 o superior | [php.net/downloads](https://windows.php.net/download/) |
+| **PHP** | 8.4 o superior (mínimo del lockfile actual) | [php.net/downloads](https://windows.php.net/download/) |
 | **Composer** | Última versión | [getcomposer.org](https://getcomposer.org/download/) |
 | **Node.js** | 18 LTS o superior | [nodejs.org](https://nodejs.org/) |
 | **MySQL** | 8.0 o superior | [dev.mysql.com](https://dev.mysql.com/downloads/installer/) |
@@ -121,7 +121,7 @@ gestion-institucional-app/
 
 ---
 
-### Paso 1 — Instalar PHP 8.3
+### Paso 1 — Instalar PHP 8.4 o superior
 
 1. Descarga el zip **"VS17 x64 Non Thread Safe"** de https://windows.php.net/download/
 2. Extrae el contenido en `C:\php`
@@ -141,7 +141,7 @@ gestion-institucional-app/
 5. Verifica la instalación:
    ```cmd
    php --version
-   # PHP 8.3.x (cli)
+   # PHP 8.4.x o superior (cli)
    ```
 
 ---
