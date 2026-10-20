@@ -7,7 +7,10 @@ use App\Platform\Models\PlatformOperator;
 use App\Platform\PlatformException;
 use App\Platform\Services\CommercialAdministration;
 use App\Platform\Services\CustomerOnboarding;
+use App\Platform\Services\InstitutionAccessRecovery;
+use App\Platform\Services\InstitutionalUserAdministration;
 use App\Platform\Services\OperationalAdministration;
+use App\Platform\Services\PlatformAccessLinks;
 use App\Platform\Services\PlatformAuthentication;
 use App\Platform\Services\PlatformOperatorProvisioning;
 use App\Services\UserAccess\InvitationService;
@@ -18,10 +21,15 @@ use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\PersonalAccessToken;
 use Modules\Documents\Actions\UpdateDocumentAction;
+use Modules\Documents\Actions\UpdateDocumentResponsibilityAction;
+use Modules\Documents\Exceptions\DocumentResponsibilityException;
 use Modules\Documents\Services\DocumentEventRecorder;
+use Modules\Documents\Services\DocumentResponsibilityWriter;
 use Modules\Institution\Actions\InstitutionUserMutations;
 use Modules\Institution\Actions\InviteInstitutionUser;
 use Modules\Institution\Exceptions\InstitutionAccessException;
+use Modules\Institution\Exceptions\RoleChangeException;
+use Modules\Institution\Services\RoleChangeImpact;
 
 require dirname(__DIR__, 2).'/vendor/autoload.php';
 require dirname(__DIR__).'/bootstrap-mysql.php';
@@ -75,6 +83,9 @@ try {
                 $app->make(InstitutionUserMutations::class)->update($actor, $payload['email'], $payload['data']);
             } elseif ($operation === 'tenant_document') {
                 $app->make(UpdateDocumentAction::class)->execute($actor, $payload['document'], ['description' => 'Changed under lock'], $app->make(DocumentEventRecorder::class));
+            } elseif ($operation === 'tenant_responsibility') {
+                $app->make(UpdateDocumentResponsibilityAction::class)->execute($actor, $payload['document'], $payload['responsible'], $payload['revision'],
+                    $app->make(DocumentEventRecorder::class), $app->make(RoleChangeImpact::class), $app->make(DocumentResponsibilityWriter::class));
             } elseif ($operation === 'tenant_password') {
                 $request = Request::create('/api/v1/user/update-password', 'PATCH', server: ['HTTP_ACCEPT' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$payload['bearer'], 'CONTENT_TYPE' => 'application/json'], content: json_encode($payload['credentials'], JSON_THROW_ON_ERROR));
                 $response = $app->make(Illuminate\Contracts\Http\Kernel::class)->handle($request);
@@ -88,6 +99,20 @@ try {
         if ($operation === 'tenant_invite_snapshot') {
             DB::commit();
         }
+    } elseif (in_array($operation, ['platform_role', 'platform_access'], true)) {
+        $actor = PlatformOperator::findOrFail($payload['actor']);
+        $actor->withAccessToken(PersonalAccessToken::findToken($payload['bearer']));
+        $app->make(InstitutionalUserAdministration::class)->execute($actor, $payload['institution'], $payload['user'], $operation === 'platform_role' ? 'role' : 'access', $payload['data']);
+    } elseif ($operation === 'recovery_complete') {
+        $actor = PlatformOperator::findOrFail($payload['actor']);
+        $actor->withAccessToken(PersonalAccessToken::findToken($payload['bearer']));
+        $app->make(InstitutionAccessRecovery::class)->transition($actor, $payload['id'], 'complete', $payload['revision']);
+    } elseif ($operation === 'recovery_prepare') {
+        $actor = PlatformOperator::findOrFail($payload['actor']);
+        $actor->withAccessToken(PersonalAccessToken::findToken($payload['bearer']));
+        $app->make(InstitutionAccessRecovery::class)->prepare($actor, $payload['id'], $payload['data']);
+    } elseif ($operation === 'recovery_verify') {
+        $app->make(InstitutionAccessRecovery::class)->verify($payload['id'], $payload['proof'], []);
     } elseif ($operation === 'reactivate_admin') {
         $actor = PlatformOperator::findOrFail($payload['actor']);
         $actor->withAccessToken(PersonalAccessToken::findToken($payload['bearer']));
@@ -98,6 +123,10 @@ try {
         $app->make(OperationalAdministration::class)->status($actor, $payload['institution'], false, $payload['data']);
     } elseif ($operation === 'proof') {
         $app->make(PlatformAuthentication::class)->prove($payload, 'challenge');
+    } elseif ($operation === 'operator_deactivate') {
+        $extra = $app->make(PlatformOperatorProvisioning::class)->execute('deactivate', $payload);
+    } elseif ($operation === 'operator_link_consume') {
+        $app->make(PlatformAccessLinks::class)->consume($payload['purpose'], $payload['data']);
     } elseif ($operation === 'bootstrap') {
         $app->make(PlatformOperatorProvisioning::class)->execute('bootstrap', $payload);
     } elseif ($operation === 'plan') {
@@ -113,7 +142,7 @@ try {
         throw new LogicException('Unknown test operation.');
     }
     $result = ['completed' => true] + ($extra ?? []);
-} catch (PlatformException|InstitutionAccessException $e) {
+} catch (PlatformException|InstitutionAccessException|RoleChangeException|DocumentResponsibilityException $e) {
     if (DB::transactionLevel() > 0) {
         DB::rollBack();
     }

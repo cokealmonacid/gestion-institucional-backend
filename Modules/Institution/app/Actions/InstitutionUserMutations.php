@@ -7,12 +7,9 @@ use App\Models\Rol;
 use App\Models\User;
 use App\Platform\Services\AdministrativeEventRecorder;
 use Illuminate\Support\Facades\DB;
-use Modules\Documents\Services\DocumentEventRecorder;
-use Modules\Documents\Services\DocumentResponsibilityWriter;
-use Modules\Institution\Exceptions\RoleChangeException;
 use Modules\Institution\Services\InstitutionalAccess;
+use Modules\Institution\Services\InstitutionalRoleAssignment;
 use Modules\Institution\Services\MembershipPolicy;
-use Modules\Institution\Services\RoleChangeImpact;
 
 class InstitutionUserMutations
 {
@@ -42,30 +39,16 @@ class InstitutionUserMutations
             $roles = isset($data['role']) ? [$data['role']] : $beforeRoles;
             $active = isset($data['active']) ? (bool) $data['active'] : $target->active;
             $this->policy->check($institution, $target, $roles, $active);
-            $impact = app(RoleChangeImpact::class);
-            $documents = collect();
             $requested = isset($data['role']) ? RoleType::from($data['role']) : null;
-            if ($requested && $impact->losesEligibility($target, $requested)) {
-                $documents = $impact->affectedDocuments($target, lock: true);
-                if (! ($data['confirm_responsibility_removal'] ?? false) || ! isset($data['role_impact_token'])) {
-                    throw new RoleChangeException('ROLE_CHANGE_IMPACT_CONFIRMATION_REQUIRED', 'Review and confirm the responsibility impact before changing this role.', 409);
-                }
-                if (! $impact->tokenMatches($target, $requested, $documents, $data['role_impact_token'])) {
-                    throw new RoleChangeException('ROLE_CHANGE_IMPACT_STALE', 'The responsibility impact has changed. Review it again before confirming.', 409);
-                }
-            }
             $before = ['active' => $target->active, 'roles' => $beforeRoles, 'access_revision' => (int) $target->access_revision];
             $changed = $active !== $target->active || $roles !== $beforeRoles;
             $target->fill(array_intersect_key($data, array_flip(['name', 'active'])))->save();
             if ($requested) {
-                $target->roles()->sync([Rol::where('type', $requested)->firstOrFail()->id]);
+                app(InstitutionalRoleAssignment::class)->replace($target, $requested, $actor, $data);
             }
             if ($changed) {
                 $this->access->revoke($target);
                 $this->audit->record($actor, 'user.access_updated', 'institution_user', $target->id, $before, ['active' => $active, 'roles' => $roles, 'access_revision' => (int) $target->access_revision], 'Institutional user access update', $institution->id);
-            }
-            foreach ($documents as $document) {
-                app(DocumentResponsibilityWriter::class)->write($document, null, $actor, app(DocumentEventRecorder::class), DocumentResponsibilityWriter::ROLE_CHANGE_REASON);
             }
 
             return $target;

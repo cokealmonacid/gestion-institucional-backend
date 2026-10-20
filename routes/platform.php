@@ -1,10 +1,29 @@
 <?php
 
+use App\Platform\Http\Controllers\AccessRecoveryController;
 use App\Platform\Http\Controllers\AdministrationController;
 use App\Platform\Http\Controllers\AuthenticationController;
+use App\Platform\Http\Controllers\InstitutionalUserController;
 use App\Platform\Http\Controllers\OnboardingController;
 use App\Platform\Http\Controllers\OperationalController;
 use Illuminate\Support\Facades\Route;
+
+Route::middleware(['platform.auth', 'platform.can:platform.user_access'])->group(function () {
+    Route::get('institutions/{id}/users/{userId}/role-impact', [InstitutionalUserController::class, 'handle'])->defaults('action', 'impact');
+    foreach (['role', 'access'] as $action) {
+        Route::post('institutions/{id}/users/{userId}/'.$action, [InstitutionalUserController::class, 'handle'])->defaults('action', $action);
+    }
+});
+
+Route::post('auth/access-recovery-verification', [AccessRecoveryController::class, 'verify'])->middleware('throttle:platform-link');
+Route::middleware(['platform.auth', 'platform.can:platform.access_recovery'])->controller(AccessRecoveryController::class)->group(function () {
+    Route::get('access-recoveries', 'index');
+    Route::post('access-recoveries', 'store');
+    Route::get('access-recoveries/{id}', 'show');
+    foreach (['complete', 'cancel', 'resend'] as $action) {
+        Route::post('access-recoveries/{id}/'.$action, 'transition')->defaults('action', $action);
+    }
+});
 
 Route::prefix('auth')->controller(AuthenticationController::class)->group(function () {
     Route::post('login', 'login')->middleware('throttle:platform-login');
@@ -49,8 +68,10 @@ Route::middleware('platform.auth')->controller(OperationalController::class)->gr
         Route::post('institutions/{id}/reactivation', 'reactivation');
     });
     Route::middleware('platform.can:platform.administrator_access')->group(function () {
+        Route::get('users', 'users');
+        Route::get('institutions/{id}/administrators', 'administrators');
         Route::get('institutions/{id}/administrators/{userId}/invitation', 'administrator');
-        Route::post('institutions/{id}/administrators/{userId}/invitation', 'resend');
+        Route::post('institutions/{id}/administrators/{userId}/invitation', [OperationalController::class, 'resend']);
         Route::post('institutions/{id}/administrators/{userId}/reactivation', 'reactivateAdministrator');
     });
 });

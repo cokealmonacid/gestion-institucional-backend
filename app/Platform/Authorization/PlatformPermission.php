@@ -10,4 +10,6 @@ enum PlatformPermission: string
     case Audit = 'platform.audit';
     case Operations = 'platform.operations';
     case AdministratorAccess = 'platform.administrator_access';
+    case AccessRecovery = 'platform.access_recovery';
+    case UserAccess = 'platform.user_access';
 }

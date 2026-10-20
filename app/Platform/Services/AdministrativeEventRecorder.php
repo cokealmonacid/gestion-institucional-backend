@@ -28,4 +28,14 @@ class AdministrativeEventRecorder
             }
         }
     }
+
+    public function recordAddressProof(string $operationId, string $institutionId): void
+    {
+        AdministrativeEvent::create(['actor_kind' => 'address_proof', 'actor_id' => $operationId,
+            'actor_name' => 'Control del correo propuesto; no acredita autoridad institucional',
+            'action' => 'access_recovery.address_verified', 'subject_kind' => 'platform_access_recovery', 'subject_id' => $operationId,
+            'institution_id' => $institutionId, 'before_values' => ['state' => 'awaiting_verification'],
+            'after_values' => ['state' => 'verified'], 'reason' => 'Purpose-bound address proof consumed',
+            'operation_id' => $operationId, 'occurred_at' => now()]);
+    }
 }

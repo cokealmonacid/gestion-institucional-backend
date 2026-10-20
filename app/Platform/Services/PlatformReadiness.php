@@ -11,7 +11,10 @@ class PlatformReadiness
 {
     public function inspect(): array
     {
-        $required = ['institutions' => ['status', 'operational_revision', 'auth_epoch', 'commercial_state'],
+        $required = ['platform_access_recoveries' => ['kind', 'state', 'verification_hash', 'reserved_email', 'result'],
+            'document_responsible_histories' => ['actor_platform_operator_id', 'actor_platform_operator_name'],
+            'document_events' => ['actor_platform_operator_id', 'actor_platform_operator_name'],
+            'institutions' => ['status', 'operational_revision', 'auth_epoch', 'commercial_state'],
             'users' => ['institution_id', 'active', 'deleted_at', 'email_verified_at', 'password', 'access_revision'],
             'role_user' => ['user_id', 'role_id'], 'roles' => ['type'],
             'platform_operations' => ['operator_id', 'operation_type', 'idempotency_key', 'fingerprint', 'result', 'committed_at'],
@@ -26,6 +29,8 @@ class PlatformReadiness
             }
         }
         $driver = DB::getDriverName();
+        $mailer = config('mail.mailers.'.config('mail.default'), []);
+        $resendKey = $mailer['key'] ?? config('services.resend.key');
         $config = [
             'php_minimum' => version_compare(PHP_VERSION, '8.4.0', '>='),
             'debug_disabled' => ! config('app.debug'),
@@ -34,8 +39,10 @@ class PlatformReadiness
             'shared_limiter_store_selected' => in_array(config('cache.default'), ['database', 'redis', 'memcached'], true),
             'asynchronous_queue_selected' => in_array(config('queue.default'), ['database', 'redis', 'sqs', 'beanstalkd'], true),
             'non_test_mailer_selected' => ! in_array(config('mail.default'), [null, 'array', 'log'], true),
+            'resend_sdk_and_key_configured' => ($mailer['transport'] ?? null) !== 'resend'
+                || (class_exists(\Resend::class) && is_string($resendKey) && trim($resendKey) !== ''),
             'secure_session_cookie' => config('session.secure') === true,
-            'trusted_https_origins' => $this->httpsOrigin(config('platform.frontend_url')) && $this->httpsOrigin(config('user-access.frontend_url')),
+            'trusted_https_origins' => PlatformAccessOrigin::allowed(config('platform.frontend_url')) && $this->httpsOrigin(config('user-access.frontend_url')),
         ];
         $report = ['scope' => 'current_process_configuration_and_database_only', 'php_version' => PHP_VERSION, 'database_driver' => $driver,
             'missing_schema' => $missing, 'local_configuration_checks' => $config,
@@ -71,6 +78,7 @@ class PlatformReadiness
             }
         }, 'id');
         $findings = ['role_definition_issues' => $roleIssues,
+            'multiple_role_users' => DB::query()->fromSub(DB::table('role_user')->select('user_id')->groupBy('user_id')->havingRaw('COUNT(DISTINCT role_id) > 1'), 'multiple_roles')->count(),
             'orphan_users' => DB::table('users')->leftJoin('institutions', 'institutions.id', '=', 'users.institution_id')->whereNull('institutions.id')->count(),
             'orphan_role_memberships' => DB::table('role_user')->leftJoin('users', 'users.id', '=', 'role_user.user_id')->leftJoin('roles', 'roles.id', '=', 'role_user.role_id')->where(fn ($q) => $q->whereNull('users.id')->orWhereNull('roles.id'))->count(),
             'duplicate_role_memberships' => DB::query()->fromSub(DB::table('role_user')->select('user_id', 'role_id')->groupBy('user_id', 'role_id')->havingRaw('COUNT(*) > 1'), 'duplicates')->count(),

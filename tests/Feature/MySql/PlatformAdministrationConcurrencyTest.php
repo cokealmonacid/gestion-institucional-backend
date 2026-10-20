@@ -5,20 +5,25 @@ namespace Tests\Feature\MySql;
 use App\Enums\RoleType;
 use App\Models\Rol;
 use App\Models\User;
+use App\Platform\Jobs\SendInstitutionRecoveryProof;
 use App\Platform\Models\InstitutionContract;
 use App\Platform\Models\PlatformOperator;
 use App\Platform\Models\PlatformRecoveryCode;
 use App\Platform\Services\CommercialAdministration;
+use App\Platform\Services\InstitutionAccessRecovery;
 use App\Platform\Services\OperationalAdministration;
+use App\Platform\Services\PlatformAccessLinks;
 use App\Platform\Services\PlatformAuthentication;
 use App\Services\UserAccess\InvitationService;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Modules\Documents\Models\Document;
 use Modules\Institution\Models\Institution;
+use Modules\Institution\Services\RoleChangeImpact;
 use OTPHP\TOTP;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Symfony\Component\Process\Process;
@@ -68,6 +73,7 @@ class PlatformAdministrationConcurrencyTest extends TestCase
             DB::table('user_invitations')->whereIn('user_id', $tenantUsers)->delete();
             DB::table('role_user')->whereIn('user_id', $tenantUsers)->delete();
             DB::table('documents')->whereIn('institution_id', $this->institutions)->delete();
+            DB::table('platform_access_recoveries')->whereIn('institution_id', $this->institutions)->delete();
             DB::table('users')->whereIn('id', $tenantUsers)->delete();
             DB::table('institution_contract_revisions')->whereIn('institution_id', $this->institutions)->delete();
             DB::table('institution_contracts')->whereIn('institution_id', $this->institutions)->delete();
@@ -432,6 +438,210 @@ class PlatformAdministrationConcurrencyTest extends TestCase
         if ($kind === 'last_seat') {
             $this->assertContains('USER_QUOTA_EXCEEDED', array_column($results, 'code'));
         }
+    }
+
+    private function preparedRecovery(User $target, PlatformOperator $operator, ?string $email = null): array
+    {
+        Bus::fake();
+        $operation = app(InstitutionAccessRecovery::class)->prepare($operator, (string) Str::uuid(), [
+            'kind' => 'email_correction', 'institution_id' => $target->institution_id, 'target_id' => $target->id,
+            'expected_target_revision' => (int) $target->access_revision, 'expected_institution_revision' => 0,
+            'new_email' => $email ?? Str::uuid().'@example.test', 'same_person' => true, 'confirmation' => true, 'reason' => 'Synthetic concurrency recovery',
+            'authority' => ['requester' => 'Fixture', 'relationship' => 'Authorized representative', 'channel' => 'Fixture callback', 'reference' => 'Synthetic reference']]);
+        $job = Bus::dispatched(SendInstitutionRecoveryProof::class)->last();
+
+        return [$operation, $job->proof];
+    }
+
+    public function test_recovery_concurrent_completion_consumes_one_transition_and_records_one_audit(): void
+    {
+        [$institution, $target, , $operator, $bearer] = $this->tenant();
+        $operation = $this->preparedReplacement($target, $operator);
+        $payload = ['actor' => $operator->id, 'bearer' => $bearer, 'id' => $operation['id'], 'revision' => 2];
+        $results = $this->race('institutions', $institution->id, [['recovery_complete', $payload], ['recovery_complete', $payload]]);
+        $this->assertSame(2, count(array_filter($results, fn ($r) => $r['completed'])));
+        $this->assertSame(1, DB::table('administrative_events')->where('operation_id', $operation['id'])->where('action', 'access_recovery.complete')->count());
+        $this->assertSame('completed', DB::table('platform_access_recoveries')->where('id', $operation['id'])->value('state'));
+    }
+
+    public function test_recovery_concurrent_verification_consumes_proof_once(): void
+    {
+        [$institution, $target, , $operator] = $this->tenant();
+        [$operation, $proof] = $this->preparedRecovery($target, $operator);
+        $payload = ['id' => $operation['id'], 'proof' => $proof];
+        $results = $this->race('institutions', $institution->id, [['recovery_verify', $payload], ['recovery_verify', $payload]]);
+        $this->assertSame(1, count(array_filter($results, fn ($r) => $r['completed'])));
+        $this->assertContains('RECOVERY_PROOF_INVALID', array_column($results, 'code'));
+    }
+
+    public function test_recovery_quota_revision_racing_completion_has_a_serial_committed_order(): void
+    {
+        [$institution, $target, , $operator, $bearer, $agreement] = $this->tenant(['admin' => 1, 'editor' => null, 'reader' => 1]);
+        $operation = $this->preparedReplacement($target, $operator);
+        $agreement['expected_revision'] = 1;
+        $agreement['limits']['admin'] = 0;
+        $agreement['exceptions'] = [['condition' => 'limits.admin', 'base_value' => 1, 'agreed_value' => 0, 'reason' => 'Synthetic concurrent reduction']];
+        $results = $this->race('institutions', $institution->id, [
+            ['recovery_complete', ['actor' => $operator->id, 'bearer' => $bearer, 'id' => $operation['id'], 'revision' => 2]],
+            ['contract', ['actor' => $operator->id, 'bearer' => $bearer, 'institution' => $institution->id, 'data' => $agreement]],
+        ]);
+        $this->assertTrue($results[1]['completed']);
+        if (! $results[0]['completed']) {
+            $this->assertSame('RECOVERY_STALE', $results[0]['code']);
+        }
+        $this->assertSame(2, (int) DB::table('institution_contracts')->where('institution_id', $institution->id)->value('revision'));
+    }
+
+    private function preparedReplacement(User $target, PlatformOperator $operator): array
+    {
+        Bus::fake();
+        $service = app(InstitutionAccessRecovery::class);
+        $operation = $service->prepare($operator, (string) Str::uuid(), ['kind' => 'replacement', 'institution_id' => $target->institution_id,
+            'target_id' => $target->id, 'expected_target_revision' => (int) $target->access_revision, 'expected_institution_revision' => 0,
+            'successor_name' => 'Synthetic successor', 'successor_email' => Str::uuid().'@example.test', 'confirmation' => true, 'reason' => 'Synthetic replacement',
+            'authority' => ['requester' => 'Fixture', 'relationship' => 'Representative', 'channel' => 'Fixture callback', 'reference' => 'Synthetic']]);
+        $job = Bus::dispatched(SendInstitutionRecoveryProof::class)->last();
+        $service->verify($operation['id'], $job->proof, ['password' => 'Synthetic-successor-password', 'password_confirmation' => 'Synthetic-successor-password']);
+
+        return $operation;
+    }
+
+    public function test_recovery_competing_replacements_of_one_outgoing_admin_cannot_both_commit(): void
+    {
+        [$institution, $target, , $operator, $bearer] = $this->tenant(['admin' => 1, 'editor' => null, 'reader' => null]);
+        $first = $this->preparedReplacement($target, $operator);
+        $second = $this->preparedReplacement($target, $operator);
+        $operations = array_map(fn ($op) => ['recovery_complete', ['actor' => $operator->id, 'bearer' => $bearer, 'id' => $op['id'], 'revision' => 2]], [$first, $second]);
+        $results = $this->race('institutions', $institution->id, $operations);
+        $this->assertSame(1, count(array_filter($results, fn ($r) => $r['completed'])));
+        $this->assertContains('RECOVERY_STALE', array_column($results, 'code'));
+        $this->assertSame(2, User::where('institution_id', $institution->id)->count());
+        $this->assertFalse($target->fresh()->active);
+    }
+
+    public function test_recovery_pending_address_reservation_is_unique_across_institutions(): void
+    {
+        [$institution, $target, , $operator, $bearer] = $this->tenant();
+        [$other, $otherTarget, , $otherOperator, $otherBearer] = $this->tenant();
+        $email = Str::uuid().'@example.test';
+        $operations = [];
+        foreach ([[$target, $operator, $bearer], [$otherTarget, $otherOperator, $otherBearer]] as [$user, $actor, $credential]) {
+            $operations[] = ['recovery_prepare', ['actor' => $actor->id, 'bearer' => $credential, 'id' => (string) Str::uuid(), 'data' => [
+                'kind' => 'email_correction', 'institution_id' => $user->institution_id, 'target_id' => $user->id,
+                'expected_target_revision' => 0, 'expected_institution_revision' => 0, 'new_email' => $email, 'same_person' => true, 'confirmation' => true,
+                'reason' => 'Synthetic reservation race', 'authority' => ['requester' => 'Fixture', 'relationship' => 'Representative', 'channel' => 'Fixture', 'reference' => 'Synthetic']]]];
+        }
+        $results = $this->race('institutions', $institution->id, $operations);
+        $this->assertSame(1, count(array_filter($results, fn ($r) => $r['completed'])));
+        $this->assertContains('EMAIL_UNAVAILABLE', array_column($results, 'code'));
+        $this->assertSame(1, DB::table('platform_access_recoveries')->where('reserved_email', $email)->count());
+    }
+
+    public function test_platform_role_promotions_compete_for_one_admin_seat(): void
+    {
+        [$institution, , , $operator, $bearer] = $this->tenant(['admin' => 2, 'editor' => null, 'reader' => null]);
+        $operations = [];
+        foreach (['editor', 'reader'] as $role) {
+            $user = User::factory()->for($institution)->create();
+            $user->roles()->attach(Rol::firstOrCreate(['type' => RoleType::from($role)])->id);
+            $operations[] = ['platform_role', ['actor' => $operator->id, 'bearer' => $bearer, 'institution' => $institution->id, 'user' => $user->id,
+                'data' => ['role' => 'admin', 'expected_user_revision' => 0, 'reason' => 'Synthetic promotion']]];
+        }
+        $results = $this->race('institutions', $institution->id, $operations);
+        $this->assertSame(1, count(array_filter($results, fn ($result) => $result['completed'])));
+        $this->assertContains('USER_QUOTA_EXCEEDED', array_column($results, 'code'));
+        $this->assertSame(2, User::where('institution_id', $institution->id)->whereHas('roles', fn ($q) => $q->where('type', 'admin'))->count());
+        foreach (User::where('institution_id', $institution->id)->get() as $user) {
+            $this->assertSame(1, $user->roles()->count());
+        }
+    }
+
+    public function test_platform_demotion_racing_deactivation_retains_one_usable_admin(): void
+    {
+        [$institution, $first, , $operator, $bearer] = $this->tenant();
+        $second = User::factory()->for($institution)->create();
+        $second->roles()->attach(Rol::where('type', 'admin')->firstOrFail()->id);
+        $common = ['actor' => $operator->id, 'bearer' => $bearer, 'institution' => $institution->id];
+        $results = $this->race('institutions', $institution->id, [
+            ['platform_role', $common + ['user' => $first->id, 'data' => ['role' => 'editor', 'expected_user_revision' => 0, 'reason' => 'Synthetic demotion']]],
+            ['platform_access', $common + ['user' => $second->id, 'data' => ['active' => false, 'expected_user_revision' => 0, 'reason' => 'Synthetic deactivation']]],
+        ]);
+        $this->assertSame(1, count(array_filter($results, fn ($result) => $result['completed'])));
+        $this->assertContains('INSTITUTION_REQUIRES_USABLE_ADMIN', array_column($results, 'code'));
+        $this->assertSame(1, User::where('institution_id', $institution->id)->where('active', true)->whereHas('roles', fn ($q) => $q->where('type', 'admin'))->count());
+        $this->assertTrue($first->fresh()->active);
+        $this->assertTrue($second->roles()->where('type', 'admin')->exists());
+    }
+
+    private function deactivationInput(PlatformOperator $operator): array
+    {
+        return ['operator_id' => $operator->id, 'operation_id' => (string) Str::uuid(), 'reason' => 'Synthetic operator departure', 'accountability' => 'concurrency-fixture', 'confirmation' => true];
+    }
+
+    public function test_operator_deactivation_replay_commits_one_revocation_and_audit(): void
+    {
+        $this->operator();
+        $target = $this->operator();
+        $this->token($target);
+        $payload = $this->deactivationInput($target);
+        $results = $this->race('platform_bootstrap_lock', 1, [['operator_deactivate', $payload], ['operator_deactivate', $payload]]);
+        $this->assertSame(2, count(array_filter($results, fn ($result) => $result['completed'])));
+        $this->assertFalse($target->fresh()->active);
+        $this->assertSame(1, $target->fresh()->auth_epoch);
+        $this->assertSame(0, $target->tokens()->count());
+        $this->assertSame(1, DB::table('administrative_events')->where('operation_id', $payload['operation_id'])->where('action', 'operator.deactivate')->count());
+    }
+
+    public function test_competing_operator_deactivations_cannot_remove_the_last_usable_operator(): void
+    {
+        $first = $this->operator();
+        $second = $this->operator();
+        $results = $this->race('platform_bootstrap_lock', 1, [['operator_deactivate', $this->deactivationInput($first)], ['operator_deactivate', $this->deactivationInput($second)]]);
+        $this->assertSame(1, count(array_filter($results, fn ($result) => $result['completed'])));
+        $this->assertContains('PLATFORM_REQUIRES_USABLE_OPERATOR', array_column($results, 'code'));
+        $this->assertSame(1, PlatformOperator::where('active', true)->count());
+    }
+
+    public function test_operator_deactivation_racing_old_activation_never_restores_access(): void
+    {
+        $this->operator();
+        $target = $this->operator();
+        $target->update(['verified_at' => null, 'password' => null, 'mfa_confirmed_at' => null, 'totp_secret' => null]);
+        [$link, $proof] = DB::transaction(fn () => app(PlatformAccessLinks::class)->issueLocked($target, 'activation'));
+        $results = $this->race('platform_operators', $target->id, [
+            ['operator_deactivate', $this->deactivationInput($target)],
+            ['operator_link_consume', ['purpose' => 'activation', 'data' => ['email' => $target->email, 'token' => $proof, 'password' => 'Synthetic-activated-password-123']]],
+        ]);
+        $this->assertTrue($results[0]['completed']);
+        $this->assertFalse($target->fresh()->active);
+        $this->assertSame(0, $target->tokens()->count());
+        $this->assertNull($link->fresh()->token_hash);
+        if (! $results[1]['completed']) {
+            $this->assertSame('PLATFORM_LINK_INVALID', $results[1]['code']);
+            $this->assertNull($target->fresh()->verified_at);
+        }
+    }
+
+    public function test_platform_reader_demotion_racing_responsibility_reassignment_requires_current_impact(): void
+    {
+        [$institution, $admin, $adminBearer, $operator, $bearer] = $this->tenant();
+        $editor = User::factory()->for($institution)->create();
+        $editor->roles()->attach(Rol::where('type', 'editor')->firstOrFail()->id);
+        $document = Document::create(['name' => 'Concurrency responsibility fixture', 'status' => true, 'institution_id' => $institution->id, 'author_id' => $admin->id, 'responsible_user_id' => $editor->id]);
+        $impact = app(RoleChangeImpact::class)->inspect($editor, RoleType::Reader);
+        $results = $this->race('institutions', $institution->id, [
+            ['platform_role', ['actor' => $operator->id, 'bearer' => $bearer, 'institution' => $institution->id, 'user' => $editor->id,
+                'data' => ['role' => 'reader', 'expected_user_revision' => 0, 'reason' => 'Synthetic demotion', 'confirmation' => true, 'confirm_responsibility_removal' => true, 'role_impact_token' => $impact['impact_token']]]],
+            ['tenant_responsibility', ['actor' => $admin->id, 'bearer' => $adminBearer, 'document' => $document->id, 'responsible' => $admin->id, 'revision' => 0]],
+        ]);
+        $this->assertSame(1, count(array_filter($results, fn ($result) => $result['completed'])));
+        $this->assertContains($results[0]['completed'] ? 'DOCUMENT_RESPONSIBILITY_CONFLICT' : 'ROLE_CHANGE_IMPACT_STALE', array_column($results, 'code'));
+        $this->assertSame($results[0]['completed'] ? null : $admin->id, $document->fresh()->responsible_user_id);
+        $this->assertSame([$results[0]['completed'] ? 'reader' : 'editor'], $editor->roles()->pluck('type')->map(fn ($role) => $role->value)->all());
+        $this->assertSame(1, DB::table('document_responsible_histories')->where('document_id', $document->id)->count());
+        $this->assertDatabaseHas('document_responsible_histories', ['document_id' => $document->id,
+            'actor_platform_operator_id' => $results[0]['completed'] ? $operator->id : null,
+            'actor_user_id' => $results[0]['completed'] ? null : $admin->id]);
     }
 
     private function race(string $table, string|int $id, array $operations, bool $releaseBeforeWait = true): array

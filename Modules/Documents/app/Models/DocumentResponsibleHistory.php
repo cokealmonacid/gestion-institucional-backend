@@ -15,9 +15,12 @@ class DocumentResponsibleHistory extends Model
     protected $fillable = [
         'document_id', 'previous_responsible_user_id', 'new_responsible_user_id',
         'actor_user_id', 'previous_responsible_name', 'new_responsible_name', 'revision',
+        'actor_platform_operator_id', 'actor_platform_operator_name',
     ];
 
     protected $casts = ['revision' => 'integer'];
+
+    protected $hidden = ['actor_platform_operator_id', 'actor_platform_operator_name'];
 
     public function document()
     {

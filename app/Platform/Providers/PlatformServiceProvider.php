@@ -3,6 +3,7 @@
 namespace App\Platform\Providers;
 
 use App\Platform\Authorization\PlatformPermission;
+use App\Platform\Http\Controllers\PanelController;
 use App\Platform\Models\PlatformAuthChallenge;
 use App\Platform\Models\PlatformOperator;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -31,6 +32,9 @@ class PlatformServiceProvider extends ServiceProvider
         RateLimiter::for('platform-recovery', fn (Request $r) => [Limit::perMinute(1)->by('platform-recovery|'.$this->email($r)), Limit::perMinute(5)->by('platform-recovery-ip|'.$r->ip())]);
         RateLimiter::for('platform-link', fn (Request $r) => Limit::perMinute(5)->by('platform-link|'.$this->email($r).'|'.$r->ip()));
         Route::middleware('api')->prefix('api/v1/platform')->group(base_path('routes/platform.php'));
+        Route::get('/platform/{page?}', PanelController::class)
+            ->where('page', 'login|activate|password-reset|access-verification')
+            ->name('platform.panel');
     }
 
     private function email(Request $request): string

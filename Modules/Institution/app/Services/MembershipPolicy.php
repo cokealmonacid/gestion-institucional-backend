@@ -44,6 +44,12 @@ class MembershipPolicy
     public function check(Institution $institution, ?User $target, array $roles, bool $active, bool $deleted = false): void
     {
         $state = $this->state($institution);
+        // Legacy multiple memberships may be preserved by activity-only operations,
+        // but supported assignments must never introduce a multiple-role set.
+        $existing = $target ? ($state['memberships'][$target->id] ?? []) : [];
+        if (count(array_unique($roles)) > 1 && (! $target || array_diff($roles, $existing) || array_diff($existing, $roles))) {
+            throw new InstitutionAccessException('INSTITUTIONAL_ROLE_CONFLICT');
+        }
         $before = $target?->active ? ($state['memberships'][$target->id] ?? []) : [];
         $after = $active && ! $deleted ? array_unique($roles) : [];
         foreach (['admin', 'editor', 'reader'] as $role) {
@@ -70,5 +76,32 @@ class MembershipPolicy
 
         return ['roles' => $roles, 'agreement_revision' => $state['agreement_revision'], 'computed_at' => now()->toISOString(),
             'warnings' => $state['usable'] === [] ? ['NO_USABLE_ADMIN'] : [], 'quota_enforcement' => 'enforced'];
+    }
+
+    // Recovery exchanges two identities in one transaction, rather than admitting
+    // a seat and then attempting to remove the last administrator separately.
+    public function checkReplacement(Institution $institution, User $outgoing, ?User $successor, array $successorRoles): void
+    {
+        if ($successorRoles !== ['admin']) {
+            throw new InstitutionAccessException('INSTITUTIONAL_ROLE_CONFLICT');
+        }
+        $state = $this->state($institution);
+        $after = $state['used'];
+        foreach ([$outgoing, $successor] as $user) {
+            if ($user?->active) {
+                foreach ($state['memberships'][$user->id] ?? [] as $role) {
+                    $after[$role]--;
+                }
+            }
+        }
+        foreach (array_unique($successorRoles) as $role) {
+            $after[$role]++;
+        }
+        foreach ($after as $role => $used) {
+            $limit = $state['limits'][$role];
+            if ($limit !== null && max(0, $used - $limit) > max(0, $state['used'][$role] - $limit)) {
+                throw new InstitutionAccessException('USER_QUOTA_EXCEEDED', 409, ['role' => $role, 'limit' => $limit, 'used' => $state['used'][$role], 'requested_delta' => $used - $state['used'][$role]]);
+            }
+        }
     }
 }

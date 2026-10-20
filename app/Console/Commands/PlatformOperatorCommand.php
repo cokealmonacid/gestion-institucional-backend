@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Platform\PlatformException;
 use App\Platform\Services\PlatformOperatorProvisioning;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Validator;
@@ -22,8 +23,12 @@ abstract class PlatformOperatorCommand extends Command
             $input['operator_id'] = $this->option('operator-id');
             $rules['operator_id'] = 'required|uuid';
         }
+        if ($this->mode === 'deactivate') {
+            $input['confirmation'] = $this->option('confirm');
+            $rules['confirmation'] = 'required|accepted';
+        }
         if (Validator::make($input, $rules)->fails() || ($this->mode === 'recover-mfa' && ! $this->option('identity-verified'))) {
-            $this->error('Valid identifiers, reason, accountability and recovery identity verification are required.');
+            $this->error('Valid identifiers, reason, accountability and the action-specific confirmation or recovery identity verification are required.');
 
             return self::FAILURE;
         }
@@ -32,8 +37,9 @@ abstract class PlatformOperatorCommand extends Command
             $this->line(json_encode($result, JSON_THROW_ON_ERROR));
 
             return self::SUCCESS;
-        } catch (Throwable) {
-            $this->error('Platform operator operation failed. No credentials are printed; retry the same operation ID to reconcile a committed result.');
+        } catch (Throwable $error) {
+            $code = $error instanceof PlatformException ? ' '.$error->errorCode.'.' : '';
+            $this->error('Platform operator operation failed.'.$code.' No credentials are printed; retry the same operation ID to reconcile a committed result.');
 
             return self::FAILURE;
         }

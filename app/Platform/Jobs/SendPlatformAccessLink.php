@@ -4,6 +4,7 @@ namespace App\Platform\Jobs;
 
 use App\Platform\Models\PlatformAccessLink;
 use App\Platform\Models\PlatformOperator;
+use App\Platform\Services\PlatformAccessOrigin;
 use Illuminate\Contracts\Queue\ShouldBeEncrypted;
 use Illuminate\Contracts\Queue\ShouldQueueAfterCommit;
 use Illuminate\Foundation\Queue\Queueable;
@@ -34,10 +35,11 @@ class SendPlatformAccessLink implements ShouldBeEncrypted, ShouldQueueAfterCommi
         }
         try {
             $origin = config('platform.frontend_url');
-            if (config('mail.default') === 'log' || ! is_string($origin) || ! filter_var($origin, FILTER_VALIDATE_URL) || parse_url($origin, PHP_URL_SCHEME) !== 'https' || parse_url($origin, PHP_URL_QUERY) !== null || parse_url($origin, PHP_URL_FRAGMENT) !== null || parse_url($origin, PHP_URL_USER) !== null || parse_url($origin, PHP_URL_PASS) !== null) {
+            if (config('mail.default') === 'log' || ! PlatformAccessOrigin::allowed($origin)) {
                 throw new RuntimeException('Access transport unavailable.');
             }
-            $url = rtrim($origin, '/').'/platform/'.($link->purpose === 'activation' ? 'activate' : 'password-reset').'?email='.rawurlencode($operator->email).'&token='.rawurlencode($this->token);
+            // Fragments never reach HTTP access logs or the server-rendered shell.
+            $url = rtrim($origin, '/').'/platform/'.($link->purpose === 'activation' ? 'activate' : 'password-reset').'#email='.rawurlencode($operator->email).'&token='.rawurlencode($this->token);
             Mail::raw("Use this single-use Acervo platform access link within 60 minutes:\n".$url, fn ($message) => $message->to($operator->email)->subject('Acervo platform access'));
             PlatformAccessLink::whereKey($link->id)->where('generation', $this->generation)->whereNotNull('token_hash')->update(['publication_status' => 'accepted']);
         } catch (Throwable) {

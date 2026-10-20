@@ -3,6 +3,7 @@
 namespace Modules\Documents\Services;
 
 use App\Models\User;
+use App\Platform\Models\PlatformOperator;
 use Modules\Documents\Enums\DocumentEventType;
 use Modules\Documents\Models\Document;
 use Modules\Documents\Models\DocumentResponsibleHistory;
@@ -14,7 +15,7 @@ class DocumentResponsibilityWriter
     public function write(
         Document $document,
         ?User $responsible,
-        User $actor,
+        User|PlatformOperator $actor,
         DocumentEventRecorder $events,
         ?string $reason = null,
     ): Document {
@@ -28,7 +29,9 @@ class DocumentResponsibilityWriter
             'document_id' => $document->id,
             'previous_responsible_user_id' => $previous?->id,
             'new_responsible_user_id' => $responsible?->id,
-            'actor_user_id' => $actor->id,
+            'actor_user_id' => $actor instanceof User ? $actor->id : null,
+            'actor_platform_operator_id' => $actor instanceof PlatformOperator ? $actor->id : null,
+            'actor_platform_operator_name' => $actor instanceof PlatformOperator ? $actor->name : null,
             'previous_responsible_name' => $previous?->name,
             'new_responsible_name' => $responsible?->name,
             'revision' => $revision,
