@@ -10,6 +10,7 @@ use Modules\Documents\Exceptions\DocumentRenameException;
 use Modules\Documents\Models\Document;
 use Modules\Documents\Services\DocumentEventRecorder;
 use Modules\Documents\Support\DocumentName;
+use Modules\Institution\Services\InstitutionalAccess;
 use Modules\Nodes\Models\Node;
 
 class UpdateDocumentAction
@@ -22,6 +23,7 @@ class UpdateDocumentAction
         DocumentEventRecorder $events,
     ): Document {
         return DB::transaction(function () use ($actor, $documentId, $attributes, $events): Document {
+            app(InstitutionalAccess::class)->lock($actor, 'documents.manage');
             $document = Document::query()
                 ->where('institution_id', $actor->institution_id)
                 ->lockForUpdate()

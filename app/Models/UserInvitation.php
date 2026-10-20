@@ -20,6 +20,8 @@ class UserInvitation extends Model
         'provider_accepted_at',
         'failed_at',
         'consumed_at',
+        'revoked_at',
+        'institution_auth_epoch',
     ];
 
     protected function casts(): array
@@ -31,6 +33,7 @@ class UserInvitation extends Model
             'provider_accepted_at' => 'datetime',
             'failed_at' => 'datetime',
             'consumed_at' => 'datetime',
+            'revoked_at' => 'datetime',
             'generation' => 'integer',
         ];
     }

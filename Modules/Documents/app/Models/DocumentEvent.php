@@ -17,9 +17,10 @@ class DocumentEvent extends Model
     protected $fillable = [
         'document_id', 'institution_id', 'type', 'actor_user_id', 'actor_name',
         'version_id', 'detail', 'origin', 'source_type', 'source_id', 'occurred_at',
+        'actor_platform_operator_id', 'actor_platform_operator_name',
     ];
 
-    protected $hidden = ['institution_id', 'origin', 'source_type', 'source_id', 'created_at', 'updated_at'];
+    protected $hidden = ['institution_id', 'origin', 'source_type', 'source_id', 'created_at', 'updated_at', 'actor_platform_operator_id', 'actor_platform_operator_name'];
 
     protected function casts(): array
     {

@@ -25,6 +25,9 @@ class Institution extends Model
 
     protected $fillable = ['name', 'status'];
 
+    // Legacy public listing must not serialize newly added commercial/customer fields.
+    protected $hidden = ['customer_type', 'customer_name', 'customer_rut', 'operational_revision', 'commercial_state', 'auth_epoch'];
+
     protected function casts(): array
     {
         return ['status' => 'boolean'];

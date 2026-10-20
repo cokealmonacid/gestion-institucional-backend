@@ -7,7 +7,6 @@ use App\Models\Rol;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
-use Laravel\Sanctum\Sanctum;
 use Modules\Documents\Enums\DocumentEventType;
 use Modules\Documents\Models\Document;
 use Modules\Documents\Models\DocumentEvent;
@@ -27,7 +26,7 @@ class DocumentVersionNotesContractTest extends TestCase
             [$institution, $actor, $document, $version] = $this->context($role);
             $history = $this->history($document, $version, $actor, null, 'Nota');
             $version->update(['comment' => 'Nota']);
-            Sanctum::actingAs($actor);
+            $this->authenticateInstitutionUser($actor);
 
             $this->getJson("/api/v1/documents/{$document->id}/versions/notes")
                 ->assertOk()
@@ -46,7 +45,7 @@ class DocumentVersionNotesContractTest extends TestCase
     {
         foreach ([RoleType::Admin, RoleType::Editor] as $role) {
             [, $actor, $document, $version] = $this->context($role);
-            Sanctum::actingAs($actor);
+            $this->authenticateInstitutionUser($actor);
 
             $this->patchJson("/api/v1/documents/{$document->id}/versions/{$version->id}/note", [
                 'note' => '  Primera nota  ',
@@ -73,7 +72,7 @@ class DocumentVersionNotesContractTest extends TestCase
         }
 
         [, $reader, $document, $version] = $this->context(RoleType::Reader);
-        Sanctum::actingAs($reader);
+        $this->authenticateInstitutionUser($reader);
         $this->patchJson("/api/v1/documents/{$document->id}/versions/{$version->id}/note", [
             'note' => 'Prohibida',
         ])->assertForbidden();
@@ -83,7 +82,7 @@ class DocumentVersionNotesContractTest extends TestCase
     public function test_note_validation_normalizes_text_and_rejects_invalid_or_unchanged_values(): void
     {
         [, $actor, $document, $version] = $this->context(RoleType::Editor);
-        Sanctum::actingAs($actor);
+        $this->authenticateInstitutionUser($actor);
         $uri = "/api/v1/documents/{$document->id}/versions/{$version->id}/note";
 
         $this->patchJson($uri, [])->assertUnprocessable();
@@ -102,7 +101,7 @@ class DocumentVersionNotesContractTest extends TestCase
     public function test_canonical_mutation_rejects_the_retired_comment_field(): void
     {
         [, $actor, $document, $version] = $this->context(RoleType::Editor);
-        Sanctum::actingAs($actor);
+        $this->authenticateInstitutionUser($actor);
 
         $this->patchJson("/api/v1/documents/{$document->id}/versions/{$version->id}/note", [
             'comment' => 'Campo retirado',
@@ -115,7 +114,7 @@ class DocumentVersionNotesContractTest extends TestCase
     public function test_legacy_comment_routes_are_not_available(): void
     {
         [, $actor, $document, $version] = $this->context(RoleType::Editor);
-        Sanctum::actingAs($actor);
+        $this->authenticateInstitutionUser($actor);
 
         $this->getJson("/api/v1/documents/{$document->id}/versions/comments")->assertNotFound();
         $this->getJson("/api/v1/documents/{$document->id}/versions/{$version->id}/comments")->assertNotFound();
@@ -129,7 +128,7 @@ class DocumentVersionNotesContractTest extends TestCase
         [, $actor, $document, $version] = $this->context(RoleType::Editor);
         [, , $foreignDocument, $foreignVersion] = $this->context(RoleType::Editor);
         $otherDocument = $this->document($document->institution_id, $actor);
-        Sanctum::actingAs($actor);
+        $this->authenticateInstitutionUser($actor);
 
         $this->getJson("/api/v1/documents/{$foreignDocument->id}/versions/notes")->assertNotFound();
         $this->getJson("/api/v1/documents/{$foreignDocument->id}/versions/{$foreignVersion->id}/note/history")
@@ -151,7 +150,7 @@ class DocumentVersionNotesContractTest extends TestCase
         $this->history($document, $version, $actor, null, 'Histórica');
         $version->update(['comment' => 'Histórica', 'active' => false, 'is_current' => false]);
         $document->update(['status' => false]);
-        Sanctum::actingAs($actor);
+        $this->authenticateInstitutionUser($actor);
 
         $this->getJson("/api/v1/documents/{$document->id}/versions/notes")
             ->assertOk()->assertJsonPath('data.0.note', 'Histórica');
@@ -169,7 +168,7 @@ class DocumentVersionNotesContractTest extends TestCase
         $first = $this->history($document, $version, $actor, null, 'Uno');
         $second = $this->history($document, $version, $actor, 'Uno', 'Dos');
         Carbon::setTestNow();
-        Sanctum::actingAs($actor);
+        $this->authenticateInstitutionUser($actor);
 
         $page = $this->getJson("/api/v1/documents/{$document->id}/versions/{$version->id}/note/history?limit=1")
             ->assertOk()->assertJsonCount(1, 'data');
@@ -189,7 +188,7 @@ class DocumentVersionNotesContractTest extends TestCase
         $second = $this->history($document, $version, $otherActor, 'Uno', 'Dos');
         Carbon::setTestNow();
         $expectedActor = $first->id > $second->id ? $actor : $otherActor;
-        Sanctum::actingAs($actor);
+        $this->authenticateInstitutionUser($actor);
 
         $this->getJson("/api/v1/documents/{$document->id}/versions/notes")
             ->assertOk()
@@ -202,7 +201,7 @@ class DocumentVersionNotesContractTest extends TestCase
         $history = $this->history($document, $version, $actor, null, 'Nota');
         $actor->delete();
         $reader = $this->user($institution, RoleType::Reader);
-        Sanctum::actingAs($reader);
+        $this->authenticateInstitutionUser($reader);
 
         $this->getJson("/api/v1/documents/{$document->id}/versions/{$version->id}/note/history")
             ->assertOk()
@@ -215,7 +214,7 @@ class DocumentVersionNotesContractTest extends TestCase
     public function test_note_changes_create_content_free_document_events(): void
     {
         [, $actor, $document, $version] = $this->context(RoleType::Editor);
-        Sanctum::actingAs($actor);
+        $this->authenticateInstitutionUser($actor);
         $uri = "/api/v1/documents/{$document->id}/versions/{$version->id}/note";
 
         $this->patchJson($uri, ['note' => 'Contenido reservado'])->assertOk();

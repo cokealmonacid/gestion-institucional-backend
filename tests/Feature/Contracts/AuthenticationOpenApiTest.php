@@ -21,7 +21,7 @@ class AuthenticationOpenApiTest extends TestCase
         $contract = $this->contract();
 
         $this->assertSame('3.1.0', $contract['openapi']);
-        $this->assertSame('2.1.0', $contract['info']['version']);
+        $this->assertSame('3.0.0', $contract['info']['version']);
         $this->assertArrayNotHasKey('servers', $contract);
         $this->assertSame([
             '/api/v1/auth/login',
@@ -43,7 +43,7 @@ class AuthenticationOpenApiTest extends TestCase
             array_keys($contract['paths']['/api/v1/auth/login']['post']['responses']),
         );
         $this->assertSame(
-            [200, 401],
+            [200, 401, 403],
             array_keys($contract['paths']['/api/v1/user/profile']['get']['responses']),
         );
         $this->assertSame(
@@ -53,7 +53,7 @@ class AuthenticationOpenApiTest extends TestCase
         $this->assertSame([202, 422, 429], array_keys($contract['paths']['/api/v1/auth/password-recovery']['post']['responses']));
         $this->assertSame([200, 400, 422, 429], array_keys($contract['paths']['/api/v1/auth/password-reset']['post']['responses']));
         $this->assertSame([200, 400, 422, 429], array_keys($contract['paths']['/api/v1/auth/activation']['post']['responses']));
-        $this->assertSame([200, 401, 422, 429], array_keys($contract['paths']['/api/v1/user/update-password']['patch']['responses']));
+        $this->assertSame([200, 401, 403, 422, 429], array_keys($contract['paths']['/api/v1/user/update-password']['patch']['responses']));
     }
 
     public function test_password_payloads_are_closed_confirmed_and_bcrypt_bounded(): void

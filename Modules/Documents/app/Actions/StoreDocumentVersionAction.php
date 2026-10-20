@@ -12,6 +12,8 @@ use Modules\Documents\Exceptions\DocumentVersionCreationException;
 use Modules\Documents\Models\Document;
 use Modules\Documents\Models\DocumentVersion;
 use Modules\Documents\Services\DocumentEventRecorder;
+use Modules\Institution\Exceptions\InstitutionAccessException;
+use Modules\Institution\Services\InstitutionalAccess;
 
 class StoreDocumentVersionAction
 {
@@ -70,6 +72,7 @@ class StoreDocumentVersionAction
 
         try {
             $version = DB::transaction(function () use ($actor, $document, $file, $versionId, $filename, $stored, $events) {
+                app(InstitutionalAccess::class)->lock($actor, 'versions.manage');
                 $lockedDocument = Document::query()
                     ->whereKey($document->id)
                     ->where('institution_id', $document->institution_id)
@@ -116,6 +119,9 @@ class StoreDocumentVersionAction
             });
         } catch (\Throwable $exception) {
             $this->deleteStoredFile($disk, $stored);
+            if ($exception instanceof InstitutionAccessException) {
+                throw $exception;
+            }
             report($exception);
 
             throw new DocumentVersionCreationException(

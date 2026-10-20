@@ -8,7 +8,6 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Laravel\Sanctum\Sanctum;
 use Modules\Documents\Models\Document;
 use Modules\Documents\Models\DocumentEvent;
 use Modules\Institution\Models\Institution;
@@ -43,7 +42,7 @@ class InstitutionUsersContractTest extends TestCase
             [$institution, $user] = $this->institutionUser();
             $user->roles()->attach(Rol::firstOrCreate(['type' => $roleType]));
             $target = User::factory()->for($institution)->create();
-            Sanctum::actingAs($user);
+            $this->authenticateInstitutionUser($user);
 
             foreach ([
                 fn () => $this->getJson("/api/v1/institution/users?institution_id={$institution->id}"),
@@ -78,7 +77,7 @@ class InstitutionUsersContractTest extends TestCase
     {
         [, $admin] = $this->institutionUser(admin: true);
         $otherInstitution = Institution::factory()->create();
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
 
         foreach ([$otherInstitution->id, (string) Str::uuid()] as $institutionId) {
             $this->getJson("/api/v1/institution/users?institution_id={$institutionId}")
@@ -97,7 +96,7 @@ class InstitutionUsersContractTest extends TestCase
         $peer = User::factory()->for($institution)->create();
         User::factory()->for($otherInstitution)->create();
 
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
 
         $response = $this->getJson("/api/v1/institution/users?institution_id={$institution->id}")
             ->assertOk()
@@ -124,7 +123,7 @@ class InstitutionUsersContractTest extends TestCase
         [$institution, $admin] = $this->institutionUser(admin: true);
         $inactive = User::factory()->inactive()->for($institution)->create();
 
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
 
         $response = $this->getJson("/api/v1/institution/users?institution_id={$institution->id}")
             ->assertOk();
@@ -138,7 +137,7 @@ class InstitutionUsersContractTest extends TestCase
         [$institution, $admin] = $this->institutionUser(admin: true);
         Rol::create(['type' => RoleType::Editor]);
 
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
 
         $this->postJson('/api/v1/institution/users', [
             'institution_id' => $institution->id,
@@ -161,7 +160,7 @@ class InstitutionUsersContractTest extends TestCase
         [$institution, $admin] = $this->institutionUser(admin: true);
         Rol::create(['type' => RoleType::Editor]);
 
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
 
         $this->postJson('/api/v1/institution/users', [
             'institution_id' => $institution->id,
@@ -182,7 +181,7 @@ class InstitutionUsersContractTest extends TestCase
         [$institution, $admin] = $this->institutionUser(admin: true);
         $foreignInstitution = Institution::factory()->create();
         Rol::create(['type' => RoleType::Editor]);
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
 
         $this->postJson('/api/v1/institution/users', [
             'institution_id' => $foreignInstitution->id,
@@ -205,7 +204,7 @@ class InstitutionUsersContractTest extends TestCase
         [$institution, $admin] = $this->institutionUser(admin: true);
         $peer = User::factory()->for($institution)->create(['name' => 'Old name']);
 
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
 
         $this->patchJson('/api/v1/institution/users', [
             'institution_id' => $institution->id,
@@ -224,7 +223,7 @@ class InstitutionUsersContractTest extends TestCase
         $otherInstitution = Institution::factory()->create();
         $foreignUser = User::factory()->for($otherInstitution)->create();
 
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
 
         foreach ([$foreignUser->email, 'missing@example.com'] as $email) {
             $this->patchJson('/api/v1/institution/users', [
@@ -248,7 +247,7 @@ class InstitutionUsersContractTest extends TestCase
         $peer = User::factory()->for($institution)->create();
         $peer->roles()->attach($editorRole->id);
 
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
 
         $impact = $this->postJson('/api/v1/institution/users/role-impact', [
             'institution_id' => $institution->id,
@@ -280,7 +279,7 @@ class InstitutionUsersContractTest extends TestCase
         $node = Node::factory()->for($institution)->create(['active' => true]);
         $active = $this->responsibleDocument($institution, $node, $admin, $editor, true);
         $inactive = $this->responsibleDocument($institution, $node, $admin, $editor, false);
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
 
         $payload = ['institution_id' => $institution->id, 'email' => $editor->email, 'role' => 'reader'];
         $impact = $this->postJson('/api/v1/institution/users/role-impact', $payload)
@@ -328,7 +327,7 @@ class InstitutionUsersContractTest extends TestCase
         $editor->roles()->attach(Rol::firstOrCreate(['type' => RoleType::Editor]));
         $node = Node::factory()->for($institution)->create(['active' => true]);
         $document = $this->responsibleDocument($institution, $node, $admin, $editor, true);
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
         $payload = ['institution_id' => $institution->id, 'email' => $editor->email, 'role' => 'reader'];
         $token = $this->postJson('/api/v1/institution/users/role-impact', $payload)->assertOk()->json('data.impact_token');
         $document->update(['responsibility_revision' => 2]);
@@ -350,13 +349,14 @@ class InstitutionUsersContractTest extends TestCase
 
     public function test_event_failure_rolls_back_role_and_every_responsibility_removal(): void
     {
+        Rol::firstOrCreate(['type' => RoleType::Reader]);
         [$institution, $admin] = $this->institutionUser(admin: true);
         $editor = User::factory()->for($institution)->create();
         $editor->roles()->attach(Rol::firstOrCreate(['type' => RoleType::Editor]));
         $node = Node::factory()->for($institution)->create(['active' => true]);
         $first = $this->responsibleDocument($institution, $node, $admin, $editor, true);
         $second = $this->responsibleDocument($institution, $node, $admin, $editor, false);
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
         $payload = ['institution_id' => $institution->id, 'email' => $editor->email, 'role' => 'reader'];
         $token = $this->postJson('/api/v1/institution/users/role-impact', $payload)->assertOk()->json('data.impact_token');
         DB::unprepared("CREATE TRIGGER fail_second_role_event BEFORE INSERT ON document_events WHEN NEW.document_id = '{$second->id}' BEGIN SELECT RAISE(ABORT, 'forced failure'); END");
@@ -378,7 +378,7 @@ class InstitutionUsersContractTest extends TestCase
         [$institution, $admin] = $this->institutionUser(admin: true);
         Rol::create(['type' => RoleType::Editor]);
 
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
 
         $this->patchJson('/api/v1/institution/users', [
             'institution_id' => $institution->id,
@@ -388,21 +388,20 @@ class InstitutionUsersContractTest extends TestCase
             ->assertConflict()
             ->assertExactJson([
                 'success' => false,
-                'message' => 'The institution must retain another administrator.',
-                'code' => 'INSTITUTION_REQUIRES_ANOTHER_ADMIN',
+                'error' => ['code' => 'INSTITUTION_REQUIRES_USABLE_ADMIN', 'message' => 'Institutional access is not available for this operation.'],
             ]);
 
         $this->assertTrue($admin->fresh()->roles()->where('type', RoleType::Admin)->exists());
     }
 
-    public function test_an_admin_can_demote_themself_when_another_admin_exists_even_if_inactive(): void
+    public function test_an_admin_cannot_demote_themself_when_the_only_other_admin_is_inactive(): void
     {
         [$institution, $admin] = $this->institutionUser(admin: true);
         $otherAdmin = User::factory()->inactive()->for($institution)->create();
         $otherAdmin->roles()->attach(Rol::firstOrCreate(['type' => RoleType::Admin]));
         Rol::create(['type' => RoleType::Reader]);
 
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
 
         $payload = [
             'institution_id' => $institution->id,
@@ -416,11 +415,10 @@ class InstitutionUsersContractTest extends TestCase
             'confirm_responsibility_removal' => true,
             'role_impact_token' => $impact['impact_token'],
         ])
-            ->assertOk()
-            ->assertExactJson(['success' => true, 'data' => [], 'message' => 'Account updated successfully.']);
+            ->assertConflict()->assertJsonPath('error.code', 'INSTITUTION_REQUIRES_USABLE_ADMIN');
 
-        $this->assertTrue($admin->fresh()->roles()->where('type', RoleType::Reader)->exists());
-        $this->assertFalse($admin->fresh()->roles()->where('type', RoleType::Admin)->exists());
+        $this->assertTrue($admin->fresh()->roles()->where('type', RoleType::Admin)->exists());
+        $this->assertTrue($admin->fresh()->roles()->where('type', RoleType::Admin)->exists());
         $this->assertTrue($otherAdmin->fresh()->roles()->where('type', RoleType::Admin)->exists());
     }
 
@@ -429,7 +427,7 @@ class InstitutionUsersContractTest extends TestCase
         [$institution, $admin] = $this->institutionUser(admin: true);
         $peer = User::factory()->for($institution)->create(['active' => true]);
 
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
 
         $this->patchJson('/api/v1/institution/users', [
             'institution_id' => $institution->id,
@@ -447,7 +445,7 @@ class InstitutionUsersContractTest extends TestCase
         [$institution, $admin] = $this->institutionUser(admin: true);
         $peer = User::factory()->for($institution)->create();
 
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
 
         $this->deleteJson('/api/v1/institution/users', [
             'institution_id' => $institution->id,
@@ -464,7 +462,7 @@ class InstitutionUsersContractTest extends TestCase
         [$institution, $admin] = $this->institutionUser(admin: true);
         $peer = User::factory()->for($institution)->create();
 
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
 
         $this->deleteJson('/api/v1/institution/users', [
             'institution_id' => $institution->id,
@@ -485,7 +483,7 @@ class InstitutionUsersContractTest extends TestCase
         $otherInstitution = Institution::factory()->create();
         $foreignUser = User::factory()->for($otherInstitution)->create();
 
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
 
         foreach ([$foreignUser->email, 'missing@example.com'] as $email) {
             $this->deleteJson('/api/v1/institution/users', [
@@ -505,7 +503,7 @@ class InstitutionUsersContractTest extends TestCase
         [$institution, $admin] = $this->institutionUser(admin: true);
         $peer = User::factory()->for($institution)->create(['name' => 'Original']);
         $foreignInstitution = Institution::factory()->create();
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
 
         $payload = [
             'institution_id' => $foreignInstitution->id,
@@ -530,15 +528,13 @@ class InstitutionUsersContractTest extends TestCase
     {
         [$institution, $admin] = $this->institutionUser(admin: true);
 
-        Sanctum::actingAs($admin);
+        $this->authenticateInstitutionUser($admin);
 
         $this->deleteJson('/api/v1/institution/users', [
             'institution_id' => $institution->id,
             'email' => $admin->email,
         ])
-            ->assertStatus(422)
-            ->assertJsonPath('success', false)
-            ->assertJsonPath('message', 'You cannot delete your own account.');
+            ->assertConflict()->assertJsonPath('error.code', 'INSTITUTION_REQUIRES_USABLE_ADMIN');
 
         $this->assertDatabaseHas('users', ['id' => $admin->id, 'deleted_at' => null]);
     }

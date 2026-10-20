@@ -2,13 +2,16 @@
 
 namespace App\Http\Requests\Auth;
 
+use App\Models\User;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Modules\Institution\Models\Institution;
 
 class LoginRequest extends FormRequest
 {
@@ -42,14 +45,18 @@ class LoginRequest extends FormRequest
     {
         $this->ensureIsNotRateLimited();
 
-        if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
-            RateLimiter::hit($this->throttleKey());
-
-            throw ValidationException::withMessages([
-                'email' => trans('auth.failed'),
-            ]);
-        }
-
+        DB::transaction(function () {
+            $candidate = User::where('email', $this->input('email'))->first();
+            $institution = $candidate ? Institution::whereKey($candidate->institution_id)->lockForUpdate()->first() : null;
+            $user = $candidate ? User::whereKey($candidate->id)->lockForUpdate()->first() : null;
+            if (! $institution?->status || ! $user?->active || ! $user->email_verified_at || ! is_string($user->password)
+                || ! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
+                RateLimiter::hit($this->throttleKey());
+                throw ValidationException::withMessages(['email' => trans('auth.failed')]);
+            }
+            $this->session()->put('institution_auth_epoch', (int) $institution->auth_epoch);
+            $this->session()->put('user_access_revision', (int) $user->access_revision);
+        }, 3);
         RateLimiter::clear($this->throttleKey());
     }
 

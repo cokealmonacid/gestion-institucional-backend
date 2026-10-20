@@ -10,6 +10,7 @@ use Modules\Documents\Models\Document;
 use Modules\Documents\Models\DocumentVersion;
 use Modules\Documents\Models\DocumentVersionCommentHistory;
 use Modules\Documents\Services\DocumentEventRecorder;
+use Modules\Institution\Services\InstitutionalAccess;
 
 class UpdateDocumentVersionNoteAction
 {
@@ -22,6 +23,7 @@ class UpdateDocumentVersionNoteAction
         DocumentEventRecorder $events,
     ): array {
         return DB::transaction(function () use ($actor, $documentId, $versionId, $note, $events): array {
+            app(InstitutionalAccess::class)->lock($actor, 'comments.manage');
             $document = Document::query()
                 ->where('institution_id', $actor->institution_id)
                 ->lockForUpdate()

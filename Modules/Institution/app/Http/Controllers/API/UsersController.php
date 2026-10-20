@@ -4,21 +4,19 @@ namespace Modules\Institution\Http\Controllers\API;
 
 use App\Enums\RoleType;
 use App\Http\Controllers\BaseController;
-use App\Models\Rol;
-use App\Models\RoleUser;
 use App\Models\User;
+use App\Platform\Services\InvitationPublication;
 use App\Services\UserAccess\InvitationService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
-use Modules\Documents\Services\DocumentEventRecorder;
-use Modules\Documents\Services\DocumentResponsibilityWriter;
+use Illuminate\Validation\ValidationException;
+use Modules\Institution\Actions\InstitutionUserMutations;
 use Modules\Institution\Actions\InviteInstitutionUser;
+use Modules\Institution\Exceptions\InstitutionAccessException;
 use Modules\Institution\Exceptions\RoleChangeException;
 use Modules\Institution\Http\Resources\UserResource;
-use Modules\Institution\Models\Institution;
 use Modules\Institution\Services\RoleChangeImpact;
 
 class UsersController extends BaseController
@@ -48,21 +46,23 @@ class UsersController extends BaseController
 
         try {
             [$user, $invitation, $token] = $action->execute($request->user(), $validator->validated(), $invitations);
-            $queued = $invitations->publish($invitation, $token);
-            $invitation->refresh();
+            $publication = app(InvitationPublication::class)->publish($invitation, $token);
+            $queued = $publication['publication_status'] === 'queued';
 
             return response()->json([
                 'success' => true,
                 'data' => [
                     'user_id' => $user->id,
                     'activation_status' => 'pending_activation',
-                    'delivery_status' => $queued ? $invitation->delivery_status : 'failed',
+                    'delivery_status' => $publication['delivery_status'],
                     'expires_at' => $invitation->expires_at->toISOString(),
                 ],
-                'message' => $queued
+                'message' => $publication['publication_status'] === 'unknown' ? 'Resources saved; publication outcome is unknown. Check invitation status before explicit resend.' : ($queued
                     ? 'Account created and invitation queued.'
-                    : 'Account created, but the invitation could not be queued. It can be resent.',
+                    : 'Account created, but the invitation could not be queued. It can be resent.'),
             ], 201);
+        } catch (InstitutionAccessException $e) {
+            throw $e;
         } catch (\RuntimeException $exception) {
             if ($exception->getMessage() === 'INSTITUTION_INACTIVE') {
                 return response()->json([
@@ -106,23 +106,25 @@ class UsersController extends BaseController
     {
         try {
             [$invitation, $token] = $invitations->reissue($request->user(), $user_id);
-            $queued = $invitations->publish($invitation, $token);
-            $invitation->refresh();
+            $publication = app(InvitationPublication::class)->publish($invitation, $token);
+            $queued = $publication['publication_status'] === 'queued';
 
             return response()->json([
                 'success' => true,
                 'data' => [
                     'user_id' => $user_id,
                     'activation_status' => 'pending_activation',
-                    'delivery_status' => $queued ? $invitation->delivery_status : 'failed',
+                    'delivery_status' => $publication['delivery_status'],
                     'expires_at' => $invitation->expires_at->toISOString(),
                 ],
-                'message' => $queued
+                'message' => $publication['publication_status'] === 'unknown' ? 'Resources saved; publication outcome is unknown. Check invitation status before explicit resend.' : ($queued
                     ? 'Invitation queued successfully.'
-                    : 'The invitation could not be queued. It can be resent.',
+                    : 'The invitation could not be queued. It can be resent.'),
             ], 202);
         } catch (ModelNotFoundException) {
             return $this->institutionalUserNotFound();
+        } catch (InstitutionAccessException $e) {
+            throw $e;
         } catch (\RuntimeException $exception) {
             if ($exception->getMessage() === 'INVITATION_RESEND_THROTTLED') {
                 return response()->json([
@@ -168,165 +170,45 @@ class UsersController extends BaseController
 
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'email' => 'bail|required|string|email|unique:users,email',
-            'password' => 'required|min:8',
-            'password_confirmation' => 'required|same:password',
-            'institution_id' => ['required', 'uuid'],
-            'rol' => ['required', Rule::enum(RoleType::class)],
+        $this->rejectUnexpected($request, ['name', 'email', 'password', 'password_confirmation', 'institution_id', 'rol']);
+        $data = $request->validate([
+            'name' => 'required|string|max:255', 'email' => 'bail|required|string|email|unique:users,email',
+            'password' => 'required|string|min:8', 'password_confirmation' => 'required|same:password',
+            'institution_id' => 'required|uuid', 'rol' => ['required', Rule::enum(RoleType::class)],
         ]);
-
-        if ($validator->fails()) {
-            return $this->sendError('Validation failed.', ['error' => $validator->errors()], 422);
-        }
-
         if (! $this->institutionMatchesActor($request)) {
             return $this->institutionalUserNotFound();
         }
+        app(InstitutionUserMutations::class)->create($request->user(), $data);
 
-        try {
-            $input = $request->all();
-            $input['institution_id'] = $request->user()->institution_id;
-            $rol = Rol::whereType($request->rol)->first();
-            $input['password'] = bcrypt($input['password']);
-
-            $user = User::create($input);
-            $user->save();
-
-            RoleUser::create([
-                'user_id' => $user->id,
-                'role_id' => $rol->id,
-            ]);
-
-            return $this->sendResponse([], 'Account registered successfully.');
-        } catch (\Exception $e) {
-            return $this->sendError('Something went wrong.', [], 500);
-        }
+        return $this->sendResponse([], 'Account registered successfully.');
     }
 
     public function update(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'email' => 'required|string|email',
-            'name' => 'sometimes|required|string|max:255',
-            'active' => 'sometimes|required|boolean',
-            'role' => ['sometimes', 'required', Rule::enum(RoleType::class)],
-            'role_impact_token' => ['sometimes', 'required', 'string', 'max:255'],
-            'confirm_responsibility_removal' => ['sometimes', 'required', 'boolean'],
-            'institution_id' => ['required', 'uuid'],
+        $this->rejectUnexpected($request, ['email', 'institution_id', 'name', 'active', 'role', 'role_impact_token', 'confirm_responsibility_removal']);
+        $data = $request->validate([
+            'email' => 'required|string|email', 'institution_id' => 'required|uuid', 'name' => 'sometimes|required|string|max:255',
+            'active' => 'sometimes|required|boolean', 'role' => ['sometimes', 'required', Rule::enum(RoleType::class)],
+            'role_impact_token' => 'sometimes|required|string|max:255', 'confirm_responsibility_removal' => 'sometimes|required|boolean',
         ]);
-
-        if ($validator->fails()) {
-            return $this->sendError('Validation failed.', ['error' => $validator->errors()], 422);
-        }
-
         if (! $this->institutionMatchesActor($request)) {
             return $this->institutionalUserNotFound();
         }
-
-        $user = $this->institutionalUserByEmail($request);
-
-        if (! $user) {
-            return $this->institutionalUserNotFound();
-        }
-
         try {
-            $updated = DB::transaction(function () use ($request, $user): bool {
-                // Serializes self-demotions within one institution so two admins cannot
-                // both observe the other as an administrator and remove that access.
-                Institution::query()
-                    ->whereKey($request->user()->institution_id)
-                    ->lockForUpdate()
-                    ->firstOrFail();
-
-                $target = User::query()
-                    ->whereKey($user->id)
-                    ->lockForUpdate()
-                    ->firstOrFail();
-
-                if ($this->isBlockedSelfAdminDemotion($request, $target)) {
-                    return false;
-                }
-
-                $requestedRole = $request->filled('role') ? RoleType::from($request->string('role')->toString()) : null;
-                $impact = app(RoleChangeImpact::class);
-                $documents = collect();
-
-                if ($requestedRole !== null && $impact->losesEligibility($target, $requestedRole)) {
-                    $documents = $impact->affectedDocuments($target, lock: true);
-                    $token = $request->input('role_impact_token');
-                    if ($request->boolean('confirm_responsibility_removal') !== true || ! is_string($token)) {
-                        throw new RoleChangeException(
-                            'ROLE_CHANGE_IMPACT_CONFIRMATION_REQUIRED',
-                            'Review and confirm the responsibility impact before changing this role.',
-                            409,
-                        );
-                    }
-                    if (! $impact->tokenMatches($target, $requestedRole, $documents, $token)) {
-                        throw new RoleChangeException(
-                            'ROLE_CHANGE_IMPACT_STALE',
-                            'The responsibility impact has changed. Review it again before confirming.',
-                            409,
-                        );
-                    }
-                }
-
-                $input = $request->except([
-                    'role', 'email', 'institution_id', 'role_impact_token', 'confirm_responsibility_removal',
-                ]);
-                $target->update($input);
-
-                if ($request->filled('role')) {
-                    $rol = Rol::whereType($request->role)->firstOrFail();
-
-                    RoleUser::where('user_id', $target->id)->delete();
-
-                    RoleUser::firstOrCreate([
-                        'user_id' => $target->id,
-                        'role_id' => $rol->id,
-                    ]);
-                }
-
-                if ($documents->isNotEmpty()) {
-                    $events = app(DocumentEventRecorder::class);
-                    $writer = app(DocumentResponsibilityWriter::class);
-                    foreach ($documents as $document) {
-                        $writer->write(
-                            $document,
-                            null,
-                            $request->user(),
-                            $events,
-                            DocumentResponsibilityWriter::ROLE_CHANGE_REASON,
-                        );
-                    }
-                }
-
-                return true;
-            });
-
-            if (! $updated) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'The institution must retain another administrator.',
-                    'code' => 'INSTITUTION_REQUIRES_ANOTHER_ADMIN',
-                ], 409);
-            }
-
-            return $this->sendResponse([], 'Account updated successfully.');
+            app(InstitutionUserMutations::class)->update($request->user(), $data['email'], $data);
+        } catch (ModelNotFoundException) {
+            return $this->institutionalUserNotFound();
         } catch (RoleChangeException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-                'code' => $e->errorCode,
-            ], $e->status);
-        } catch (\Exception $e) {
-            return $this->sendError('Something went wrong.', [], 500);
+            return response()->json(['success' => false, 'message' => $e->getMessage(), 'code' => $e->errorCode], $e->status);
         }
+
+        return $this->sendResponse([], 'Account updated successfully.');
     }
 
     public function roleImpact(Request $request, RoleChangeImpact $impact)
     {
+        $this->rejectUnexpected($request, ['email', 'institution_id', 'role']);
         $validator = Validator::make($request->all(), [
             'email' => ['required', 'string', 'email'],
             'role' => ['required', Rule::enum(RoleType::class)],
@@ -352,35 +234,24 @@ class UsersController extends BaseController
 
     public function destroy(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'email' => 'required|string|email',
-            'institution_id' => ['required', 'uuid'],
-        ]);
-
-        if ($validator->fails()) {
-            return $this->sendError('Validation failed.', ['error' => $validator->errors()], 422);
-        }
-
+        $this->rejectUnexpected($request, ['email', 'institution_id']);
+        $data = $request->validate(['email' => 'required|string|email', 'institution_id' => 'required|uuid']);
         if (! $this->institutionMatchesActor($request)) {
             return $this->institutionalUserNotFound();
         }
-
-        $user = $this->institutionalUserByEmail($request);
-
-        if (! $user) {
+        try {
+            app(InstitutionUserMutations::class)->delete($request->user(), $data['email']);
+        } catch (ModelNotFoundException) {
             return $this->institutionalUserNotFound();
         }
 
-        if ($request->email === $request->user()->email) {
-            return $this->sendError('You cannot delete your own account.', [], 422);
-        }
+        return $this->sendResponse([], 'Account deleted successfully.');
+    }
 
-        try {
-            $user->delete();
-
-            return $this->sendResponse([], 'Account deleted successfully.');
-        } catch (\Exception $e) {
-            return $this->sendError('Something went wrong.', [], 500);
+    private function rejectUnexpected(Request $request, array $allowed): void
+    {
+        if (array_diff(array_keys($request->all()), $allowed)) {
+            throw ValidationException::withMessages(['request' => ['Unexpected properties.']]);
         }
     }
 
@@ -394,25 +265,6 @@ class UsersController extends BaseController
         return User::where('institution_id', $request->user()->institution_id)
             ->where('email', $request->input('email'))
             ->first();
-    }
-
-    private function isBlockedSelfAdminDemotion(Request $request, User $target): bool
-    {
-        if (
-            $target->id !== $request->user()->id
-            || $request->input('role') === RoleType::Admin->value
-            || ! $target->roles()->where('type', RoleType::Admin)->exists()
-        ) {
-            return false;
-        }
-
-        // Inactive accounts intentionally count: the business rule requires another
-        // admin account, not necessarily another admin currently able to sign in.
-        return ! User::query()
-            ->where('institution_id', $target->institution_id)
-            ->where($target->getKeyName(), '!=', $target->getKey())
-            ->whereHas('roles', fn ($query) => $query->where('type', RoleType::Admin))
-            ->exists();
     }
 
     private function institutionalUserNotFound()

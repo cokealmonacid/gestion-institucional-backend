@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Acervo Institutional Document Explorer API",
-    "version": "5.1.0",
-    "description": "Contract for navigating the virtual institution root, reading, creating, and renaming real nodes, and creating logical documents in real nodes. Node order is numeric and node paths are materialized UUID paths."
+    "version": "6.0.0",
+    "description": "Contract for navigating the virtual institution root, reading, creating, and renaming real nodes, and creating logical documents in real nodes. Node order is numeric and node paths are materialized UUID paths. Block B consistently enforces operational suspension and credential epochs. Old credentials without current epoch metadata require fresh login; reactivation restores no credentials."
   },
   "tags": [
     {
@@ -16,7 +16,7 @@
       "get": {
         "operationId": "listInstitutionRootNodes",
         "summary": "List top-level nodes in the virtual institution root",
-        "description": "Returns every active real node in the authenticated user's institution whose parent_id is null. The virtual root is not itself a node and does not contain documents.",
+        "description": "Returns every active real node in the authenticated user's institution whose parent_id is null. The virtual root is not itself a node and does not contain documents. Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish.",
         "tags": ["Document explorer"],
         "security": [{ "bearerAuth": [] }],
         "responses": {
@@ -47,13 +47,37 @@
               }
             }
           },
-          "401": { "$ref": "#/components/responses/Unauthenticated" }
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/LegacyError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstitutionAccessError"
+                }
+              }
+            }
+          }
         }
       },
       "post": {
         "operationId": "createInstitutionNode",
         "summary": "Create a container node",
-        "description": "Creates an active node in the virtual root when parent_id is null, or under an active node in the authenticated user's institution. Only the admin role is allowed. All hierarchy, ordering, institution and lifecycle fields are server-derived. Every current Node is a container; NODE_PARENT_NOT_CONTAINER is reserved for a future node subtype and is not currently reachable.",
+        "description": "Creates an active node in the virtual root when parent_id is null, or under an active node in the authenticated user's institution. Only the admin role is allowed. All hierarchy, ordering, institution and lifecycle fields are server-derived. Every current Node is a container; NODE_PARENT_NOT_CONTAINER is reserved for a future node subtype and is not currently reachable. Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish.",
         "tags": ["Document explorer"],
         "security": [{ "bearerAuth": [] }],
         "requestBody": {
@@ -100,8 +124,36 @@
               }
             }
           },
-          "401": { "$ref": "#/components/responses/CanonicalUnauthenticated" },
-          "403": { "$ref": "#/components/responses/NodeCreateForbidden" },
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/CanonicalError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/CanonicalError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "404": { "$ref": "#/components/responses/ParentNodeNotFound" },
           "409": { "$ref": "#/components/responses/DuplicateNodeName" },
           "422": { "$ref": "#/components/responses/NodeValidationFailed" }
@@ -112,7 +164,7 @@
       "get": {
         "operationId": "getInstitutionNode",
         "summary": "Get a real node",
-        "description": "Returns an active node belonging to the authenticated user's institution. A top-level node with parent_id null is a regular selectable node, not the virtual root.",
+        "description": "Returns an active node belonging to the authenticated user's institution. A top-level node with parent_id null is a regular selectable node, not the virtual root. Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish.",
         "tags": ["Document explorer"],
         "security": [{ "bearerAuth": [] }],
         "parameters": [{ "$ref": "#/components/parameters/NodeId" }],
@@ -142,7 +194,31 @@
               }
             }
           },
-          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/LegacyError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstitutionAccessError"
+                }
+              }
+            }
+          },
           "404": { "$ref": "#/components/responses/NodeNotFound" }
         }
       }
@@ -151,7 +227,7 @@
       "patch": {
         "operationId": "renameInstitutionNode",
         "summary": "Rename a container node",
-        "description": "Admin only. Renames an active node whose complete ancestor path is active. The exclusive payload is trimmed and NFC-normalized. A case-only change is real. Equality after trim and NFC is an idempotent success without a write. Active and inactive siblings reserve case-insensitively equal names. Identity, institution, parent, path, depth, order, lifecycle state, descendants, and documents are preserved.",
+        "description": "Admin only. Renames an active node whose complete ancestor path is active. The exclusive payload is trimmed and NFC-normalized. A case-only change is real. Equality after trim and NFC is an idempotent success without a write. Active and inactive siblings reserve case-insensitively equal names. Identity, institution, parent, path, depth, order, lifecycle state, descendants, and documents are preserved. Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish.",
         "tags": ["Document explorer"],
         "security": [{ "bearerAuth": [] }],
         "parameters": [{ "$ref": "#/components/parameters/NodeId" }],
@@ -164,8 +240,36 @@
             "description": "Node renamed or already canonically equal.",
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NodeRenamedSuccess" }, "example": { "success": true, "data": { "id": "33333333-3333-3333-3333-333333333333", "name": "Contratos vigentes", "path": "11111111-1111-1111-1111-111111111111/33333333-3333-3333-3333-333333333333", "depth": 1, "order": 2, "active": 1, "institution_id": "22222222-2222-2222-2222-222222222222", "parent_id": "11111111-1111-1111-1111-111111111111", "created_at": "2026-08-11T12:00:00.000000Z", "updated_at": "2026-08-12T12:00:00.000000Z", "has_children": false }, "message": "Tree directory node renamed successfully." } } }
           },
-          "401": { "$ref": "#/components/responses/CanonicalUnauthenticated" },
-          "403": { "$ref": "#/components/responses/NodeRenameForbidden" },
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/CanonicalError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/CanonicalError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "404": { "$ref": "#/components/responses/NodeNotAvailable" },
           "409": { "$ref": "#/components/responses/DuplicateNodeName" },
           "422": { "$ref": "#/components/responses/NodeRenameValidationFailed" }
@@ -176,7 +280,7 @@
       "get": {
         "operationId": "listInstitutionNodeChildren",
         "summary": "List direct child nodes",
-        "description": "Returns only active direct children of the selected active node in the authenticated user's institution. It does not return descendants or documents.",
+        "description": "Returns only active direct children of the selected active node in the authenticated user's institution. It does not return descendants or documents. Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish.",
         "tags": ["Document explorer"],
         "security": [{ "bearerAuth": [] }],
         "parameters": [{ "$ref": "#/components/parameters/NodeId" }],
@@ -208,7 +312,31 @@
               }
             }
           },
-          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/LegacyError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstitutionAccessError"
+                }
+              }
+            }
+          },
           "404": { "$ref": "#/components/responses/NodeNotFound" }
         }
       }
@@ -217,7 +345,7 @@
       "get": {
         "operationId": "listInstitutionNodeDocuments",
         "summary": "List documents directly associated with a node",
-        "description": "Returns only active documents whose node_id is the selected active node. Documents from descendants and documents without a node are not returned. Each document includes an authoritative lifecycle summary without requiring a detail request per row.",
+        "description": "Returns only active documents whose node_id is the selected active node. Documents from descendants and documents without a node are not returned. Each document includes an authoritative lifecycle summary without requiring a detail request per row. Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish.",
         "tags": ["Document explorer"],
         "security": [{ "bearerAuth": [] }],
         "parameters": [{ "$ref": "#/components/parameters/NodeId" }],
@@ -263,14 +391,38 @@
               }
             }
           },
-          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/LegacyError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstitutionAccessError"
+                }
+              }
+            }
+          },
           "404": { "$ref": "#/components/responses/NodeNotFound" }
         }
       },
       "post": {
         "operationId": "createInstitutionDocument",
         "summary": "Create a logical document in a node",
-        "description": "Creates an active logical document in an accessible active node owned by the authenticated user's institution. Admin and editor roles are allowed. The identifier, institution, author, node association, lifecycle status, and timestamps are server-derived. This operation does not upload a file or create an initial document version.",
+        "description": "Creates an active logical document in an accessible active node owned by the authenticated user's institution. Admin and editor roles are allowed. The identifier, institution, author, node association, lifecycle status, and timestamps are server-derived. This operation does not upload a file or create an initial document version. Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish.",
         "tags": ["Document explorer"],
         "security": [{ "bearerAuth": [] }],
         "parameters": [{ "$ref": "#/components/parameters/NodeId" }],
@@ -330,8 +482,36 @@
               }
             }
           },
-          "401": { "$ref": "#/components/responses/CanonicalUnauthenticated" },
-          "403": { "$ref": "#/components/responses/DocumentCreateForbidden" },
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/CanonicalError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/CanonicalError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "404": { "$ref": "#/components/responses/DocumentLocationNotFound" },
           "422": { "$ref": "#/components/responses/DocumentValidationFailed" }
         }
@@ -560,6 +740,64 @@
                 "additionalProperties": {
                   "type": "array",
                   "items": { "type": "string" }
+                }
+              }
+            }
+          }
+        }
+      },
+      "InstitutionAccessError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["success", "error"],
+        "properties": {
+          "success": {
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["code", "message"],
+            "properties": {
+              "code": {
+                "enum": [
+                  "INSTITUTION_SUSPENDED",
+                  "AUTH_UNAUTHENTICATED",
+                  "AUTH_ACCOUNT_INACTIVE",
+                  "USER_QUOTA_EXCEEDED",
+                  "INSTITUTION_REQUIRES_USABLE_ADMIN"
+                ]
+              },
+              "message": { "type": "string" },
+              "details": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "role",
+                  "limit",
+                  "used",
+                  "requested_delta"
+                ],
+                "properties": {
+                  "role": {
+                    "enum": [
+                      "admin",
+                      "editor",
+                      "reader"
+                    ]
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "used": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "requested_delta": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
                 }
               }
             }

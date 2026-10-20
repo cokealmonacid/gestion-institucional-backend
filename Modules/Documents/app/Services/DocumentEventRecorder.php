@@ -3,6 +3,7 @@
 namespace Modules\Documents\Services;
 
 use App\Models\User;
+use App\Platform\Models\PlatformOperator;
 use Carbon\CarbonInterface;
 use Modules\Documents\Enums\DocumentEventType;
 use Modules\Documents\Models\Document;
@@ -15,7 +16,7 @@ class DocumentEventRecorder
     public function record(
         Document $document,
         DocumentEventType $type,
-        ?User $actor,
+        User|PlatformOperator|null $actor,
         array $detail,
         string $sourceType,
         string $sourceId,
@@ -29,6 +30,8 @@ class DocumentEventRecorder
             'type' => $type,
             'actor_user_id' => $this->validActor($document, $actor)?->id,
             'actor_name' => $this->validActor($document, $actor)?->name,
+            'actor_platform_operator_id' => $actor instanceof PlatformOperator ? $actor->id : null,
+            'actor_platform_operator_name' => $actor instanceof PlatformOperator ? $actor->name : null,
             'version_id' => $version?->id,
             'detail' => $type === DocumentEventType::Created
                 ? (object) []
@@ -40,9 +43,9 @@ class DocumentEventRecorder
         ]);
     }
 
-    private function validActor(Document $document, ?User $actor): ?User
+    private function validActor(Document $document, User|PlatformOperator|null $actor): ?User
     {
-        return $actor && (string) $actor->institution_id === (string) $document->institution_id
+        return $actor instanceof User && (string) $actor->institution_id === (string) $document->institution_id
             ? $actor
             : null;
     }

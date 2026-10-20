@@ -7,7 +7,6 @@ use App\Models\Rol;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
-use Laravel\Sanctum\Sanctum;
 use Modules\Institution\Models\Institution;
 use Modules\Institution\Models\Tag;
 use Tests\TestCase;
@@ -28,7 +27,7 @@ class InstitutionTagsContractTest extends TestCase
         [$institution, $user] = $this->institutionUser();
         $own = Tag::factory()->create(['institution_id' => $institution->id, 'name' => 'Own']);
         Tag::factory()->create(['institution_id' => Institution::factory(), 'name' => 'Foreign']);
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         $response = $this->getJson('/api/v1/institution/tag')->assertOk()
             ->assertJsonPath('message', 'Tags retrieved successfully.')
@@ -41,7 +40,7 @@ class InstitutionTagsContractTest extends TestCase
     public function test_matching_institution_can_create_and_delete_a_tag(): void
     {
         [$institution, $user] = $this->institutionUser();
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         $created = $this->postJson('/api/v1/institution/tag', [
             'institution_id' => $institution->id,
@@ -61,7 +60,7 @@ class InstitutionTagsContractTest extends TestCase
     {
         [, $user] = $this->institutionUser();
         $other = Institution::factory()->create();
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         $this->postJson('/api/v1/institution/tag', [
             'institution_id' => $other->id,
@@ -88,7 +87,7 @@ class InstitutionTagsContractTest extends TestCase
     {
         [$institution, $reader] = $this->institutionUser(RoleType::Reader);
         $tag = Tag::factory()->create(['institution_id' => $institution->id]);
-        Sanctum::actingAs($reader);
+        $this->authenticateInstitutionUser($reader);
 
         $this->postJson('/api/v1/institution/tag', [
             'institution_id' => $institution->id,
@@ -105,7 +104,7 @@ class InstitutionTagsContractTest extends TestCase
     {
         [$institution, $editor] = $this->institutionUser(RoleType::Editor);
         $foreign = Tag::factory()->create(['institution_id' => Institution::factory()]);
-        Sanctum::actingAs($editor);
+        $this->authenticateInstitutionUser($editor);
 
         $this->deleteJson("/api/v1/institution/tag/{$foreign->id}?institution_id={$institution->id}")
             ->assertNotFound();

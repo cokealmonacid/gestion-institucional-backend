@@ -6,7 +6,6 @@ use App\Enums\RoleType;
 use App\Models\Rol;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Laravel\Sanctum\Sanctum;
 use Modules\Documents\Models\Document;
 use Modules\Documents\Models\DocumentTag;
 use Modules\Documents\Models\DocumentVersion;
@@ -25,13 +24,13 @@ class InstitutionAuthorizationMatrixTest extends TestCase
         $node = $this->node($institution);
 
         foreach ([RoleType::Reader, RoleType::Editor] as $role) {
-            Sanctum::actingAs($this->user($institution, $role));
+            $this->authenticateInstitutionUser($this->user($institution, $role));
             $this->deleteJson("/api/v1/institution/tree-directory/{$node->id}")->assertForbidden();
             $this->patchJson("/api/v1/institution/tree-directory/{$node->id}/activate")->assertForbidden();
             $this->assertSame(1, (int) $node->fresh()->active);
         }
 
-        Sanctum::actingAs($this->user($institution, RoleType::Admin));
+        $this->authenticateInstitutionUser($this->user($institution, RoleType::Admin));
         $this->deleteJson("/api/v1/institution/tree-directory/{$node->id}")->assertOk();
         $this->assertSame(0, (int) $node->fresh()->active);
         $this->patchJson("/api/v1/institution/tree-directory/{$node->id}/activate")->assertOk();
@@ -50,14 +49,14 @@ class InstitutionAuthorizationMatrixTest extends TestCase
         ];
 
         foreach ([RoleType::Reader, RoleType::Editor] as $role) {
-            Sanctum::actingAs($this->user($institution, $role));
+            $this->authenticateInstitutionUser($this->user($institution, $role));
 
             foreach ($mutations as [$method, $uri]) {
                 $this->{$method}($uri)->assertForbidden();
             }
         }
 
-        Sanctum::actingAs($this->user($institution, RoleType::Admin));
+        $this->authenticateInstitutionUser($this->user($institution, RoleType::Admin));
 
         foreach ($mutations as [$method, $uri]) {
             $this->{$method}($uri)->assertOk();
@@ -72,7 +71,7 @@ class InstitutionAuthorizationMatrixTest extends TestCase
             $institution = Institution::factory()->create();
             $actor = $this->user($institution, $role);
             $document = $this->document($institution, $actor);
-            Sanctum::actingAs($actor);
+            $this->authenticateInstitutionUser($actor);
 
             $update = $this->patchJson("/api/v1/documents/{$document->id}", ['name' => 'Updated']);
             $delete = $this->deleteJson("/api/v1/documents/{$document->id}");
@@ -103,7 +102,7 @@ class InstitutionAuthorizationMatrixTest extends TestCase
             $actor = $this->user($institution, $role);
             $document = $this->document($institution, $actor);
             $version = $this->version($document, $actor);
-            Sanctum::actingAs($actor);
+            $this->authenticateInstitutionUser($actor);
 
             $deactivate = $this->deleteJson("/api/v1/documents/{$document->id}/versions/{$version->id}");
             if ($role === RoleType::Reader) {
@@ -129,7 +128,7 @@ class InstitutionAuthorizationMatrixTest extends TestCase
             $version = $this->version($document, $actor);
             $tag = Tag::factory()->create(['institution_id' => $institution->id]);
             $replacementTag = Tag::factory()->create(['institution_id' => $institution->id]);
-            Sanctum::actingAs($actor);
+            $this->authenticateInstitutionUser($actor);
 
             $tagResponse = $this->postJson("/api/v1/institution/document/{$document->id}/tags", [
                 'institution_id' => $institution->id,
@@ -183,7 +182,7 @@ class InstitutionAuthorizationMatrixTest extends TestCase
             'tag_id' => $foreignTag->id,
             'assigned_by_id' => $foreignAuthor->id,
         ]);
-        Sanctum::actingAs($editor);
+        $this->authenticateInstitutionUser($editor);
 
         $this->postJson("/api/v1/institution/document/{$foreignDocument->id}/tags", [
             'institution_id' => $institution->id,
@@ -208,7 +207,7 @@ class InstitutionAuthorizationMatrixTest extends TestCase
             $actor = $this->user($institution, $role);
             $document = $this->document($institution, $actor);
             $version = $this->version($document, $actor);
-            Sanctum::actingAs($actor);
+            $this->authenticateInstitutionUser($actor);
 
             $this->getJson("/api/v1/documents/{$document->id}/versions/notes")->assertOk();
             $this->getJson("/api/v1/documents/{$document->id}/versions/{$version->id}/note/history")->assertOk();

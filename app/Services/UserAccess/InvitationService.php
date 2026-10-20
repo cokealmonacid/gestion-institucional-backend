@@ -5,12 +5,14 @@ namespace App\Services\UserAccess;
 use App\Jobs\SendUserInvitation;
 use App\Models\User;
 use App\Models\UserInvitation;
+use App\Platform\Services\AdministrativeEventRecorder;
 use App\Rules\UserPassword;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Modules\Institution\Models\Institution;
+use Modules\Institution\Services\InstitutionalAccess;
 use RuntimeException;
 use Throwable;
 
@@ -33,6 +35,8 @@ class InvitationService
             'provider_accepted_at' => null,
             'failed_at' => null,
             'consumed_at' => null,
+            'revoked_at' => null,
+            'institution_auth_epoch' => (int) Institution::whereKey($user->institution_id)->value('auth_epoch'),
         ];
 
         if ($invitation) {
@@ -40,6 +44,8 @@ class InvitationService
         } else {
             $invitation = UserInvitation::create(['user_id' => $user->id] + $values);
         }
+
+        $user->forceFill(['access_revision' => (int) $user->access_revision + 1])->save();
 
         return [$invitation, $token];
     }
@@ -64,7 +70,7 @@ class InvitationService
     public function reissue(User $actor, string $userId): array
     {
         return DB::transaction(function () use ($actor, $userId): array {
-            $institution = Institution::query()->whereKey($actor->institution_id)->lockForUpdate()->firstOrFail();
+            $institution = app(InstitutionalAccess::class)->lock($actor, 'users.manage');
             $user = User::query()->whereKey($userId)->where('institution_id', $institution->id)->lockForUpdate()->firstOrFail();
 
             if (! $institution->status || ! $user->active || $user->email_verified_at !== null) {
@@ -77,7 +83,10 @@ class InvitationService
                 throw new RuntimeException('INVITATION_RESEND_THROTTLED');
             }
 
-            return $this->issueLocked($user);
+            $issued = $this->issueLocked($user);
+            app(AdministrativeEventRecorder::class)->record($actor, 'user.invitation_reissued', 'institution_user', $user->id, [], ['generation' => $issued[0]->generation], 'Institutional invitation resend', $institution->id);
+
+            return $issued;
         }, 3);
     }
 
@@ -95,6 +104,7 @@ class InvitationService
 
             if (! $institution?->status || ! $user?->active || $user->email_verified_at !== null
                 || ! $invitation || $invitation->token_hash === null || $invitation->consumed_at !== null
+                || $invitation->revoked_at !== null || (int) $invitation->institution_auth_epoch !== (int) $institution->auth_epoch
                 || $invitation->expires_at->isPast() || ! Hash::check($credentials['token'], $invitation->token_hash)) {
                 return false;
             }
@@ -103,6 +113,7 @@ class InvitationService
                 'password' => $credentials['password'],
                 'email_verified_at' => now(),
                 'remember_token' => Str::random(60),
+                'access_revision' => (int) $user->access_revision + 1,
             ])->save();
             $user->tokens()->delete();
             DB::table('password_reset_tokens')->where('email', $user->email)->delete();
@@ -110,6 +121,8 @@ class InvitationService
                 'token_hash' => null,
                 'consumed_at' => now(),
             ]);
+
+            app(AdministrativeEventRecorder::class)->record($user, 'user.activated', 'institution_user', $user->id, [], ['activated' => true, 'access_revision' => (int) $user->access_revision], 'Invitation activation', $institution->id);
 
             return true;
         }, 3);

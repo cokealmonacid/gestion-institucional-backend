@@ -6,7 +6,6 @@ use App\Enums\RoleType;
 use App\Models\Rol;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Laravel\Sanctum\Sanctum;
 use Modules\Documents\Models\Document;
 use Modules\Institution\Models\Institution;
 use Modules\Nodes\Models\Node;
@@ -30,7 +29,7 @@ class DocumentSearchContractTest extends TestCase
         $match = $this->document($institution, $node, 'Institutional Policy');
         $this->document($institution, $node, 'Annual report');
 
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         $response = $this->getJson('/api/v1/institution/documents/search?q=POLIcy')
             ->assertOk()
@@ -56,7 +55,7 @@ class DocumentSearchContractTest extends TestCase
         $otherInstitution = Institution::factory()->create();
         $foreign = $this->document($otherInstitution, $this->node($otherInstitution), 'Shared confidential policy');
 
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         $response = $this->getJson('/api/v1/institution/documents/search?q=shared')
             ->assertOk()
@@ -78,7 +77,7 @@ class DocumentSearchContractTest extends TestCase
             $this->document($institution, $node, sprintf('Match %02d', $number));
         }
 
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         $response = $this->getJson('/api/v1/institution/documents/search?q=match')
             ->assertOk()
@@ -90,7 +89,7 @@ class DocumentSearchContractTest extends TestCase
     public function test_query_validation_is_preserved(): void
     {
         [, $user] = $this->institutionUser(RoleType::Reader);
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         $this->getJson('/api/v1/institution/documents/search?q=x')
             ->assertUnprocessable()

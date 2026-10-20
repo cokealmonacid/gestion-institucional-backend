@@ -7,6 +7,8 @@
     <testsuites>
         <testsuite name="MySQL user access concurrency">
             <file>tests/Feature/MySql/UserAccessConcurrencyTest.php</file>
+            <file>tests/Feature/MySql/PlatformAdministrationConcurrencyTest.php</file>
+            <file>tests/Feature/MySql/PlatformMigrationRehearsalTest.php</file>
         </testsuite>
     </testsuites>
 </phpunit>

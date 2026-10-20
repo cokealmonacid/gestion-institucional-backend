@@ -15,7 +15,7 @@ class DocumentLifecycleOpenApiTest extends TestCase
     {
         $contract = $this->contract();
         $this->assertSame('3.1.0', $contract['openapi']);
-        $this->assertSame('3.0.0', $contract['info']['version']);
+        $this->assertSame('4.0.0', $contract['info']['version']);
 
         $operations = [];
         foreach ($contract['paths'] as $path) {

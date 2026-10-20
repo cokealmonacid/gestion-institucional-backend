@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Acervo Institution Documents API",
-    "version": "1.1.0",
-    "description": "Contract for listing, with pagination, every document belonging to the authenticated user's institution regardless of its node, and searching active institution documents by name."
+    "version": "2.0.0",
+    "description": "Contract for listing, with pagination, every document belonging to the authenticated user's institution regardless of its node, and searching active institution documents by name. Block B consistently enforces operational suspension and credential epochs. Old credentials without current epoch metadata require fresh login; reactivation restores no credentials."
   },
   "tags": [
     {
@@ -16,7 +16,7 @@
       "get": {
         "operationId": "listInstitutionDocuments",
         "summary": "List documents of the authenticated user's institution",
-        "description": "Returns a paginated list of every document whose institution_id matches the authenticated user's own institution_id, across all nodes. Only active documents are returned by default; passing status=false additionally includes inactive documents. Each document includes its author name, an authoritative lifecycle summary without requiring a detail request per row, and a human-readable creation time. Documents are ordered by creation timestamp descending, then id ascending.",
+        "description": "Returns a paginated list of every document whose institution_id matches the authenticated user's own institution_id, across all nodes. Only active documents are returned by default; passing status=false additionally includes inactive documents. Each document includes its author name, an authoritative lifecycle summary without requiring a detail request per row, and a human-readable creation time. Documents are ordered by creation timestamp descending, then id ascending. Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish.",
         "tags": ["Institution documents"],
         "security": [{ "bearerAuth": [] }],
         "parameters": [
@@ -76,8 +76,36 @@
               }
             }
           },
-          "401": { "$ref": "#/components/responses/Unauthenticated" },
-          "403": { "$ref": "#/components/responses/InactiveAccount" }
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/LegacyError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/InactiveAccountError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          }
         }
       }
     },
@@ -85,7 +113,7 @@
       "get": {
         "operationId": "searchInstitutionDocuments",
         "summary": "Search active documents of the authenticated user's institution",
-        "description": "Returns at most ten active documents in the authenticated user's institution whose name contains q, ordered by name and identifier. The search is case-insensitive on supported database drivers.",
+        "description": "Returns at most ten active documents in the authenticated user's institution whose name contains q, ordered by name and identifier. The search is case-insensitive on supported database drivers. Suspended institutions are denied with INSTITUTION_SUSPENDED (403). Revoked/unstamped credentials are unavailable (401). Reads recheck before emission; admitted streams may finish.",
         "tags": ["Institution documents"],
         "security": [{ "bearerAuth": [] }],
         "parameters": [
@@ -132,8 +160,36 @@
               }
             }
           },
-          "401": { "$ref": "#/components/responses/Unauthenticated" },
-          "403": { "$ref": "#/components/responses/InactiveAccount" },
+          "401": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/LegacyError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Suspension, insufficient permission or unavailable credentials.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    { "$ref": "#/components/schemas/InactiveAccountError" },
+                    {
+                      "$ref": "#/components/schemas/InstitutionAccessError"
+                    }
+                  ]
+                }
+              }
+            }
+          },
           "422": {
             "description": "The search query is missing or invalid.",
             "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DocumentSearchValidationError" } } }
@@ -306,6 +362,67 @@
         "properties": {
           "success": { "type": "boolean", "enum": [false] },
           "message": { "type": "string", "enum": ["This account is inactive."] }
+        }
+      },
+      "InstitutionAccessError": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "success",
+          "error"
+        ],
+        "properties": {
+          "success": {
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "enum": [
+                  "INSTITUTION_SUSPENDED",
+                  "AUTH_UNAUTHENTICATED",
+                  "AUTH_ACCOUNT_INACTIVE",
+                  "USER_QUOTA_EXCEEDED",
+                  "INSTITUTION_REQUIRES_USABLE_ADMIN"
+                ]
+              },
+              "message": { "type": "string" },
+              "details": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "role",
+                  "limit",
+                  "used",
+                  "requested_delta"
+                ],
+                "properties": {
+                  "role": {
+                    "enum": [
+                      "admin",
+                      "editor",
+                      "reader"
+                    ]
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "used": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "requested_delta": { "type": "integer", "minimum": 1 }
+                }
+              }
+            }
+          }
         }
       }
     },

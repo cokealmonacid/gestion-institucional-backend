@@ -4,7 +4,6 @@ namespace Tests\Feature\Api;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Laravel\Sanctum\Sanctum;
 use Modules\Institution\Models\Institution;
 use Tests\TestCase;
 
@@ -16,7 +15,7 @@ class ActiveUserMiddlewareTest extends TestCase
     {
         $user = User::factory()->inactive()->for(Institution::factory())->create();
 
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         $this->getJson('/api/v1/user/profile')
             ->assertForbidden()
@@ -28,7 +27,7 @@ class ActiveUserMiddlewareTest extends TestCase
     {
         $user = User::factory()->for(Institution::factory())->create();
 
-        Sanctum::actingAs($user);
+        $this->authenticateInstitutionUser($user);
 
         $this->getJson('/api/v1/user/profile')->assertOk();
     }

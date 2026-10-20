@@ -126,6 +126,8 @@ class SendUserInvitation implements ShouldBeEncrypted, ShouldQueueAfterCommit
             && $invitation->token_hash !== null
             && Hash::check($this->token, $invitation->token_hash)
             && $invitation->consumed_at === null
+            && $invitation->revoked_at === null
+            && (int) $invitation->institution_auth_epoch === (int) $invitation->user?->institution?->auth_epoch
             && $invitation->expires_at->isFuture()
             && $invitation->user !== null
             && $invitation->user->active
