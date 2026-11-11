@@ -2,6 +2,7 @@
 
 use Illuminate\Support\Facades\Route;
 use Modules\Institution\Http\Controllers\API\InstitutionsController;
+use Modules\Institution\Http\Controllers\API\OnboardingInstitutionController;
 use Modules\Institution\Http\Controllers\API\TagsController;
 use Modules\Institution\Http\Controllers\API\TreeDirectoryController;
 use Modules\Institution\Http\Controllers\API\UsersController;
@@ -12,6 +13,10 @@ use Modules\Institution\Http\Controllers\API\UsersController;
 
 Route::prefix('v1')->middleware(['auth:sanctum', 'active', 'institution.access'])->controller(InstitutionsController::class)->group(function () {
     Route::get('/institutions', 'index');
+});
+
+Route::prefix('v1')->middleware(['auth:sanctum', 'active', 'email.verified'])->group(function () {
+    Route::post('/onboarding/institution', [OnboardingInstitutionController::class, 'store']);
 });
 
 Route::prefix('v1')->middleware(['auth:sanctum', 'active', 'institution.access', 'can:institution.view'])->controller(TreeDirectoryController::class)->group(function () {

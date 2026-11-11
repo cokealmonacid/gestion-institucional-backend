@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureInstitutionAccess;
+use App\Http\Middleware\EnsureEmailIsVerified;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Responses\ApiResponse;
 use App\Platform\Http\Middleware\PlatformAuthenticate;
@@ -30,6 +31,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'active' => EnsureUserIsActive::class,
+            'email.verified' => EnsureEmailIsVerified::class,
             'platform.auth' => PlatformAuthenticate::class,
             'platform.can' => PlatformAuthorize::class,
             'institution.access' => EnsureInstitutionAccess::class,
