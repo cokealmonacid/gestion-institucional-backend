@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureInstitutionAccess;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Responses\ApiResponse;
 use App\Platform\Http\Middleware\PlatformAuthenticate;
@@ -31,6 +32,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'active' => EnsureUserIsActive::class,
             'platform.auth' => PlatformAuthenticate::class,
             'platform.can' => PlatformAuthorize::class,
+            'institution.access' => EnsureInstitutionAccess::class,
         ]);
         $middleware->api(prepend: [RejectPlatformCredentials::class]);
         $middleware->web(prepend: [RejectPlatformCredentials::class], append: [EnsureUserIsActive::class]);
@@ -91,7 +93,7 @@ return Application::configure(basePath: dirname(__DIR__))
         });
 
         $exceptions->render(function (AuthenticationException $e, Request $request) {
-            $usesAuthenticationContract = (
+            $usesAuthenticationContract = $request->is('api/v1/auth/email/*') || (
                 $request->isMethod('GET')
                 && $request->is('api/v1/user/profile')
             ) || (

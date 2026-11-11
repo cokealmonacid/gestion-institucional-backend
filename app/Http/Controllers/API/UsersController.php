@@ -6,8 +6,13 @@ use App\Http\Controllers\BaseController;
 use App\Http\Resources\UserResource;
 use App\Http\Responses\ApiResponse;
 use App\Models\User;
+<<<<<<< HEAD
 use App\Platform\Services\AdministrativeEventRecorder;
 use App\Rules\UserPassword;
+use App\Services\OnboardingStateResolver;
+=======
+use App\Services\OnboardingStateResolver;
+>>>>>>> 23d7d36 (feat: add account onboarding authentication)
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -23,6 +28,7 @@ class UsersController extends BaseController
 
         return ApiResponse::success([
             'user' => $userData,
+            'onboarding' => app(OnboardingStateResolver::class)->resolve($user),
         ], 'Profile retrieved successfully.');
     }
 
