@@ -35,6 +35,10 @@ abstract class TestCase extends BaseTestCase
         parent::setUp();
 
         config(['documents.storage_disk' => null]);
+        config([
+            'onboarding.registration_enabled' => true,
+            'onboarding.institution_enforcement_enabled' => true,
+        ]);
 
         $this->withoutVite();
     }

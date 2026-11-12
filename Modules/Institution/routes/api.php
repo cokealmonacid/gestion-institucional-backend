@@ -11,15 +11,15 @@ use Modules\Institution\Http\Controllers\API\UsersController;
 //     Route::apiResource('institutions', InstitutionController::class)->names('institution');
 // });
 
-Route::prefix('v1')->middleware(['auth:sanctum', 'active', 'institution.access'])->controller(InstitutionsController::class)->group(function () {
+Route::prefix('v1')->middleware(['auth:sanctum', 'active', 'institution.ready'])->controller(InstitutionsController::class)->group(function () {
     Route::get('/institutions', 'index');
 });
 
-Route::prefix('v1')->middleware(['auth:sanctum', 'active', 'email.verified'])->group(function () {
+Route::prefix('v1')->middleware(['auth:sanctum', 'active', 'email.verified', 'onboarding.enabled'])->group(function () {
     Route::post('/onboarding/institution', [OnboardingInstitutionController::class, 'store']);
 });
 
-Route::prefix('v1')->middleware(['auth:sanctum', 'active', 'institution.access', 'can:institution.view'])->controller(TreeDirectoryController::class)->group(function () {
+Route::prefix('v1')->middleware(['auth:sanctum', 'active', 'institution.ready', 'can:institution.view'])->controller(TreeDirectoryController::class)->group(function () {
     Route::get('/institution/tree-directory', 'index');
     Route::get('/institution/tree-directory/{node_id}/children', 'children');
     Route::get('/institution/tree-directory/{node_id}', 'show');
@@ -30,20 +30,20 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'active', 'institution.access',
     Route::patch('/institution/tree-directory/{node_id}/activate', 'activate')->middleware('can:nodes.manage');
 });
 
-Route::prefix('v1')->middleware(['auth:sanctum', 'active', 'institution.access', 'can:institution.view'])->controller(TagsController::class)->group(function () {
+Route::prefix('v1')->middleware(['auth:sanctum', 'active', 'institution.ready', 'can:institution.view'])->controller(TagsController::class)->group(function () {
     Route::get('/institution/tag', 'index');
 });
 
-Route::prefix('v1')->middleware(['auth:sanctum', 'active', 'institution.access', 'can:tags.manage'])->controller(TagsController::class)->group(function () {
+Route::prefix('v1')->middleware(['auth:sanctum', 'active', 'institution.ready', 'can:tags.manage'])->controller(TagsController::class)->group(function () {
     Route::post('/institution/tag', 'store');
     Route::delete('/institution/tag/{tag_id}', 'destroy');
 });
 
-Route::prefix('v1')->middleware(['auth:sanctum', 'active', 'institution.access', 'can:users.manage'])->controller(UsersController::class)->group(function () {
+Route::prefix('v1')->middleware(['auth:sanctum', 'active', 'institution.ready', 'can:users.manage'])->controller(UsersController::class)->group(function () {
     Route::get('/institution/users', 'index');
 });
 
-Route::prefix('v1')->middleware(['auth:sanctum', 'active', 'institution.access', 'can:users.manage'])->controller(UsersController::class)->group(function () {
+Route::prefix('v1')->middleware(['auth:sanctum', 'active', 'institution.ready', 'can:users.manage'])->controller(UsersController::class)->group(function () {
     Route::post('/institution/users', 'store');
     Route::post('/institution/user-invitations', 'invite');
     Route::get('/institution/users/{user_id}/invitation', 'invitationStatus');

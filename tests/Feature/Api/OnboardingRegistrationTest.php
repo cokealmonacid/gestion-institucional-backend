@@ -72,6 +72,16 @@ class OnboardingRegistrationTest extends TestCase
         $this->assertDatabaseCount('personal_access_tokens', 0);
     }
 
+    public function test_registration_can_be_disabled_until_the_coordinated_release(): void
+    {
+        config(['onboarding.registration_enabled' => false]);
+
+        $this->postJson('/api/v1/auth/register', $this->registration())
+            ->assertStatus(503)
+            ->assertJsonPath('error.code', 'ONBOARDING_DISABLED');
+        $this->assertDatabaseCount('users', 0);
+    }
+
     public function test_duplicate_and_soft_deleted_emails_cannot_be_registered_or_restored(): void
     {
         $user = User::factory()->create(['email' => 'new@example.test']);
@@ -133,7 +143,7 @@ class OnboardingRegistrationTest extends TestCase
         $user = User::factory()->unverified()->for(Institution::factory())->create();
         $this->actingAs($user)->get('/dashboard')->assertOk();
         $this->getJson('/api/v1/institution/tree-directory')->assertForbidden()
-            ->assertJsonPath('error.code', 'ONBOARDING_REQUIRED');
+            ->assertJsonPath('error.code', 'EMAIL_VERIFICATION_REQUIRED');
     }
 
     public function test_registration_and_login_are_rate_limited(): void

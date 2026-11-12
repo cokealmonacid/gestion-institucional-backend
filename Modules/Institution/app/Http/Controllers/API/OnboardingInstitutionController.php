@@ -25,8 +25,7 @@ class OnboardingInstitutionController extends Controller
         }
 
         $user = $request->user()->fresh(['institution:id,name', 'roles:id,type']);
-        $session = $sessionIssuer->issue($user, $request);
-        $currentToken?->delete();
+        $session = $sessionIssuer->exchange($user, $request, $currentToken);
 
         return response()->json([
             'success' => true,

@@ -7,7 +7,7 @@ use Modules\Documents\Http\Controllers\API\DocumentTagsController;
 use Modules\Documents\Http\Controllers\API\DocumentVersionNotesController;
 use Modules\Documents\Http\Controllers\API\DocumentVersionsController;
 
-Route::middleware(['auth:sanctum', 'active', 'institution.access', 'can:institution.view'])->prefix('v1')->group(function () {
+Route::middleware(['auth:sanctum', 'active', 'institution.ready', 'can:institution.view'])->prefix('v1')->group(function () {
     Route::controller(DocumentsController::class)->group(function () {
         Route::get('/institution/documents', 'index');
         Route::get('/institution/documents/search', 'search');
@@ -46,7 +46,7 @@ Route::middleware(['auth:sanctum', 'active', 'institution.access', 'can:institut
     });
 });
 
-Route::prefix('v1')->middleware(['auth:sanctum', 'active', 'institution.access', 'can:documents.tag'])->controller(DocumentTagsController::class)->group(function () {
+Route::prefix('v1')->middleware(['auth:sanctum', 'active', 'institution.ready', 'can:documents.tag'])->controller(DocumentTagsController::class)->group(function () {
     Route::post('institution/document/{document_id}/tags', 'store');
     Route::patch('institution/document/{document_id}/tags', 'update');
     Route::delete('institution/document/{document_id}/tags', 'destroy');

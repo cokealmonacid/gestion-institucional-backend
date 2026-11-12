@@ -2,6 +2,8 @@
 
 use App\Http\Middleware\EnsureInstitutionAccess;
 use App\Http\Middleware\EnsureEmailIsVerified;
+use App\Http\Middleware\EnsureInstitutionReady;
+use App\Http\Middleware\EnsureOnboardingEnabled;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Responses\ApiResponse;
 use App\Platform\Http\Middleware\PlatformAuthenticate;
@@ -35,6 +37,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'platform.auth' => PlatformAuthenticate::class,
             'platform.can' => PlatformAuthorize::class,
             'institution.access' => EnsureInstitutionAccess::class,
+            'institution.ready' => EnsureInstitutionReady::class,
+            'onboarding.enabled' => EnsureOnboardingEnabled::class,
         ]);
         $middleware->api(prepend: [RejectPlatformCredentials::class]);
         $middleware->web(prepend: [RejectPlatformCredentials::class], append: [EnsureUserIsActive::class]);

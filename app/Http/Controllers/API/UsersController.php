@@ -23,7 +23,7 @@ class UsersController extends BaseController
 {
     public function profile(Request $request)
     {
-        $user = $request->user()->load(['institution:id,name', 'roles:id,type']);
+        $user = $request->user()->load(['institution:id,name,status,provisioning_status', 'roles:id,type']);
         $userData = (new UserResource($user))->resolve($request);
 
         return ApiResponse::success([

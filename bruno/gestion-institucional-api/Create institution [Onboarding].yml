@@ -1,0 +1,23 @@
+info:
+  name: Create institution [Onboarding]
+  type: http
+  seq: 46
+
+http:
+  method: POST
+  url: "{{API}}/onboarding/institution"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Institución de prueba"
+      }
+  auth:
+    type: bearer
+    token: "{{TOKEN}}"
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5

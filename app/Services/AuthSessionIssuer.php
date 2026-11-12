@@ -5,12 +5,13 @@ namespace App\Services;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class AuthSessionIssuer
 {
     public function issue(User $user, Request $request): array
     {
-        $user->load(['institution:id,name', 'roles:id,type']);
+        $user->load(['institution:id,name,status,provisioning_status', 'roles:id,type']);
         $onboarding = app(OnboardingStateResolver::class)->resolve($user);
         $pending = $onboarding['state'] !== 'ready';
         $token = $user->createToken(
@@ -25,5 +26,15 @@ class AuthSessionIssuer
             'token' => $token->plainTextToken,
             'onboarding' => $onboarding,
         ];
+    }
+
+    public function exchange(User $user, Request $request, mixed $currentToken): array
+    {
+        return DB::transaction(function () use ($user, $request, $currentToken): array {
+            $session = $this->issue($user, $request);
+            $currentToken?->delete();
+
+            return $session;
+        });
     }
 }

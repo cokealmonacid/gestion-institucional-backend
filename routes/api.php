@@ -16,7 +16,7 @@ Route::prefix('v1')->group(function () {
         Route::post('activation', 'activate')->middleware('throttle:activation');
     });
 
-    Route::post('auth/register', [RegistrationController::class, 'store'])->middleware('throttle:api-register');
+    Route::post('auth/register', [RegistrationController::class, 'store'])->middleware(['onboarding.enabled', 'throttle:api-register']);
     Route::middleware(['auth:sanctum', 'active'])->group(function () {
         Route::post('auth/email/verification-notification', [EmailVerificationController::class, 'resend'])
             ->middleware('throttle:api-verification-resend');
@@ -28,6 +28,6 @@ Route::prefix('v1')->group(function () {
         Route::get('profile', 'profile');
         Route::put('profile', 'updateProfile');
         Route::patch('update-password', 'updatePassword')->middleware('throttle:password-change');
-        Route::get('search', 'search')->middleware(['institution.access', 'isAdmin']);
+        Route::get('search', 'search')->middleware(['institution.ready', 'isAdmin']);
     });
 });
