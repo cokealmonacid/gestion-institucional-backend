@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Acervo Authentication API",
-    "version": "3.0.0",
+    "version": "4.0.0",
     "description": "Bearer-token authentication and account onboarding for Acervo. Accounts can hold an expiring onboarding token before email verification and institution creation. The server authorizes every institutional operation independently. Runtime addresses and secrets are not part of this contract."
   },
   "paths": {
@@ -11,7 +11,7 @@
         "operationId": "register", "summary": "Create an unverified onboarding account",
         "description": "Creates an active account with no institution or role and returns a 24-hour onboarding token. Email delivery is disabled in this release; the response never includes a verification link.",
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RegisterRequest" } } } },
-        "responses": { "201": { "description": "Account created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RegistrationSuccess" } } } }, "422": { "$ref": "#/components/responses/ValidationError" }, "429": { "$ref": "#/components/responses/RateLimited" } }
+        "responses": { "201": { "description": "Account created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RegistrationSuccess" } } } }, "422": { "$ref": "#/components/responses/ValidationError" }, "429": { "$ref": "#/components/responses/RateLimited" }, "503": { "$ref": "#/components/responses/OnboardingDisabled" } }
       }
     },
     "/api/v1/auth/login": {
@@ -78,7 +78,7 @@
       "VerifyEmailRequest": { "type": "object", "additionalProperties": false, "required": ["id", "hash", "expires", "signature"], "properties": { "id": { "type": "string", "format": "uuid" }, "hash": { "type": "string", "minLength": 40, "maxLength": 40 }, "expires": { "type": "integer" }, "signature": { "type": "string", "minLength": 64, "maxLength": 64 } } },
       "Institution": { "type": "object", "additionalProperties": false, "required": ["id", "name"], "properties": { "id": { "type": "string", "format": "uuid" }, "name": { "type": "string" } } },
       "User": { "type": "object", "additionalProperties": false, "required": ["id", "name", "email", "email_verified", "institution", "roles", "abilities"], "properties": { "id": { "type": "string", "format": "uuid" }, "name": { "type": "string" }, "email": { "type": "string", "format": "email" }, "email_verified": { "type": "boolean" }, "institution": { "anyOf": [{ "$ref": "#/components/schemas/Institution" }, { "type": "null" }] }, "roles": { "type": "array", "items": { "type": "string", "enum": ["admin", "editor", "reader"] } }, "abilities": { "type": "array", "uniqueItems": true, "items": { "type": "string", "enum": ["institution.view", "users.manage", "nodes.manage", "documents.manage", "versions.manage", "tags.manage", "documents.tag", "comments.manage", "traceability.view"] } } } },
-      "Onboarding": { "type": "object", "additionalProperties": false, "required": ["state", "next_step"], "properties": { "state": { "type": "string", "enum": ["verify_email", "create_institution", "ready"] }, "next_step": { "type": "string", "enum": ["verify_email", "create_institution", "ready"] } } },
+      "Onboarding": { "type": "object", "additionalProperties": false, "required": ["state", "next_step"], "properties": { "state": { "type": "string", "enum": ["verify_email", "create_institution", "preparing", "ready", "suspended"] }, "next_step": { "type": "string", "enum": ["verify_email", "create_institution", "preparing", "ready", "suspended"] } } },
       "SessionData": { "type": "object", "additionalProperties": false, "required": ["user", "token", "onboarding"], "properties": { "user": { "$ref": "#/components/schemas/User" }, "token": { "type": "string", "minLength": 1 }, "onboarding": { "$ref": "#/components/schemas/Onboarding" } } },
       "RegistrationData": { "allOf": [{ "$ref": "#/components/schemas/SessionData" }, { "type": "object", "required": ["delivery_status"], "properties": { "delivery_status": { "const": "disabled" } } }] },
       "ProfileData": { "type": "object", "additionalProperties": false, "required": ["user", "onboarding"], "properties": { "user": { "$ref": "#/components/schemas/User" }, "onboarding": { "$ref": "#/components/schemas/Onboarding" } } },
@@ -103,6 +103,7 @@
       "PasswordResetInvalid": { "description": "Password reset token is invalid or expired", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
       "ValidationError": { "description": "Request validation failed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ValidationError" } } } },
       "RateLimited": { "description": "Too many requests", "headers": { "Retry-After": { "required": true, "schema": { "type": "integer", "minimum": 1 } } }, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+      ,"OnboardingDisabled": { "description": "Onboarding is disabled", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
     }
   }
 }
