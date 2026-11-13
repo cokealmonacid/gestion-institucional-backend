@@ -21,16 +21,18 @@ class AuthenticationOpenApiTest extends TestCase
         $contract = $this->contract();
 
         $this->assertSame('3.1.0', $contract['openapi']);
-        $this->assertSame('3.0.0', $contract['info']['version']);
+        $this->assertSame('4.0.0', $contract['info']['version']);
         $this->assertArrayNotHasKey('servers', $contract);
         $this->assertSame([
             '/api/v1/auth/register',
             '/api/v1/auth/login',
             '/api/v1/auth/email/verification-notification',
             '/api/v1/auth/email/verify',
-            '/api/v1/auth/forget-password',
-            '/api/v1/auth/reset-password-confirm',
+            '/api/v1/auth/password-recovery',
+            '/api/v1/auth/password-reset',
+            '/api/v1/auth/activation',
             '/api/v1/user/profile',
+            '/api/v1/user/update-password',
             '/api/v1/auth/logout',
         ], array_keys($contract['paths']));
     }
@@ -39,13 +41,15 @@ class AuthenticationOpenApiTest extends TestCase
     {
         $paths = $this->contract()['paths'];
 
-        $this->assertSame([201, 422, 429], array_keys($paths['/api/v1/auth/register']['post']['responses']));
+        $this->assertSame([201, 422, 429, 503], array_keys($paths['/api/v1/auth/register']['post']['responses']));
         $this->assertSame([200, 401, 403, 422, 429], array_keys($paths['/api/v1/auth/login']['post']['responses']));
         $this->assertSame([202, 401, 403, 429], array_keys($paths['/api/v1/auth/email/verification-notification']['post']['responses']));
         $this->assertSame([200, 401, 403, 429], array_keys($paths['/api/v1/auth/email/verify']['post']['responses']));
-        $this->assertSame([202, 422, 429], array_keys($paths['/api/v1/auth/forget-password']['post']['responses']));
-        $this->assertSame([200, 400, 422, 429], array_keys($paths['/api/v1/auth/reset-password-confirm']['post']['responses']));
+        $this->assertSame([202, 422, 429], array_keys($paths['/api/v1/auth/password-recovery']['post']['responses']));
+        $this->assertSame([200, 400, 422, 429], array_keys($paths['/api/v1/auth/password-reset']['post']['responses']));
+        $this->assertSame([200, 400, 422, 429], array_keys($paths['/api/v1/auth/activation']['post']['responses']));
         $this->assertSame([200, 401, 403], array_keys($paths['/api/v1/user/profile']['get']['responses']));
+        $this->assertSame([200, 401, 403, 422, 429], array_keys($paths['/api/v1/user/update-password']['patch']['responses']));
         $this->assertSame([200, 401, 403], array_keys($paths['/api/v1/auth/logout']['post']['responses']));
         $this->assertSame([['bearerAuth' => []]], $paths['/api/v1/auth/email/verify']['post']['security']);
     }
@@ -55,7 +59,7 @@ class AuthenticationOpenApiTest extends TestCase
         $schemas = $this->contract()['components']['schemas'];
         $user = $schemas['User'];
 
-        $this->assertSame(['verify_email', 'create_institution', 'ready'], $schemas['Onboarding']['properties']['state']['enum']);
+        $this->assertSame(['verify_email', 'create_institution', 'preparing', 'ready', 'suspended'], $schemas['Onboarding']['properties']['state']['enum']);
         $this->assertContains('email_verified', $user['required']);
         $this->assertSame('null', $user['properties']['institution']['anyOf'][1]['type']);
         $this->assertSame(array_column(InstitutionAbility::cases(), 'value'), $user['properties']['abilities']['items']['enum']);

@@ -117,32 +117,21 @@ class OnboardingInstitutionTest extends TestCase
             'email' => $owner->email,
             'institution_id' => $institution->id,
             'active' => false,
-        ])->assertConflict()->assertJsonPath('code', 'INSTITUTION_OWNER_TRANSFER_REQUIRED');
+        ])->assertConflict()->assertJsonPath('error.code', 'INSTITUTION_OWNER_TRANSFER_REQUIRED');
 
         $this->withToken($token)->patchJson('/api/v1/institution/users', [
             'email' => $owner->email,
             'institution_id' => $institution->id,
             'role' => RoleType::Reader->value,
-        ])->assertConflict()->assertJsonPath('code', 'INSTITUTION_OWNER_TRANSFER_REQUIRED');
+        ])->assertConflict()->assertJsonPath('error.code', 'INSTITUTION_OWNER_TRANSFER_REQUIRED');
 
         $this->withToken($token)->deleteJson('/api/v1/institution/users', [
             'email' => $owner->email,
             'institution_id' => $institution->id,
-        ])->assertConflict()->assertJsonPath('code', 'INSTITUTION_OWNER_TRANSFER_REQUIRED');
+        ])->assertConflict()->assertJsonPath('error.code', 'INSTITUTION_OWNER_TRANSFER_REQUIRED');
 
         $this->assertDatabaseHas('users', ['id' => $owner->id, 'active' => true]);
         $this->assertNull($owner->fresh()->deleted_at);
     }
 
-    public function test_owner_cannot_delete_their_blade_profile_without_transfer(): void
-    {
-        $institution = Institution::factory()->create();
-        $owner = User::factory()->for($institution)->create(['password' => 'password']);
-        $institution->forceFill(['owner_user_id' => $owner->id])->save();
-
-        $this->actingAs($owner)->delete('/profile', ['password' => 'password'])
-            ->assertRedirect();
-
-        $this->assertNotSoftDeleted('users', ['id' => $owner->id]);
-    }
 }

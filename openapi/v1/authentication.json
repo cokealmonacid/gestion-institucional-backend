@@ -39,15 +39,15 @@
         "responses": { "200": { "description": "Email verified", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/EmailVerifiedSuccess" } } } }, "401": { "$ref": "#/components/responses/Unauthenticated" }, "403": { "$ref": "#/components/responses/EmailVerificationInvalid" }, "429": { "$ref": "#/components/responses/RateLimited" } }
       }
     },
-    "/api/v1/auth/forget-password": {
+    "/api/v1/auth/password-recovery": {
       "post": {
         "operationId": "requestPasswordReset", "summary": "Request password recovery",
-        "description": "Creates a broker-managed hashed recovery token without delivering it in this release. It does not verify an email address and the response never exposes the token.",
+        "description": "For eligible active institutional accounts, creates a broker-managed recovery token and requests delivery. It does not verify an email address and the response never exposes the token.",
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/EmailRequest" } } } },
-        "responses": { "202": { "description": "Request processed without delivery", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeliveryDisabledSuccess" } } } }, "422": { "$ref": "#/components/responses/ValidationError" }, "429": { "$ref": "#/components/responses/RateLimited" } }
+        "responses": { "202": { "description": "Recovery request accepted", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RecoveryRequestedSuccess" } } } }, "422": { "$ref": "#/components/responses/ValidationError" }, "429": { "$ref": "#/components/responses/RateLimited" } }
       }
     },
-    "/api/v1/auth/reset-password-confirm": {
+    "/api/v1/auth/password-reset": {
       "post": {
         "operationId": "resetPassword", "summary": "Reset a password using a broker token",
         "description": "Revokes existing personal access tokens after success. Password reset does not verify the email address.",
@@ -55,10 +55,24 @@
         "responses": { "200": { "description": "Password reset", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PasswordResetSuccess" } } } }, "400": { "$ref": "#/components/responses/PasswordResetInvalid" }, "422": { "$ref": "#/components/responses/ValidationError" }, "429": { "$ref": "#/components/responses/RateLimited" } }
       }
     },
+    "/api/v1/auth/activation": {
+      "post": {
+        "operationId": "activateInstitutionUser", "summary": "Activate an invited institutional account",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ResetPasswordRequest" } } } },
+        "responses": { "200": { "description": "Account activated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ActivationSuccess" } } } }, "400": { "$ref": "#/components/responses/PasswordResetInvalid" }, "422": { "$ref": "#/components/responses/ValidationError" }, "429": { "$ref": "#/components/responses/RateLimited" } }
+      }
+    },
     "/api/v1/user/profile": {
       "get": {
         "operationId": "profile", "summary": "Get the authenticated profile and onboarding state", "security": [{ "bearerAuth": [] }],
         "responses": { "200": { "description": "Profile retrieved", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ProfileSuccess" } } } }, "401": { "$ref": "#/components/responses/Unauthenticated" }, "403": { "$ref": "#/components/responses/AccountInactive" } }
+      }
+    },
+    "/api/v1/user/update-password": {
+      "patch": {
+        "operationId": "updatePassword", "summary": "Update the authenticated user's password", "security": [{ "bearerAuth": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/UpdatePasswordRequest" } } } },
+        "responses": { "200": { "description": "Password updated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PasswordUpdatedSuccess" } } } }, "401": { "$ref": "#/components/responses/Unauthenticated" }, "403": { "$ref": "#/components/responses/AccountInactive" }, "422": { "$ref": "#/components/responses/ValidationError" }, "429": { "$ref": "#/components/responses/RateLimited" } }
       }
     },
     "/api/v1/auth/logout": {
@@ -75,6 +89,7 @@
       "RegisterRequest": { "type": "object", "additionalProperties": false, "required": ["name", "email", "password", "password_confirmation"], "properties": { "name": { "type": "string", "maxLength": 255 }, "email": { "type": "string", "format": "email", "maxLength": 255 }, "password": { "type": "string", "minLength": 8 }, "password_confirmation": { "type": "string" } } },
       "EmailRequest": { "type": "object", "additionalProperties": false, "required": ["email"], "properties": { "email": { "type": "string", "format": "email" } } },
       "ResetPasswordRequest": { "type": "object", "additionalProperties": false, "required": ["email", "token", "password", "password_confirmation"], "properties": { "email": { "type": "string", "format": "email" }, "token": { "type": "string", "minLength": 1 }, "password": { "type": "string", "minLength": 8 }, "password_confirmation": { "type": "string" } } },
+      "UpdatePasswordRequest": { "type": "object", "additionalProperties": false, "required": ["current_password", "password", "password_confirmation"], "properties": { "current_password": { "type": "string" }, "password": { "type": "string", "minLength": 8 }, "password_confirmation": { "type": "string" } } },
       "VerifyEmailRequest": { "type": "object", "additionalProperties": false, "required": ["id", "hash", "expires", "signature"], "properties": { "id": { "type": "string", "format": "uuid" }, "hash": { "type": "string", "minLength": 40, "maxLength": 40 }, "expires": { "type": "integer" }, "signature": { "type": "string", "minLength": 64, "maxLength": 64 } } },
       "Institution": { "type": "object", "additionalProperties": false, "required": ["id", "name"], "properties": { "id": { "type": "string", "format": "uuid" }, "name": { "type": "string" } } },
       "User": { "type": "object", "additionalProperties": false, "required": ["id", "name", "email", "email_verified", "institution", "roles", "abilities"], "properties": { "id": { "type": "string", "format": "uuid" }, "name": { "type": "string" }, "email": { "type": "string", "format": "email" }, "email_verified": { "type": "boolean" }, "institution": { "anyOf": [{ "$ref": "#/components/schemas/Institution" }, { "type": "null" }] }, "roles": { "type": "array", "items": { "type": "string", "enum": ["admin", "editor", "reader"] } }, "abilities": { "type": "array", "uniqueItems": true, "items": { "type": "string", "enum": ["institution.view", "users.manage", "nodes.manage", "documents.manage", "versions.manage", "tags.manage", "documents.tag", "comments.manage", "traceability.view"] } } } },
@@ -89,7 +104,10 @@
       "ProfileSuccess": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/ProfileData" }, "message": { "const": "Profile retrieved successfully." } } }] },
       "DeliveryDisabledSuccess": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/DeliveryDisabledData" }, "message": { "const": "Email delivery is not available." } } }] },
       "EmailVerifiedSuccess": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "type": "object", "properties": { "data": { "type": "object", "additionalProperties": false, "required": ["email_verified", "onboarding"], "properties": { "email_verified": { "const": true }, "onboarding": { "$ref": "#/components/schemas/Onboarding" } } }, "message": { "const": "Email verified." } } }] },
-      "PasswordResetSuccess": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "type": "object", "properties": { "data": { "type": "array", "maxItems": 0 }, "message": { "const": "Password has been reset successfully." } } }] },
+      "RecoveryRequestedSuccess": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "type": "object", "properties": { "data": { "type": "null" }, "message": { "const": "If the account is eligible, recovery instructions will be sent." } } }] },
+      "PasswordResetSuccess": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "type": "object", "properties": { "data": { "type": "null" }, "message": { "const": "Password reset successfully. Sign in again." } } }] },
+      "ActivationSuccess": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "type": "object", "properties": { "data": { "type": "null" }, "message": { "const": "Account activated successfully. Sign in to continue." } } }] },
+      "PasswordUpdatedSuccess": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "type": "object", "properties": { "data": { "type": "null" }, "message": { "const": "Password updated successfully. Sign in again." } } }] },
       "LogoutSuccess": { "allOf": [{ "$ref": "#/components/schemas/SuccessEnvelope" }, { "type": "object", "properties": { "data": { "type": "null" }, "message": { "const": "Logout successful." } } }] },
       "ErrorDetail": { "type": "object", "additionalProperties": false, "required": ["code", "message"], "properties": { "code": { "type": "string" }, "message": { "type": "string" } } },
       "ErrorResponse": { "type": "object", "additionalProperties": false, "required": ["success", "error"], "properties": { "success": { "const": false }, "error": { "$ref": "#/components/schemas/ErrorDetail" } } },

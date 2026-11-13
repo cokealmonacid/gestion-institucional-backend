@@ -45,13 +45,16 @@ class AppServiceProvider extends ServiceProvider
         ]);
         RateLimiter::for('api-verification', fn (Request $request) => Limit::perMinute(10)->by($request->user()->id)->response($onboardingRateLimited));
 
-        RateLimiter::for('login', fn (Request $request) => Limit::perMinute(5)->by(Str::lower((string) $request->input('email')).'|'.$request->ip()));
+        $emailRateLimitKey = fn (Request $request): string => is_string($request->input('email'))
+            ? Str::lower(trim($request->input('email')))
+            : '';
+        RateLimiter::for('login', fn (Request $request) => Limit::perMinute(5)->by($emailRateLimitKey($request).'|'.$request->ip()));
         RateLimiter::for('password-recovery', fn (Request $request) => [
             Limit::perMinute(5)->by('ip|'.$request->ip()),
-            Limit::perMinute(1)->by('email|'.Str::lower((string) $request->input('email'))),
+            Limit::perMinute(1)->by('email|'.$emailRateLimitKey($request)),
         ]);
-        RateLimiter::for('password-reset', fn (Request $request) => Limit::perMinute(5)->by(Str::lower((string) $request->input('email')).'|'.$request->ip()));
-        RateLimiter::for('activation', fn (Request $request) => Limit::perMinute(5)->by(Str::lower((string) $request->input('email')).'|'.$request->ip()));
+        RateLimiter::for('password-reset', fn (Request $request) => Limit::perMinute(5)->by($emailRateLimitKey($request).'|'.$request->ip()));
+        RateLimiter::for('activation', fn (Request $request) => Limit::perMinute(5)->by($emailRateLimitKey($request).'|'.$request->ip()));
         RateLimiter::for('password-change', fn (Request $request) => Limit::perMinute(5)->by((string) ($request->user()?->id ?? $request->ip())));
 
         foreach (InstitutionAbility::cases() as $ability) {

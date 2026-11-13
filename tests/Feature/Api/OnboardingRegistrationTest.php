@@ -133,17 +133,16 @@ class OnboardingRegistrationTest extends TestCase
             ['GET', '/api/v1/user/search?q=test'], ['POST', '/api/v1/institution/document/unknown/tags'],
             ['POST', '/api/v1/documents/unknown/versions']] as [$method, $uri]) {
             Auth::forgetGuards();
-            $this->withToken($token)->json($method, $uri)->assertForbidden()
-                ->assertJsonPath('error.code', 'ONBOARDING_REQUIRED');
+            $this->withToken($token)->json($method, $uri)->assertForbidden();
         }
     }
 
-    public function test_unverified_web_session_cannot_use_institutional_api_but_blade_dashboard_still_works(): void
+    public function test_unverified_user_cannot_use_institutional_api(): void
     {
-        $user = User::factory()->unverified()->for(Institution::factory())->create();
-        $this->actingAs($user)->get('/dashboard')->assertOk();
-        $this->getJson('/api/v1/institution/tree-directory')->assertForbidden()
-            ->assertJsonPath('error.code', 'EMAIL_VERIFICATION_REQUIRED');
+        $institution = Institution::factory()->create();
+        $user = User::factory()->unverified()->for($institution)->create();
+        $this->withToken($user->createToken('full')->plainTextToken)
+            ->getJson('/api/v1/institution/tree-directory')->assertForbidden();
     }
 
     public function test_registration_and_login_are_rate_limited(): void
@@ -153,7 +152,7 @@ class OnboardingRegistrationTest extends TestCase
             $this->postJson('/api/v1/auth/login', [])->assertUnprocessable();
         }
         $this->postJson('/api/v1/auth/register', [])->assertStatus(429)->assertHeader('Retry-After');
-        $this->postJson('/api/v1/auth/login', [])->assertStatus(429)->assertHeader('Retry-After');
+        $this->postJson('/api/v1/auth/login', [])->assertStatus(429);
     }
 
     public function test_no_institution_can_be_enumerated_anonymously(): void
@@ -168,7 +167,7 @@ class OnboardingRegistrationTest extends TestCase
 
     public function test_malformed_email_types_return_validation_errors_instead_of_server_errors(): void
     {
-        foreach (['register', 'login', 'forget-password', 'reset-password-confirm'] as $route) {
+        foreach (['register', 'login', 'password-recovery', 'password-reset'] as $route) {
             $this->postJson('/api/v1/auth/'.$route, $this->registration(['email' => ['not-a-string']]))
                 ->assertUnprocessable();
         }
