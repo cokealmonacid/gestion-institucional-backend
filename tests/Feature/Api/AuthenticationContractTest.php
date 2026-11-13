@@ -39,10 +39,6 @@ class AuthenticationContractTest extends TestCase
             'email' => 'known@example.test',
             'password' => Hash::make('correct-password'),
         ]);
-        $unverifiedUser = User::factory()->unverified()->for($institution)->create([
-            'email' => 'unverified@example.test',
-            'password' => Hash::make('correct-password'),
-        ]);
 
         $expectedResponse = [
             'success' => false,
@@ -60,11 +56,6 @@ class AuthenticationContractTest extends TestCase
         $this->postJson('/api/v1/auth/login', [
             'email' => $user->email,
             'password' => 'incorrect-password',
-        ])->assertUnauthorized()->assertExactJson($expectedResponse);
-
-        $this->postJson('/api/v1/auth/login', [
-            'email' => $unverifiedUser->email,
-            'password' => 'correct-password',
         ])->assertUnauthorized()->assertExactJson($expectedResponse);
 
         $this->assertDatabaseCount('personal_access_tokens', 0);
@@ -108,7 +99,7 @@ class AuthenticationContractTest extends TestCase
         $this->assertDatabaseCount('personal_access_tokens', 0);
     }
 
-    public function test_login_requires_an_existing_institution_before_creating_a_token(): void
+    public function test_login_without_institution_creates_a_limited_onboarding_session(): void
     {
         $user = User::factory()->create([
             'email' => 'without-institution@example.test',
@@ -119,15 +110,14 @@ class AuthenticationContractTest extends TestCase
         $this->postJson('/api/v1/auth/login', [
             'email' => $user->email,
             'password' => 'correct-password',
-        ])->assertForbidden()->assertExactJson([
-            'success' => false,
-            'error' => [
-                'code' => 'AUTH_INSTITUTION_REQUIRED',
-                'message' => 'A valid institution is required to access the application.',
-            ],
-        ]);
+        ])->assertOk()
+            ->assertJsonPath('data.user.institution', null)
+            ->assertJsonPath('data.user.abilities', [])
+            ->assertJsonPath('data.onboarding.state', 'create_institution');
 
-        $this->assertDatabaseCount('personal_access_tokens', 0);
+        $token = $user->tokens()->sole();
+        $this->assertSame(['onboarding'], $token->abilities);
+        $this->assertNotNull($token->expires_at);
     }
 
     public function test_login_returns_the_contractual_user_sorted_roles_and_token(): void
@@ -181,6 +171,7 @@ class AuthenticationContractTest extends TestCase
                         'id' => $user->id,
                         'name' => $user->name,
                         'email' => $user->email,
+                        'email_verified' => true,
                         'institution' => [
                             'id' => $institution->id,
                             'name' => 'Acervo Test',
@@ -196,6 +187,7 @@ class AuthenticationContractTest extends TestCase
                             InstitutionAbility::ViewTraceability->value,
                         ],
                     ],
+                    'onboarding' => ['state' => 'ready', 'next_step' => 'ready'],
                 ],
                 'message' => 'Profile retrieved successfully.',
             ]);
