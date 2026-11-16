@@ -1,5 +1,9 @@
 <?php
 
+use App\Http\Middleware\EnsureInstitutionAccess;
+use App\Http\Middleware\EnsureEmailIsVerified;
+use App\Http\Middleware\EnsureInstitutionReady;
+use App\Http\Middleware\EnsureOnboardingEnabled;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Responses\ApiResponse;
 use App\Platform\Http\Middleware\PlatformAuthenticate;
@@ -15,6 +19,7 @@ use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Modules\Institution\Exceptions\InstitutionAccessException;
+use Modules\Institution\Exceptions\InstitutionOwnerTransferRequiredException;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -29,8 +34,12 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'active' => EnsureUserIsActive::class,
+            'email.verified' => EnsureEmailIsVerified::class,
             'platform.auth' => PlatformAuthenticate::class,
             'platform.can' => PlatformAuthorize::class,
+            'institution.access' => EnsureInstitutionAccess::class,
+            'institution.ready' => EnsureInstitutionReady::class,
+            'onboarding.enabled' => EnsureOnboardingEnabled::class,
         ]);
         $middleware->api(prepend: [RejectPlatformCredentials::class]);
         $middleware->web(prepend: [RejectPlatformCredentials::class], append: [EnsureUserIsActive::class]);
@@ -56,6 +65,9 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             return $response;
+        });
+        $exceptions->render(function (InstitutionOwnerTransferRequiredException $e, Request $request) {
+            return ApiResponse::error('INSTITUTION_OWNER_TRANSFER_REQUIRED', $e->getMessage(), 409);
         });
         $exceptions->render(function (PlatformException $e, Request $request) {
             return ApiResponse::error($e->errorCode, 'The platform request could not be completed.', $e->status);
@@ -91,7 +103,7 @@ return Application::configure(basePath: dirname(__DIR__))
         });
 
         $exceptions->render(function (AuthenticationException $e, Request $request) {
-            $usesAuthenticationContract = (
+            $usesAuthenticationContract = $request->is('api/v1/auth/email/*') || (
                 $request->isMethod('GET')
                 && $request->is('api/v1/user/profile')
             ) || (
@@ -139,6 +151,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->render(function (AccessDeniedHttpException $e, Request $request) {
             if ($request->is('api/v1/platform/*')) {
                 return ApiResponse::error('PLATFORM_ACCESS_DENIED', 'Platform permission is required.', 403);
+            }
+            if ($request->is('api/*') && $request->user() instanceof \App\Models\User && ! $request->user()->active) {
+                return response()->json(['success' => false, 'message' => 'This account is inactive.'], 403);
             }
             if ($request->is('api/*')) {
                 return response()->json(['message' => 'Forbidden.'], 403);

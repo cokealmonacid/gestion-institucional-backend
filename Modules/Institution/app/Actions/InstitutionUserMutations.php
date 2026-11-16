@@ -10,10 +10,11 @@ use Illuminate\Support\Facades\DB;
 use Modules\Institution\Services\InstitutionalAccess;
 use Modules\Institution\Services\InstitutionalRoleAssignment;
 use Modules\Institution\Services\MembershipPolicy;
+use Modules\Institution\Services\InstitutionAdministrationGuard;
 
 class InstitutionUserMutations
 {
-    public function __construct(private InstitutionalAccess $access, private MembershipPolicy $policy, private AdministrativeEventRecorder $audit) {}
+    public function __construct(private InstitutionalAccess $access, private MembershipPolicy $policy, private AdministrativeEventRecorder $audit, private InstitutionAdministrationGuard $ownerGuard) {}
 
     public function create(User $actor, array $data): User
     {
@@ -38,6 +39,7 @@ class InstitutionUserMutations
             // Preserve all existing memberships unless the published explicit role replacement is requested.
             $roles = isset($data['role']) ? [$data['role']] : $beforeRoles;
             $active = isset($data['active']) ? (bool) $data['active'] : $target->active;
+            $this->ownerGuard->ensureOwnerCanBeChanged($institution, $target, isset($data['role']) ? RoleType::from($data['role']) : null, $active);
             $this->policy->check($institution, $target, $roles, $active);
             $requested = isset($data['role']) ? RoleType::from($data['role']) : null;
             $before = ['active' => $target->active, 'roles' => $beforeRoles, 'access_revision' => (int) $target->access_revision];
@@ -61,6 +63,7 @@ class InstitutionUserMutations
             $institution = $this->access->lock($actor, 'users.manage');
             $target = User::where('institution_id', $institution->id)->where('email', $email)->lockForUpdate()->firstOrFail();
             $roles = $target->roles()->pluck('type')->map(fn ($r) => $r->value)->all();
+            $this->ownerGuard->ensureOwnerCanBeChanged($institution, $target, deleting: true);
             $this->policy->check($institution, $target, $roles, $target->active, true);
             $this->access->revoke($target);
             $target->delete();

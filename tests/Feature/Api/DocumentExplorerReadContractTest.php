@@ -343,7 +343,7 @@ class DocumentExplorerReadContractTest extends TestCase
                 ->assertOk()
                 ->assertJsonCount($documentCount, 'data');
 
-            $this->assertCount(3, $queries);
+            $this->assertCount(1, $queries);
         }
     }
 

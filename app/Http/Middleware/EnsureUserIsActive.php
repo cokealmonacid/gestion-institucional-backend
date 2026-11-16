@@ -27,15 +27,27 @@ class EnsureUserIsActive
         if ($request->is('api/v1/auth/logout')) {
             return $next($request);
         }
-        if ($actor->institution_id === null) {
+        $isOnboardingRoute = $request->is(
+            'api/v1/auth/email/*',
+            'api/v1/onboarding/institution',
+            'api/v1/user/profile',
+        );
+        $isOnboardingToken = $actor->tokenCan('onboarding');
+        if ($actor->institution_id === null && ! ($isOnboardingRoute && $isOnboardingToken)) {
             return response()->json(['message' => 'Forbidden.'], 403);
         }
         if (! $actor->active) {
             return response()->json(['success' => false, 'message' => 'This account is inactive.'], 403);
         }
-        $check = function () use ($request, $actor) {
+        if ($actor->institution_id === null) {
+            return $next($request);
+        }
+        $check = function () use ($request, $actor, $isOnboardingToken) {
+            if ($isOnboardingToken) {
+                return;
+            }
             $institution = app(InstitutionalAccess::class)->lock($actor);
-            if (! $actor->currentAccessToken() instanceof PersonalAccessToken && $request->hasSession()
+            if (! ($actor->currentAccessToken() instanceof PersonalAccessToken) && $request->hasSession()
                 && ($request->session()->get('institution_auth_epoch') !== (int) $institution->auth_epoch
                     || $request->session()->get('user_access_revision') !== (int) User::whereKey($actor->id)->value('access_revision'))) {
                 throw new InstitutionAccessException('AUTH_UNAUTHENTICATED', 401);

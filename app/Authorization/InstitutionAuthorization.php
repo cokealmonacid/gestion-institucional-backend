@@ -5,6 +5,7 @@ namespace App\Authorization;
 use App\Enums\InstitutionAbility;
 use App\Enums\RoleType;
 use App\Models\User;
+use App\Services\OnboardingStateResolver;
 
 class InstitutionAuthorization
 {
@@ -21,7 +22,11 @@ class InstitutionAuthorization
 
     public function allows(User $actor, InstitutionAbility $ability): bool
     {
-        if ($actor->institution_id === null) {
+        if (! config('onboarding.institution_enforcement_enabled')) {
+            return $actor->institution_id !== null;
+        }
+
+        if (! app(OnboardingStateResolver::class)->hasInstitutionAccess($actor)) {
             return false;
         }
 

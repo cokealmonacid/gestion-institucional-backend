@@ -1,0 +1,25 @@
+info:
+  name: Register user [Onboarding]
+  type: http
+  seq: 44
+
+http:
+  method: POST
+  url: "{{API}}/auth/register"
+  body:
+    type: json
+    data: |-
+      {
+        "name": "Usuario Onboarding",
+        "email": "{{EMAIL}}",
+        "password": "{{PASSWORD}}",
+        "password_confirmation": "{{PASSWORD}}"
+      }
+  auth: inherit
+
+settings:
+  encodeUrl: true
+  timeout: 0
+  followRedirects: true
+  maxRedirects: 5
+  forwardAuthorizationHeader: false

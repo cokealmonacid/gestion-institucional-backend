@@ -5,30 +5,14 @@
 The backend repository is the authority for Acervo API contracts. The canonical OpenAPI 3.1 contracts are:
 
 - [`v1/authentication.json`](v1/authentication.json), contract version `3.0.0`;
-- [`v1/document-explorer.json`](v1/document-explorer.json), contract version `6.0.0`;
-- [`v1/document-lifecycle.json`](v1/document-lifecycle.json), contract version `4.0.0`;
-- [`v1/institution-documents.json`](v1/institution-documents.json), contract version `2.0.0`;
-- [`v1/institution-users.json`](v1/institution-users.json), contract version `4.0.0`;
-- [`v1/institution-tags.json`](v1/institution-tags.json), contract version `3.0.0`;
-- [`v1/user-search.json`](v1/user-search.json), contract version `3.0.0`.
-- [`v1/platform-authentication.json`](v1/platform-authentication.json), contract version `1.1.0`;
-- [`v1/platform-administration.json`](v1/platform-administration.json), contract version `3.4.0`.
+- [`v1/document-explorer.json`](v1/document-explorer.json), contract version `5.0.0`;
+- [`v1/document-lifecycle.json`](v1/document-lifecycle.json), contract version `3.0.0`;
+- [`v1/institution-documents.json`](v1/institution-documents.json), contract version `1.1.0`;
+- [`v1/institution-users.json`](v1/institution-users.json), contract version `3.0.0`;
+- [`v1/institution-tags.json`](v1/institution-tags.json), contract version `2.0.0`;
+- [`v1/user-search.json`](v1/user-search.json), contract version `2.0.0`.
 
-Platform administration 3.1.0 adds only `GET /api/v1/platform/institutions/{id}/administrators`: a searched, paginated directory of non-deleted admin-role members, protected by the existing MFA Bearer and `platform.administrator_access` permission. The new closed list row exposes identity/activity/activation/revision metadata only. Existing resources and institutional contracts are unchanged. The Laravel `/platform` client consumes these APIs; its public HTML shell embeds no administrative data.
-
-Platform administration 3.2.0 adds `GET /api/v1/platform/users`, a metadata-only institutional-user directory under the same MFA Bearer and administrator-access permission. Filters: name/email search, institution, role (including no role), activity and pagination. Closed rows expose actual role memberships, institution identity, activity, email verification and authoritative invitation status/timestamps. Operators, deleted users, credentials, tokens, MFA and document data are excluded. No user mutation capability is added.
-
-Platform authentication remains 1.0.0. Platform administration 3.0.0 covers A/B/C: actual role quotas, suspension/reactivation, scoped existing-admin repair, atomic onboarding, new administrator invitations and operator-owned operation lookup. The major revision also enriches closed institution details with current agreement, quotas and warnings. Quota resources report `quota_enforcement: enforced`. Creation operations require UUID Idempotency-Key headers; equivalent retries return saved identifiers without another publication. Publication queued/failed/unknown is distinct from transport accepted and recipient delivery. Audit history supports action/subject filters. Existing compatibility endpoints, including the public institution list and legacy password POST, remain available until coordinated cutover. Principal isolation and mandatory operator MFA are unchanged. Backend completion does not establish production readiness or authorize frontend cutover.
-
-The authentication contract scope is deliberately limited to:
-
-- `POST /api/v1/auth/login`
-- `GET /api/v1/user/profile`
-- `POST /api/v1/auth/logout`
-
-Authentication 2.1 adds invitation activation, generic password-recovery request, password reset, and authenticated password change. Recovery and activation use distinct single-purpose tokens and successful password mutations revoke the documented Sanctum sessions.
-
-Institution-users 3.1 is the additive transition for invitation onboarding. The published password-based `POST /api/v1/institution/users` and the closed list resource remain unchanged for the currently deployed frontend. A new frontend creates accounts through `POST /api/v1/institution/user-invitations` and obtains activation/delivery state from `GET /api/v1/institution/users/{user_id}/invitation`. Removing password-based creation and adding required state fields to user rows are reserved for a coordinated major version.
+The authentication contract covers registration, login, the current verification and recovery endpoints, profile, and logout. Email delivery is explicitly disabled: registration, verification resend, and recovery never expose a usable link or token.
 
 The document-explorer contract includes four read operations, admin-only canonical node creation through `POST /api/v1/institution/tree-directory`, admin-only canonical node renaming through `PATCH /api/v1/institution/tree-directory/{node_id}/name`, and admin/editor logical document creation through `POST /api/v1/institution/tree-directory/{node_id}/documents`. The virtual root is not a node and does not contain documents; node creation targets it with an explicit nullable `parent_id` in the request body. Document rows and the creation response include the institution-safe responsible-user summary and its optimistic-concurrency revision. Document creation requires a real accessible node and does not upload a file or create an initial version. The older node POST containing a parent identifier in the route remains runtime-only compatibility behavior and is not part of the canonical contract.
 
@@ -42,7 +26,7 @@ The user-search contract is admin-only and limited to a single typeahead-style l
 
 Deliberate runtime-only API routes are recorded in [`runtime-only-routes.json`](runtime-only-routes.json). Each versioned entry identifies the method, normalized path, and reason. `php artisan api:contract:audit` fails for uncovered runtime routes and for invalid, duplicate, stale, or redundant exceptions; remove an exception as soon as an OpenAPI contract documents its operation.
 
-The authentication contract records the public request and response envelopes, status codes, schemas, Bearer security, institution, role and institutional ability data, and authentication lifecycle currently implemented by the backend. Login and profile expose the abilities currently allowed by backend Gates as informational frontend guidance; clients cannot use them as authorization credentials, and protected endpoints authorize every request independently. Login issues a Sanctum Personal Access Token in `data.token`; no refresh token is defined. Logout revokes only the access token used for that request.
+The authentication contract records the public request and response envelopes, status codes, schemas, Bearer security, institution, role and institutional ability data, and authentication lifecycle currently implemented by the backend. Login and registration issue a Sanctum Personal Access Token in `data.token`; pending tokens expire and only serve onboarding. Profile exposes the same onboarding state without a token. No refresh token is defined. Logout revokes only the access token used for that request. Login and profile expose abilities as informational frontend guidance; clients cannot use them as authorization credentials, and protected endpoints authorize every request independently.
 
 ## Relationship with code and tests
 
@@ -97,7 +81,3 @@ Never place tokens, credentials, API keys, private hostnames, or other secrets i
 ## Future distribution
 
 This layout is prepared for later publication as an immutable, checksummed artifact and consumption by other repositories. Until that distribution phase is implemented, this repository and canonical path remain the source of truth. Downstream copies or generated clients must identify the exact contract version and source revision and must never become independently edited authorities.
-
-Platform administration 3.3.0 adds durable institutional replacement, individual containment and verified same-person email correction under platform.access_recovery. Authentication 1.1.0 adds purpose-bound public address verification without login or institutional access. The user directory includes access_revision for reviewed recovery preparation; audit actor kinds distinguish address proofs from platform/CLI/institutional actors. See the existing platform specification for state, quota, suspension, revocation and manual-testing semantics.
-
-Platform administration **3.4.0** adds ordinary platform.user_access role/activity workflows and changes completed replacement to assign admin as the successor's only institutional role, releasing prior memberships in quota accounting. This is a deliberate compatibility change from 3.3.0 successor-role preservation. Institutional APIs continue their existing single-role request/response and nullable document-actor contracts; platform document effects now retain separate operator snapshots. Authentication 1.1.0 is unchanged. See the existing specification's single-role increment and explicit regularization procedure.

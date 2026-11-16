@@ -3,19 +3,17 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\BaseController;
-use App\Http\Resources\UserResource;
 use App\Http\Responses\ApiResponse;
 use App\Models\User;
 use App\Rules\UserPassword;
+use App\Services\AuthSessionIssuer;
 use App\Services\UserAccess\InvitationService;
 use App\Services\UserAccess\PasswordRecoveryService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
-use Modules\Institution\Models\Institution;
-use Modules\Institution\Services\InstitutionalAccess;
+use Illuminate\Support\Str;
 
 class AuthController extends BaseController
 {
@@ -35,46 +33,28 @@ class AuthController extends BaseController
             );
         }
 
-        return DB::transaction(function () use ($request) {
-            $candidate = User::query()->where('email', $request->string('email')->toString())->first();
-            $institution = $candidate ? Institution::whereKey($candidate->institution_id)->lockForUpdate()->first() : null;
-            $user = $candidate ? User::whereKey($candidate->id)->lockForUpdate()->first() : null;
+        $user = User::query()->whereRaw('LOWER(email) = ?', [Str::lower(trim($request->string('email')->toString()))])->first();
 
-            if (! $user || ! is_string($user->password) || ! Hash::check($request->string('password')->toString(), $user->password) || ! $user->email_verified_at) {
+        if (! $user || ! is_string($user->password) || ! Hash::check($request->string('password')->toString(), $user->password)) {
                 return ApiResponse::error(
                     'AUTH_INVALID_CREDENTIALS',
                     'The provided credentials are invalid.',
                     401,
                 );
-            }
+        }
 
-            if (! $user->active) {
+        if (! $user->active) {
                 return ApiResponse::error(
                     'AUTH_ACCOUNT_INACTIVE',
                     'This account is inactive.',
                     403,
                 );
-            }
+        }
 
-            $user->load(['institution:id,name', 'roles:id,type']);
-
-            if (! $user->institution) {
-                return ApiResponse::error(
-                    'AUTH_INSTITUTION_REQUIRED',
-                    'A valid institution is required to access the application.',
-                    403,
-                );
-            }
-
-            app(InstitutionalAccess::class)->enabled($institution);
-            $userData = (new UserResource($user))->resolve($request);
-            $plainTextToken = $user->createToken(($user->name ?? 'user').'-AuthToken')->plainTextToken;
-
-            return ApiResponse::success([
-                'user' => $userData,
-                'token' => $plainTextToken,
-            ], 'Login successful.');
-        }, 3);
+        return ApiResponse::success(
+            app(AuthSessionIssuer::class)->issue($user, $request),
+            'Login successful.',
+        );
     }
 
     public function logout(Request $request)

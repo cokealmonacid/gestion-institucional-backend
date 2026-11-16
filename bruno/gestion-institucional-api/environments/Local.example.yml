@@ -2,6 +2,11 @@ name: Local.example
 variables:
   - name: API
     value: http://127.0.0.1:8000/api/v1
+  - name: EMAIL
+    value: onboarding@example.test
+  - secret: true
+    name: PASSWORD
+    value: "12345678"
   - secret: true
     name: TOKEN
     description: ""

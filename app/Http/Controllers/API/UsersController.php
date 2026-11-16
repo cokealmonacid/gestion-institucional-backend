@@ -8,6 +8,7 @@ use App\Http\Responses\ApiResponse;
 use App\Models\User;
 use App\Platform\Services\AdministrativeEventRecorder;
 use App\Rules\UserPassword;
+use App\Services\OnboardingStateResolver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -18,11 +19,12 @@ class UsersController extends BaseController
 {
     public function profile(Request $request)
     {
-        $user = $request->user()->load(['institution:id,name', 'roles:id,type']);
+        $user = $request->user()->load(['institution:id,name,status,provisioning_status', 'roles:id,type']);
         $userData = (new UserResource($user))->resolve($request);
 
         return ApiResponse::success([
             'user' => $userData,
+            'onboarding' => app(OnboardingStateResolver::class)->resolve($user),
         ], 'Profile retrieved successfully.');
     }
 

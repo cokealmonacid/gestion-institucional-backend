@@ -6,8 +6,12 @@ use App\Http\Requests\ProfileUpdateRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\View\View;
+use Modules\Institution\Exceptions\InstitutionOwnerTransferRequiredException;
+use Modules\Institution\Models\Institution;
+use Modules\Institution\Services\InstitutionAdministrationGuard;
 
 class ProfileController extends Controller
 {
@@ -48,9 +52,24 @@ class ProfileController extends Controller
 
         $user = $request->user();
 
-        Auth::logout();
+        try {
+            DB::transaction(function () use ($user): void {
+                if ($user->institution_id === null) {
+                    $user->newQuery()->whereKey($user->id)->lockForUpdate()->firstOrFail()->delete();
 
-        $user->delete();
+                    return;
+                }
+
+                $institution = Institution::query()->whereKey($user->institution_id)->lockForUpdate()->firstOrFail();
+                $target = $user->newQuery()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+                app(InstitutionAdministrationGuard::class)->ensureOwnerCanBeChanged($institution, $target, deleting: true);
+                $target->delete();
+            });
+        } catch (InstitutionOwnerTransferRequiredException $e) {
+            return Redirect::back()->withErrors(['password' => $e->getMessage()], 'userDeletion');
+        }
+
+        Auth::logout();
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();

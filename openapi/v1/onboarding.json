@@ -1,0 +1,45 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Acervo Onboarding API",
+    "version": "1.0.0",
+    "description": "Institution creation during account onboarding. The server assigns the authenticated creator as owner and administrator; storage is shared and is not provisioned by this operation."
+  },
+  "paths": {
+    "/api/v1/onboarding/institution": {
+      "post": {
+        "operationId": "createOnboardingInstitution",
+        "summary": "Create the authenticated user's institution",
+        "security": [{ "bearerAuth": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateInstitutionRequest" } } } },
+        "responses": {
+          "201": { "description": "Institution created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SessionSuccess" } } } },
+          "200": { "description": "Idempotent retry for the institution owner", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SessionSuccess" } } } },
+          "401": { "$ref": "#/components/responses/Unauthenticated" },
+          "403": { "$ref": "#/components/responses/EmailVerificationRequired" },
+          "409": { "$ref": "#/components/responses/AlreadyAssigned" },
+          "422": { "$ref": "#/components/responses/ValidationError" },
+          "503": { "$ref": "#/components/responses/Unavailable" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": { "bearerAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "Sanctum" } },
+    "schemas": {
+      "CreateInstitutionRequest": { "type": "object", "additionalProperties": false, "required": ["name"], "properties": { "name": { "type": "string", "minLength": 1, "maxLength": 255 } } },
+      "Institution": { "type": "object", "additionalProperties": false, "required": ["id", "name"], "properties": { "id": { "type": "string", "format": "uuid" }, "name": { "type": "string" } } },
+      "User": { "type": "object", "additionalProperties": false, "required": ["id", "name", "email", "email_verified", "institution", "roles", "abilities"], "properties": { "id": { "type": "string", "format": "uuid" }, "name": { "type": "string" }, "email": { "type": "string", "format": "email" }, "email_verified": { "const": true }, "institution": { "$ref": "#/components/schemas/Institution" }, "roles": { "type": "array", "items": { "type": "string" } }, "abilities": { "type": "array", "items": { "type": "string" } } } },
+      "Onboarding": { "type": "object", "additionalProperties": false, "required": ["state", "next_step"], "properties": { "state": { "const": "ready" }, "next_step": { "const": "ready" } } },
+      "SessionSuccess": { "type": "object", "additionalProperties": false, "required": ["success", "data", "message"], "properties": { "success": { "const": true }, "data": { "type": "object", "additionalProperties": false, "required": ["user", "token", "onboarding"], "properties": { "user": { "$ref": "#/components/schemas/User" }, "token": { "type": "string", "minLength": 1 }, "onboarding": { "$ref": "#/components/schemas/Onboarding" } } }, "message": { "type": "string" } } },
+      "Error": { "type": "object", "additionalProperties": false, "required": ["success", "error"], "properties": { "success": { "const": false }, "error": { "type": "object", "additionalProperties": false, "required": ["code", "message"], "properties": { "code": { "type": "string" }, "message": { "type": "string" } } } } }
+    },
+    "responses": {
+      "Unauthenticated": { "description": "Authentication is required", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "EmailVerificationRequired": { "description": "Email verification is required", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "AlreadyAssigned": { "description": "Account is already assigned to another institution", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "Unavailable": { "description": "Onboarding is disabled or setup is unavailable", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } },
+      "ValidationError": { "description": "Request validation failed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+    }
+  }
+}

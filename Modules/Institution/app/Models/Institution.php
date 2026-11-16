@@ -30,7 +30,7 @@ class Institution extends Model
 
     protected function casts(): array
     {
-        return ['status' => 'boolean'];
+        return ['status' => 'boolean', 'onboarding_completed_at' => 'datetime'];
     }
 
     public function nodes()

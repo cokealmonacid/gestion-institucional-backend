@@ -2,14 +2,14 @@
 
 namespace Modules\Institution\Http\Controllers\API;
 
-use Modules\Institution\Models\Institution;
 use App\Http\Controllers\BaseController;
+use Modules\Institution\Models\Institution;
 
 class InstitutionsController extends BaseController
 {
     public function index()
     {
-        $institutions = Institution::all();
+        $institutions = Institution::whereKey(request()->user()->institution_id)->get();
 
         return $this->sendResponse($institutions, 'Institutions retrieved successfully.');
     }

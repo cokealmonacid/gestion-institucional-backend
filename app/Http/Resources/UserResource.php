@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Authorization\InstitutionAbilityProjection;
+use App\Services\OnboardingStateResolver;
 use BackedEnum;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -16,21 +17,24 @@ class UserResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $institutionAccess = app(OnboardingStateResolver::class)->hasInstitutionAccess($this->resource);
+
         return [
             'id' => $this->id,
             'name' => $this->name,
             'email' => $this->email,
-            'institution' => [
+            'email_verified' => $this->hasVerifiedEmail(),
+            'institution' => $this->institution === null ? null : [
                 'id' => $this->institution->id,
                 'name' => $this->institution->name,
             ],
-            'roles' => $this->roles
+            'roles' => ! $institutionAccess ? [] : $this->roles
                 ->pluck('type')
                 ->map(fn (mixed $role): string => $role instanceof BackedEnum ? $role->value : (string) $role)
                 ->sort()
                 ->values()
                 ->all(),
-            'abilities' => app(InstitutionAbilityProjection::class)->project($this->resource),
+            'abilities' => ! $institutionAccess ? [] : app(InstitutionAbilityProjection::class)->project($this->resource),
         ];
     }
 }
